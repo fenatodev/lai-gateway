@@ -1,3 +1,15 @@
+## [0.1.17] - 2026-09-06
+
+### Added
+- Add `lai-gateway telegram discover-chat` for explicit one-shot `getUpdates` chat-id discovery with message text redacted by default.
+- Add `lai-gateway telegram notify-mobile` to send the current mobile access URL and bridge guidance to the configured Telegram chat.
+- Add `lai-gateway telegram notify-status` to send a redacted gateway/doctor status summary to Telegram.
+- Add `lai-gateway mobile-serve --telegram-notify` for optional startup notification after preparing mobile access.
+
+### Security
+- Require `LAI_GATEWAY_TELEGRAM_ENABLE_RECEIVE=1` before polling Telegram updates.
+- Keep Telegram notifications outbound-only; no webhook, no Telegram-triggered harness runs, and no gateway/pair/harness tokens in notification payloads.
+
 ## [0.1.16] - 2026-09-06
 
 ### Added

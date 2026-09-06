@@ -19,7 +19,15 @@ from .lan import collect_lan_info, render_lan_info
 from .mobile import collect_mobile_start, prepare_mobile_serve_config, render_mobile_serve_ready, render_mobile_start
 from .release import collect_release_check, render_release_check
 from .server import serve
-from .telegram import collect_telegram_preflight, render_telegram_preflight, send_telegram_message
+from .telegram import (
+    collect_telegram_preflight,
+    discover_telegram_chats,
+    notify_gateway_status,
+    notify_mobile_access,
+    render_telegram_discover,
+    render_telegram_preflight,
+    send_telegram_message,
+)
 from .tokens import (
     check_gateway_access_token_file,
     check_gateway_pairing_token_file,
@@ -106,6 +114,9 @@ def main(argv: list[str] | None = None) -> int:
     mobile_serve_parser.add_argument("--ttl-seconds", type=int, default=600, help="temporary pair token lifetime, 60..3600 seconds")
     mobile_serve_parser.add_argument("--show-pair", action="store_true", help="print the temporary pair token once before serving")
     mobile_serve_parser.add_argument("--open", action="store_true", help="open the UI in the desktop browser after checks")
+    mobile_serve_parser.add_argument("--telegram-notify", action="store_true", help="send the mobile access URL to Telegram before serving; requires Telegram send enable flag")
+    mobile_serve_parser.add_argument("--telegram-token-file", default=None, help="telegram bot token file for --telegram-notify")
+    mobile_serve_parser.add_argument("--telegram-chat-id", default=None, help="telegram chat id for --telegram-notify")
     bridge_parser = sub.add_parser("mobile-bridge", help="show, apply, or remove Windows-to-WSL mobile port forwarding")
     bridge_parser.add_argument("--port", type=int, default=None, help="gateway port to forward")
     bridge_parser.add_argument("--target", choices=("recommended", "tailscale", "windows-lan"), default="recommended", help="mobile access target to bridge")
@@ -144,11 +155,25 @@ def main(argv: list[str] | None = None) -> int:
     telegram_preflight.add_argument("--token-file", default=None, help="telegram bot token file; defaults to ~/.config/lai-gateway/telegram-bot-token")
     telegram_preflight.add_argument("--chat-id", default=None, help="telegram chat id; defaults to LAI_GATEWAY_TELEGRAM_CHAT_ID")
     telegram_preflight.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    telegram_discover = telegram_sub.add_parser("discover-chat", help="fetch recent updates once and print redacted chat id candidates")
+    telegram_discover.add_argument("--token-file", default=None, help="telegram bot token file; defaults to ~/.config/lai-gateway/telegram-bot-token")
+    telegram_discover.add_argument("--limit", type=int, default=10, help="max update count to inspect, 1..20")
+    telegram_discover.add_argument("--json", action="store_true", help="print machine-readable JSON")
     telegram_send = telegram_sub.add_parser("send-message", help="send one outbound Telegram message when explicitly enabled")
     telegram_send.add_argument("--token-file", default=None, help="telegram bot token file; defaults to ~/.config/lai-gateway/telegram-bot-token")
     telegram_send.add_argument("--chat-id", default=None, help="telegram chat id; defaults to LAI_GATEWAY_TELEGRAM_CHAT_ID")
     telegram_send.add_argument("--text", required=True, help="message text to send")
     telegram_send.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    telegram_notify = telegram_sub.add_parser("notify-mobile", help="send the current mobile access URL to Telegram when explicitly enabled")
+    telegram_notify.add_argument("--token-file", default=None, help="telegram bot token file; defaults to ~/.config/lai-gateway/telegram-bot-token")
+    telegram_notify.add_argument("--chat-id", default=None, help="telegram chat id; defaults to LAI_GATEWAY_TELEGRAM_CHAT_ID")
+    telegram_notify.add_argument("--port", type=int, default=None, help="gateway port for the mobile URL")
+    telegram_notify.add_argument("--bind", default=None, help="gateway bind address used for WSL/Tailscale hints")
+    telegram_notify.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    telegram_status = telegram_sub.add_parser("notify-status", help="send current gateway/harness status to Telegram when explicitly enabled")
+    telegram_status.add_argument("--token-file", default=None, help="telegram bot token file; defaults to ~/.config/lai-gateway/telegram-bot-token")
+    telegram_status.add_argument("--chat-id", default=None, help="telegram chat id; defaults to LAI_GATEWAY_TELEGRAM_CHAT_ID")
+    telegram_status.add_argument("--json", action="store_true", help="print machine-readable JSON")
     sessions_parser = sub.add_parser("sessions", help="manage harness sessions without creating runs")
     sessions_sub = sessions_parser.add_subparsers(dest="sessions_command")
     sessions_list = sessions_sub.add_parser("list", help="list harness sessions")
@@ -242,6 +267,14 @@ def main(argv: list[str] | None = None) -> int:
                     "LAI_GATEWAY_TIMEOUT_SECONDS": str(config.timeout_seconds),
                 },
             )
+            if args.telegram_notify:
+                notify_payload = notify_mobile_access(
+                    port=serve_config.port,
+                    bind=serve_config.bind,
+                    token_file=Path(args.telegram_token_file).expanduser() if args.telegram_token_file else None,
+                    chat_id=args.telegram_chat_id,
+                )
+                print(f"telegram_notify: sent {notify_payload.get('message_id')}")
             print(render_mobile_serve_ready(payload))
             return _run_dev_stack(serve_config, open_browser=args.open)
         if args.command == "serve":
@@ -324,12 +357,38 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     print(render_telegram_preflight(payload))
                 return 0 if payload["overall"] in {"ready", "needs_config"} else 1
+            if args.telegram_command == "discover-chat":
+                payload = discover_telegram_chats(token_file=token_path, limit=args.limit)
+                if args.json:
+                    print(json.dumps(payload, indent=2, sort_keys=True))
+                else:
+                    print(render_telegram_discover(payload))
+                return 0
             if args.telegram_command == "send-message":
                 payload = send_telegram_message(token_file=token_path, chat_id=args.chat_id, text=args.text)
                 if args.json:
                     print(json.dumps(payload, indent=2, sort_keys=True))
                 else:
                     print(f"sent: {payload.get('message_id')}")
+                return 0
+            if args.telegram_command == "notify-mobile":
+                payload = notify_mobile_access(
+                    token_file=token_path,
+                    chat_id=args.chat_id,
+                    port=args.port or config.port,
+                    bind=args.bind or config.bind,
+                )
+                if args.json:
+                    print(json.dumps(payload, indent=2, sort_keys=True))
+                else:
+                    print(f"sent_mobile_access: {payload.get('message_id')}")
+                return 0
+            if args.telegram_command == "notify-status":
+                payload = notify_gateway_status(token_file=token_path, chat_id=args.chat_id, config=config)
+                if args.json:
+                    print(json.dumps(payload, indent=2, sort_keys=True))
+                else:
+                    print(f"sent_status: {payload.get('message_id')}")
                 return 0
             telegram_parser.print_help()
             return 0
