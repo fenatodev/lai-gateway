@@ -99,3 +99,28 @@ lai-gateway model-status --probe-openai
 ```
 
 A real smoke test loaded the local Qwen2.5-Coder 7B Q4_K_M split GGUF and returned `LAI_OK` through the OpenAI-compatible chat endpoint.
+
+
+## Daily launcher
+
+Use `lai-gateway-model` to start the recommended Windows llama.cpp runtime from WSL without copying long GGUF paths manually.
+
+```bash
+lai-gateway-model --create-key
+```
+
+For a dry run that prints the selected host, model, key-file path, and base URL without starting the runtime:
+
+```bash
+lai-gateway-model --plan-only
+```
+
+The launcher:
+
+- uses `lai-gateway model-files` to pick the recommended local GGUF;
+- creates or verifies a local model API key file without printing the key;
+- starts `llama-server.exe` with `--api-key-file`, `--cors-origins localhost`, and `--no-cors-credentials`;
+- binds to the WSL-reachable Windows gateway IP when available;
+- waits for `/v1/models`, then runs `lai-gateway model-status --probe-openai`.
+
+Never pass the model API key through a shell `curl -H` command. That exposes the secret in process arguments.

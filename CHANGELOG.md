@@ -1,6 +1,7 @@
 ## [0.1.23] - 2026-09-06
 
 ### Added
+- Add `lai-gateway-model` fallback launcher for starting the recommended Windows llama.cpp runtime from WSL with API-key-file auth and readiness probing.
 - Add `lai-gateway model-files` to find local GGUF files, group split models, ignore accessory-only files, and recommend the best local code-model candidate.
 - Add `lai-gateway model-key-create` and `model-key-check` for secret-free local model API key-file setup.
 - Add `/v1/gateway/model-files` and a Model panel action to inspect local model files from the UI.
