@@ -10,7 +10,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 from lai_gateway.errors import ConfigError
-from lai_gateway.mobile import collect_mobile_start, prepare_mobile_serve_config, render_mobile_start
+from lai_gateway.mobile import (
+    collect_mobile_start,
+    collect_mobile_status,
+    prepare_mobile_serve_config,
+    render_mobile_start,
+    render_mobile_status,
+)
 
 
 class MobileStartTest(unittest.TestCase):
@@ -207,6 +213,101 @@ class MobileStartTest(unittest.TestCase):
             self.assertNotIn(access.read_text(encoding="utf-8").strip(), result.stdout + result.stderr)
             self.assertNotIn(pair_doc["token"], result.stdout + result.stderr)
             self.assertNotIn("Bearer", result.stdout + result.stderr)
+
+    def test_mobile_status_ready_is_read_only_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            access = Path(tmp) / "access-token"
+            pair = Path(tmp) / "pair-token.json"
+            collect_mobile_start(
+                port=18807,
+                prepare=True,
+                show_pair=False,
+                access_token_path=access,
+                pair_token_path=pair,
+                discovered_hosts=["192.168.7.53"],
+            )
+            access_secret = access.read_text(encoding="utf-8").strip()
+            pair_secret = json.loads(pair.read_text(encoding="utf-8"))["token"]
+            before = (access.read_text(encoding="utf-8"), pair.read_text(encoding="utf-8"))
+
+            with patch("lai_gateway.mobile._tcp_connects", return_value=True):
+                payload = collect_mobile_status(
+                    candidate_ip="192.168.7.53",
+                    port=18807,
+                    access_token_path=access,
+                    pair_token_path=pair,
+                )
+            rendered = render_mobile_status(payload)
+
+            self.assertEqual(payload["overall"], "ready")
+            self.assertTrue(payload["listener"]["active"])
+            self.assertFalse(payload["starts_server"])
+            self.assertFalse(payload["modifies_files"])
+            self.assertEqual(before, (access.read_text(encoding="utf-8"), pair.read_text(encoding="utf-8")))
+            self.assertNotIn(access_secret, rendered)
+            self.assertNotIn(pair_secret, rendered)
+            self.assertNotIn("Bearer", rendered)
+
+    def test_mobile_status_reports_missing_pair_without_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            access = Path(tmp) / "access-token"
+            pair = Path(tmp) / "pair-token.json"
+            collect_mobile_start(
+                port=18808,
+                prepare=True,
+                access_token_path=access,
+                pair_token_path=pair,
+                discovered_hosts=["192.168.7.54"],
+            )
+            pair.unlink()
+
+            with patch("lai_gateway.mobile._tcp_connects", return_value=True):
+                payload = collect_mobile_status(
+                    candidate_ip="192.168.7.54",
+                    port=18808,
+                    access_token_path=access,
+                    pair_token_path=pair,
+                )
+
+            self.assertEqual(payload["overall"], "needs_pair")
+            self.assertFalse(pair.exists())
+            self.assertIn("mobile-start --candidate-ip 192.168.7.54 --port 18808 --prepare --show-pair", "\n".join(payload["next_steps"]))
+
+    def test_cli_mobile_status_json_uses_env_paths_without_creating_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            access = Path(tmp) / "access-token"
+            pair = Path(tmp) / "pair-token.json"
+            env = dict(os.environ)
+            env["LAI_GATEWAY_ACCESS_TOKEN_FILE"] = str(access)
+            env["LAI_GATEWAY_PAIR_TOKEN_FILE"] = str(pair)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "lai_gateway",
+                    "mobile-status",
+                    "--candidate-ip",
+                    "192.168.7.55",
+                    "--port",
+                    "18809",
+                    "--json",
+                ],
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=10,
+            )
+            payload = json.loads(result.stdout)
+
+            self.assertEqual(payload["operation"], "mobile-status")
+            self.assertEqual(payload["overall"], "needs_prepare")
+            self.assertFalse(payload["starts_server"])
+            self.assertFalse(payload["modifies_files"])
+            self.assertFalse(access.exists())
+            self.assertFalse(pair.exists())
+
 
     def test_cli_mobile_start_show_pair_requires_prepare(self) -> None:
         result = subprocess.run(

@@ -178,6 +178,99 @@ def _ensure_no_existing_listener(ip: str, port: int) -> None:
         )
 
 
+def collect_mobile_status(
+    *,
+    port: int = DEFAULT_PORT,
+    bind: str = "127.0.0.1",
+    candidate_ip: str | None = None,
+    access_token_path: Path | None = None,
+    pair_token_path: Path | None = None,
+    discovered_hosts: Iterable[str] | None = None,
+) -> dict[str, Any]:
+    """Inspect mobile access readiness without mutating files or starting servers."""
+    access_path = (access_token_path or default_access_token_path()).expanduser()
+    pair_path = (pair_token_path or default_pair_token_path()).expanduser()
+    hosts = [candidate_ip] if candidate_ip else discovered_hosts
+    lan = collect_lan_info(port=port, discovered_hosts=hosts)
+    selected = _select_status_target(bind=bind, candidate_ip=candidate_ip, lan=lan, port=port)
+    target_ip = selected["ip"] if selected else None
+    listener_active = _tcp_connects(target_ip, port) if target_ip else False
+    access = _inspect_access_token(access_path)
+    pair = _inspect_pair_token(pair_path)
+    mobile_access = collect_mobile_access(
+        port=port,
+        bind=target_ip or bind,
+        discovered_hosts=[target_ip] if target_ip else None,
+    )
+    overall = _mobile_status_overall(target_ip=target_ip, listener_active=listener_active, access=access, pair=pair)
+    payload: dict[str, Any] = {
+        "product": "lai-gateway",
+        "version": __version__,
+        "operation": "mobile-status",
+        "overall": overall,
+        "port": port,
+        "bind": bind,
+        "starts_server": False,
+        "modifies_files": False,
+        "selected_candidate": selected,
+        "listener": {
+            "target": f"{target_ip}:{port}" if target_ip else None,
+            "ip": target_ip,
+            "port": port,
+            "active": listener_active,
+        },
+        "access_token": access,
+        "pair_token": pair,
+        "mobile_access": mobile_access,
+        "next_steps": _mobile_status_next_steps(
+            target_ip=target_ip,
+            port=port,
+            listener_active=listener_active,
+            access=access,
+            pair=pair,
+            mobile_access=mobile_access,
+        ),
+        "security": {
+            "starts_server": False,
+            "modifies_files": False,
+            "prints_tokens": False,
+            "network_probe_local_only": True,
+            "harness_control_token_browser_exposure": False,
+        },
+    }
+    return payload
+
+
+def render_mobile_status(payload: dict[str, Any]) -> str:
+    lines = [
+        f"lai-gateway mobile-status: {payload['overall']}",
+        f"version: {payload['version']}",
+        f"target: {payload['listener']['target'] or 'none'}",
+        f"listener: {'active' if payload['listener']['active'] else 'none'}",
+        "starts_server: false",
+        "modifies_files: false",
+        f"access_token: {payload['access_token']['status']} ({payload['access_token']['path']})",
+        f"pair_token: {payload['pair_token']['status']} ({payload['pair_token']['path']})",
+    ]
+    if payload["pair_token"].get("expires_at"):
+        lines.append(f"pair_expires_at: {payload['pair_token']['expires_at']}")
+        lines.append(f"pair_seconds_remaining: {payload['pair_token']['seconds_remaining']}")
+    mobile_access = payload.get("mobile_access", {})
+    if mobile_access.get("recommended_url"):
+        lines.append(f"scan_url: {mobile_access['recommended_url']}")
+        recommended = next((item for item in mobile_access.get("links", []) if item.get("recommended")), None)
+        if recommended and recommended.get("mobile_bridge_apply_command"):
+            lines.append("lai_bridge_apply:")
+            lines.append(f"  {recommended['mobile_bridge_apply_command']}")
+    if mobile_access.get("warnings"):
+        lines.append("warnings:")
+        lines.extend(f"  - {warning}" for warning in mobile_access["warnings"])
+    if payload["next_steps"]:
+        lines.append("next_steps:")
+        lines.extend(f"  {step}" for step in payload["next_steps"])
+    return "\n".join(lines)
+
+
 def _tcp_connects(ip: str, port: int) -> bool:
     family = socket.AF_INET6 if ":" in ip else socket.AF_INET
     sock = socket.socket(family, socket.SOCK_STREAM)
@@ -303,6 +396,61 @@ def _inspect_pair_token(path: Path) -> dict[str, Any]:
         "seconds_remaining": checked["seconds_remaining"],
         "token_length": checked["token_length"],
     }
+
+
+def _select_status_target(*, bind: str, candidate_ip: str | None, lan: dict[str, Any], port: int) -> dict[str, Any] | None:
+    if candidate_ip:
+        return {"ip": candidate_ip, "url": f"http://{candidate_ip}:{port}/", "source": "candidate-ip"}
+    if bind and bind not in {"127.0.0.1", "localhost", "::1"}:
+        return {"ip": bind, "url": f"http://{bind}:{port}/", "source": "bind"}
+    candidates = lan.get("candidates", [])
+    if candidates:
+        selected = dict(candidates[0])
+        selected["source"] = "lan"
+        return selected
+    return None
+
+
+def _mobile_status_overall(
+    *,
+    target_ip: str | None,
+    listener_active: bool,
+    access: dict[str, Any],
+    pair: dict[str, Any],
+) -> str:
+    if target_ip is None:
+        return "blocked"
+    if not access["ok"]:
+        return "needs_prepare"
+    if not pair["ok"]:
+        return "needs_pair"
+    if not listener_active:
+        return "needs_server"
+    return "ready"
+
+
+def _mobile_status_next_steps(
+    *,
+    target_ip: str | None,
+    port: int,
+    listener_active: bool,
+    access: dict[str, Any],
+    pair: dict[str, Any],
+    mobile_access: dict[str, Any],
+) -> list[str]:
+    if target_ip is None:
+        return ["No private LAN IP candidate detected; pass --candidate-ip when you know the WSL/private address."]
+    steps: list[str] = []
+    if not access["ok"] or not pair["ok"]:
+        steps.append(f"Prepare mobile tokens: lai-gateway mobile-start --candidate-ip {target_ip} --port {port} --prepare --show-pair")
+    if not listener_active:
+        steps.append(f"Start private gateway: lai-gateway mobile-serve --candidate-ip {target_ip} --port {port}")
+    recommended = next((item for item in mobile_access.get("links", []) if item.get("recommended")), None)
+    if recommended and recommended.get("mobile_bridge_apply_command"):
+        steps.append(f"Apply phone bridge if needed: {recommended['mobile_bridge_apply_command']}")
+    if listener_active and access["ok"] and pair["ok"] and mobile_access.get("recommended_url"):
+        steps.append(f"Open on phone: {mobile_access['recommended_url']}")
+    return steps
 
 
 def _preferred_url(lan_payload: dict[str, Any]) -> str | None:
