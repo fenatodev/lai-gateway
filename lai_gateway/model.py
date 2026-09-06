@@ -40,6 +40,16 @@ _MODEL_FILE_DEFAULT_ROOTS = (
 )
 _SPLIT_GGUF_RE = re.compile(r"^(?P<stem>.+)-(?P<idx>\d{5})-of-(?P<total>\d{5})\.gguf$", re.IGNORECASE)
 
+_MODEL_TASKS: dict[str, dict[str, Any]] = {
+    "code-mini": {
+        "title": "minimal Python code generation",
+        "prompt": "Return only this exact one-line Python function, with no markdown: def lai_add(a, b): return a + b",
+        "max_tokens": 64,
+        "temperature": 0,
+        "required_markers": ("def lai_add", "return a + b"),
+    },
+}
+
 
 def collect_model_status(*, env: dict[str, str] | None = None, probe_openai: bool = False) -> dict[str, Any]:
     """Return a read-only local model readiness snapshot.
@@ -249,6 +259,86 @@ def render_model_smoke(payload: dict[str, Any]) -> str:
         lines.append(f"detail: {smoke['detail']}")
     lines.append(f"elapsed_ms: {payload['elapsed_ms']}")
     return "\n".join(lines)
+
+def collect_model_task(
+    *,
+    env: dict[str, str] | None = None,
+    task: str = "code-mini",
+    timeout_seconds: float = 60.0,
+) -> dict[str, Any]:
+    """Run a bounded fixed local model task without accepting arbitrary prompts."""
+    values = env if env is not None else os.environ
+    raw_base_url = values.get("LAI_GATEWAY_MODEL_BASE_URL", "").strip()
+    model_name = values.get("LAI_GATEWAY_MODEL_NAME", "").strip()
+    task_spec = _MODEL_TASKS.get(task)
+    started = time.monotonic()
+    if task_spec is None:
+        result = {"status": "blocked", "network_call": False, "detail": f"unsupported fixed model task: {task}"}
+    else:
+        result = _run_fixed_chat_completion(
+            raw_base_url,
+            model_name=model_name,
+            api_key=_model_api_key_from_env(values),
+            messages=[{"role": "user", "content": task_spec["prompt"]}],
+            max_tokens=int(task_spec["max_tokens"]),
+            temperature=float(task_spec["temperature"]),
+            timeout_seconds=timeout_seconds,
+            expected_markers=tuple(task_spec["required_markers"]),
+        )
+    elapsed_ms = round((time.monotonic() - started) * 1000, 1)
+    overall = "ready" if result.get("matched") else result.get("status", "blocked")
+    if result.get("status") in {"blocked", "needs_config"}:
+        overall = result["status"]
+    return {
+        "product": "lai-gateway",
+        "version": __version__,
+        "operation": "model-task",
+        "overall": overall,
+        "task": task,
+        "task_title": task_spec["title"] if task_spec else None,
+        "starts_server": False,
+        "modifies_files": False,
+        "downloads_models": False,
+        "network_calls": {"local_openai_chat_completion": bool(result.get("network_call"))},
+        "model_config": _model_env_config(values),
+        "result": result,
+        "elapsed_ms": elapsed_ms,
+        "security": {
+            "prints_tokens": False,
+            "starts_server": False,
+            "modifies_files": False,
+            "downloads_models": False,
+            "fixed_task_only": True,
+            "user_prompt_supported": False,
+        },
+    }
+
+
+def render_model_task(payload: dict[str, Any]) -> str:
+    result = payload["result"]
+    lines = [
+        f"lai-gateway model-task: {payload['overall']}",
+        f"version: {payload['version']}",
+        f"task: {payload['task']}",
+        "starts_server: false",
+        "modifies_files: false",
+        "downloads_models: false",
+        "fixed_task_only: true",
+        f"status: {result.get('status')}",
+    ]
+    if result.get("auth_used") is not None:
+        lines.append(f"auth_used: {str(bool(result.get('auth_used'))).lower()}")
+    if result.get("matched") is not None:
+        lines.append(f"matched: {str(bool(result.get('matched'))).lower()}")
+    if result.get("required_markers"):
+        lines.append(f"required_markers: {', '.join(result['required_markers'])}")
+    if result.get("response_preview"):
+        lines.append(f"response_preview: {result['response_preview']}")
+    if result.get("detail"):
+        lines.append(f"detail: {result['detail']}")
+    lines.append(f"elapsed_ms: {payload['elapsed_ms']}")
+    return "\n".join(lines)
+
 
 def default_model_api_key_path() -> Path:
     return Path(_DEFAULT_MODEL_API_KEY_FILE).expanduser()
@@ -751,27 +841,101 @@ def _redact_url(url: str) -> str:
     return f"{scheme}://<redacted>@{host}" if scheme else f"<redacted>@{host}"
 
 
-def _probe_openai_compatible(base_url: str | None, *, api_key: str = "") -> dict[str, Any]:
-    if not base_url:
-        return {"status": "skipped", "network_call": False, "detail": "model base URL is not configured"}
-    validation = _validate_local_model_base_url(base_url)
-    if validation["status"] != "ok":
-        return {"status": "blocked", "network_call": False, "detail": validation["detail"]}
-    import urllib.error
-    import urllib.request
+class LocalModelClient:
+    """Tiny OpenAI-compatible client constrained to safe local/private endpoints."""
 
-    url = validation["base_url"].rstrip("/") + "/v1/models"
-    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-    request = urllib.request.Request(url, headers=headers)
-    try:
-        with urllib.request.urlopen(request, timeout=2) as response:  # nosec - local user-configured URL only
-            body = response.read(32 * 1024).decode("utf-8", errors="replace")
-            parsed = json.loads(body) if body else {}
-    except urllib.error.HTTPError as exc:
-        return {"status": "http_error", "network_call": True, "auth_used": bool(api_key), "code": exc.code, "detail": "local model endpoint returned an HTTP error"}
-    except Exception as exc:  # noqa: BLE001 - diagnostic should be bounded, not crashy
-        return {"status": "unreachable", "network_call": True, "auth_used": bool(api_key), "detail": str(exc)[:180]}
-    return {"status": "ready", "network_call": True, "auth_used": bool(api_key), "model_count": len(parsed.get("data", [])) if isinstance(parsed, dict) else None}
+    def __init__(self, base_url: str | None, *, model_name: str = "", api_key: str = "", timeout_seconds: float = 60.0) -> None:
+        self.raw_base_url = base_url or ""
+        self.model_name = model_name
+        self.api_key = api_key
+        self.timeout_seconds = max(1.0, float(timeout_seconds))
+        self.validation = _validate_local_model_base_url(self.raw_base_url) if self.raw_base_url else {
+            "status": "blocked",
+            "detail": "model base URL is not configured",
+        }
+
+    @property
+    def auth_used(self) -> bool:
+        return bool(self.api_key)
+
+    def readiness_error(self, *, require_model: bool = False) -> dict[str, Any] | None:
+        if not self.raw_base_url:
+            return {"status": "needs_config", "network_call": False, "detail": "model base URL is not configured"}
+        if require_model and not self.model_name:
+            return {"status": "needs_config", "network_call": False, "detail": "model name is not configured"}
+        if self.validation["status"] != "ok":
+            return {"status": "blocked", "network_call": False, "detail": self.validation["detail"]}
+        return None
+
+    def get_models(self) -> dict[str, Any]:
+        return self._request_json("/v1/models", method="GET", timeout_seconds=min(2.0, self.timeout_seconds))
+
+    def chat_completion(self, *, messages: list[dict[str, str]], max_tokens: int, temperature: float) -> dict[str, Any]:
+        body = {
+            "model": self.model_name,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "stream": False,
+        }
+        return self._request_json("/v1/chat/completions", method="POST", body=body, timeout_seconds=self.timeout_seconds)
+
+    def _request_json(
+        self,
+        path: str,
+        *,
+        method: str,
+        body: dict[str, Any] | None = None,
+        timeout_seconds: float,
+    ) -> dict[str, Any]:
+        import urllib.error
+        import urllib.request
+
+        url = self.validation["base_url"].rstrip("/") + path
+        headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+        data = None
+        if body is not None:
+            data = json.dumps(body).encode("utf-8")
+            headers["Content-Type"] = "application/json"
+        request = urllib.request.Request(url, data=data, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(request, timeout=timeout_seconds) as response:  # nosec - validated local/private URL only
+                raw = response.read(64 * 1024).decode("utf-8", errors="replace")
+                parsed = json.loads(raw) if raw else {}
+        except urllib.error.HTTPError as exc:
+            return {
+                "status": "http_error",
+                "network_call": True,
+                "auth_used": self.auth_used,
+                "code": exc.code,
+                "detail": "local model endpoint returned an HTTP error",
+            }
+        except Exception as exc:  # noqa: BLE001 - diagnostics should be bounded, not crashy
+            return {
+                "status": "unreachable",
+                "network_call": True,
+                "auth_used": self.auth_used,
+                "detail": str(exc)[:180],
+            }
+        return {"status": "ready", "network_call": True, "auth_used": self.auth_used, "payload": parsed}
+
+
+def _probe_openai_compatible(base_url: str | None, *, api_key: str = "") -> dict[str, Any]:
+    client = LocalModelClient(base_url, api_key=api_key, timeout_seconds=2.0)
+    error = client.readiness_error(require_model=False)
+    if error is not None:
+        status = "skipped" if error["status"] == "needs_config" else error["status"]
+        return {"status": status, "network_call": False, "detail": error["detail"]}
+    response = client.get_models()
+    if response["status"] != "ready":
+        return {key: value for key, value in response.items() if key != "payload"}
+    parsed = response.get("payload")
+    return {
+        "status": "ready",
+        "network_call": True,
+        "auth_used": client.auth_used,
+        "model_count": len(parsed.get("data", [])) if isinstance(parsed, dict) else None,
+    }
 
 
 
@@ -783,49 +947,56 @@ def _probe_openai_chat_completion(
     expected: str = "LAI_SMOKE_OK",
     timeout_seconds: float = 60.0,
 ) -> dict[str, Any]:
-    if not base_url:
-        return {"status": "needs_config", "network_call": False, "detail": "model base URL is not configured"}
-    if not model_name:
-        return {"status": "needs_config", "network_call": False, "detail": "model name is not configured"}
-    validation = _validate_local_model_base_url(base_url)
-    if validation["status"] != "ok":
-        return {"status": "blocked", "network_call": False, "detail": validation["detail"]}
-    import urllib.error
-    import urllib.request
-
     expected = (expected or "LAI_SMOKE_OK").strip()[:80] or "LAI_SMOKE_OK"
-    body = json.dumps(
-        {
-            "model": model_name,
-            "messages": [{"role": "user", "content": f"Reply exactly: {expected}"}],
-            "max_tokens": 16,
-            "temperature": 0,
-            "stream": False,
-        }
-    ).encode("utf-8")
-    headers = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-    request = urllib.request.Request(validation["base_url"].rstrip("/") + "/v1/chat/completions", data=body, headers=headers, method="POST")
-    try:
-        with urllib.request.urlopen(request, timeout=max(1.0, float(timeout_seconds))) as response:  # nosec - local user-configured URL only
-            raw = response.read(64 * 1024).decode("utf-8", errors="replace")
-            parsed = json.loads(raw) if raw else {}
-    except urllib.error.HTTPError as exc:
-        return {"status": "http_error", "network_call": True, "auth_used": bool(api_key), "code": exc.code, "detail": "local model endpoint returned an HTTP error"}
-    except Exception as exc:  # noqa: BLE001 - diagnostic should be bounded, not crashy
-        return {"status": "unreachable", "network_call": True, "auth_used": bool(api_key), "detail": str(exc)[:180]}
-    text = _chat_completion_text(parsed)
-    preview = text.replace("\n", " ")[:200]
-    return {
-        "status": "ready" if expected in text else "mismatch",
+    return _run_fixed_chat_completion(
+        base_url,
+        model_name=model_name,
+        api_key=api_key,
+        messages=[{"role": "user", "content": f"Reply exactly: {expected}"}],
+        max_tokens=16,
+        temperature=0,
+        timeout_seconds=timeout_seconds,
+        expected_markers=(expected,),
+        expected=expected,
+    )
+
+
+def _run_fixed_chat_completion(
+    base_url: str | None,
+    *,
+    model_name: str,
+    api_key: str = "",
+    messages: list[dict[str, str]],
+    max_tokens: int,
+    temperature: float,
+    timeout_seconds: float = 60.0,
+    expected_markers: tuple[str, ...] = (),
+    expected: str | None = None,
+) -> dict[str, Any]:
+    client = LocalModelClient(base_url, model_name=model_name, api_key=api_key, timeout_seconds=timeout_seconds)
+    error = client.readiness_error(require_model=True)
+    if error is not None:
+        return error
+    response = client.chat_completion(messages=messages, max_tokens=max_tokens, temperature=temperature)
+    if response["status"] != "ready":
+        return {key: value for key, value in response.items() if key != "payload"}
+    text = _chat_completion_text(response.get("payload"))
+    normalized = _normalize_model_text(text)
+    markers = tuple(marker for marker in expected_markers if marker)
+    matched = all(_normalize_model_text(marker) in normalized for marker in markers) if markers else bool(text.strip())
+    payload: dict[str, Any] = {
+        "status": "ready" if matched else "mismatch",
         "network_call": True,
-        "auth_used": bool(api_key),
-        "expected": expected,
-        "matched": expected in text,
+        "auth_used": client.auth_used,
+        "matched": matched,
         "response_chars": len(text),
-        "response_preview": preview,
+        "response_preview": text.replace("\n", " ")[:200],
     }
+    if expected is not None:
+        payload["expected"] = expected
+    if markers:
+        payload["required_markers"] = list(markers)
+    return payload
 
 
 def _chat_completion_text(payload: Any) -> str:
@@ -840,6 +1011,10 @@ def _chat_completion_text(payload: Any) -> str:
         return text if isinstance(text, str) else ""
     except Exception:
         return ""
+
+
+def _normalize_model_text(value: str) -> str:
+    return " ".join(value.lower().replace("`", "").split())
 
 def _validate_local_model_base_url(base_url: str) -> dict[str, str]:
     parsed = urlparse(base_url)

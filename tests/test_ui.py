@@ -127,6 +127,7 @@ class GatewayUITest(unittest.TestCase):
         self.assertIn("/v1/gateway/model-status", js)
         self.assertIn("/v1/gateway/model-plan", js)
         self.assertIn("/v1/gateway/model-files", js)
+        self.assertIn("/v1/gateway/model-task", js)
         self.assertIn("setOpsStatus", js)
         self.assertIn("setModelStatus", js)
         self.assertIn("data:image/svg+xml", js)
@@ -242,6 +243,31 @@ class GatewayUITest(unittest.TestCase):
         self.assertNotIn("Bearer", body)
 
 
+    def test_gateway_model_task_endpoint_is_read_only_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with patch("lai_gateway.server.collect_model_task") as collect:
+                collect.return_value = {
+                    "operation": "model-task",
+                    "overall": "ready",
+                    "task": "code-mini",
+                    "starts_server": False,
+                    "modifies_files": False,
+                    "downloads_models": False,
+                }
+                with RunningGateway(config) as gateway:
+                    status, headers, body = read_url(f"{gateway.url}/v1/gateway/model-task?task=code-mini&timeout_seconds=5")
+        payload = json.loads(body)
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        self.assertEqual(payload["operation"], "model-task")
+        self.assertEqual(payload["overall"], "ready")
+        collect.assert_called_once_with(task="code-mini", timeout_seconds=5.0)
+        self.assertNotIn("Bearer", body)
+        self.assertNotIn(TOKEN, body)
+
     def test_gateway_model_files_endpoint_is_read_only_and_secret_free(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
             token_file = Path(tmp) / "token"
@@ -263,6 +289,39 @@ class GatewayUITest(unittest.TestCase):
         self.assertEqual(payload["recommended"]["name"], "local-code-q4_k_m")
         self.assertNotIn(TOKEN, body)
         self.assertNotIn("Bearer", body)
+
+    def test_private_model_task_requires_gateway_auth(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            access_file = Path(tmp) / "access-token"
+            access = "gateway-access-secret-value-1234567890"
+            access_file.write_text(access, encoding="utf-8")
+            access_file.chmod(0o600)
+            pair_file = Path(tmp) / "pair-token.json"
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                bind="127.0.0.1",
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            with RunningGateway(config) as gateway:
+                with self.assertRaises(__import__("urllib.error").error.HTTPError) as unauth:
+                    read_url(f"{gateway.url}/v1/gateway/model-task?task=code-mini")
+                with patch("lai_gateway.server.collect_model_task") as collect:
+                    collect.return_value = {"operation": "model-task", "overall": "ready"}
+                    status, _headers, body = read_url(
+                        f"{gateway.url}/v1/gateway/model-task?task=code-mini",
+                        headers={"Authorization": f"Bearer {access}"},
+                    )
+        payload = json.loads(body)
+        self.assertEqual(unauth.exception.code, 401)
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["operation"], "model-task")
+        collect.assert_called_once()
+        self.assertNotIn(access, body)
 
     def test_private_model_files_requires_gateway_auth(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

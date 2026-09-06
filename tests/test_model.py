@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
 
-from lai_gateway.model import collect_model_files, collect_model_plan, collect_model_smoke, collect_model_status, render_model_files, render_model_plan, render_model_smoke, render_model_status
+from lai_gateway.model import collect_model_files, collect_model_plan, collect_model_smoke, collect_model_status, collect_model_task, render_model_files, render_model_plan, render_model_smoke, render_model_status, render_model_task
 
 
 SECRET = "sk-local-secret-value"
@@ -52,7 +52,9 @@ class FakeOpenAIModelsHandler(BaseHTTPRequestHandler):
                 self.send_response(401)
                 self.end_headers()
                 return
-            body = json.dumps({"choices": [{"message": {"content": "LAI_SMOKE_OK"}}]}).encode("utf-8")
+            request_body = self.rfile.read(int(self.headers.get("Content-Length", "0") or "0")).decode("utf-8", errors="replace")
+            content = "def lai_add(a, b): return a + b" if "lai_add" in request_body else "LAI_SMOKE_OK"
+            body = json.dumps({"choices": [{"message": {"content": content}}]}).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
@@ -60,7 +62,9 @@ class FakeOpenAIModelsHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
         if self.path == "/v1/chat/completions":
-            body = json.dumps({"choices": [{"message": {"content": "LAI_SMOKE_OK"}}]}).encode("utf-8")
+            request_body = self.rfile.read(int(self.headers.get("Content-Length", "0") or "0")).decode("utf-8", errors="replace")
+            content = "def lai_add(a, b): return a + b" if "lai_add" in request_body else "LAI_SMOKE_OK"
+            body = json.dumps({"choices": [{"message": {"content": content}}]}).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
@@ -215,6 +219,63 @@ class ModelStatusTest(unittest.TestCase):
         self.assertNotIn(SECRET, result.stdout + result.stderr)
         self.assertNotIn("Bearer", result.stdout + result.stderr)
 
+
+    def test_model_task_reaches_loopback_code_mini_completion(self) -> None:
+        with FakeOpenAIModelsServer() as server:
+            payload = collect_model_task(
+                env={
+                    "LAI_GATEWAY_MODEL_BASE_URL": server.url,
+                    "LAI_GATEWAY_MODEL_NAME": "local-code-model",
+                },
+                task="code-mini",
+                timeout_seconds=10.0,
+            )
+        rendered = render_model_task(payload)
+        text = json.dumps(payload, sort_keys=True) + rendered
+        self.assertEqual(payload["operation"], "model-task")
+        self.assertEqual(payload["overall"], "ready")
+        self.assertEqual(payload["task"], "code-mini")
+        self.assertTrue(payload["result"]["matched"])
+        self.assertIn("def lai_add", payload["result"]["response_preview"])
+        self.assertFalse(payload["starts_server"])
+        self.assertFalse(payload["downloads_models"])
+        self.assertNotIn("Bearer", text)
+
+    def test_model_task_blocks_public_urls_before_network(self) -> None:
+        with patch("urllib.request.urlopen") as opener:
+            payload = collect_model_task(
+                env={
+                    "LAI_GATEWAY_MODEL_BASE_URL": "http://8.8.8.8:11434",
+                    "LAI_GATEWAY_MODEL_NAME": "local-code-model",
+                },
+                task="code-mini",
+            )
+        self.assertEqual(payload["overall"], "blocked")
+        self.assertFalse(payload["network_calls"]["local_openai_chat_completion"])
+        opener.assert_not_called()
+
+    def test_cli_model_task_json_is_secret_free(self) -> None:
+        env = dict(os.environ)
+        env.update({
+            "LAI_GATEWAY_MODEL_BASE_URL": "http://8.8.8.8:11434",
+            "LAI_GATEWAY_MODEL_NAME": "local-code-model",
+            "LAI_GATEWAY_MODEL_API_KEY": SECRET,
+        })
+        result = subprocess.run(
+            [sys.executable, "-m", "lai_gateway", "model-task", "--json"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+            check=False,
+            timeout=10,
+        )
+        self.assertEqual(result.returncode, 1)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["operation"], "model-task")
+        self.assertEqual(payload["overall"], "blocked")
+        self.assertNotIn(SECRET, result.stdout + result.stderr)
+        self.assertNotIn("Bearer", result.stdout + result.stderr)
 
     def test_model_status_reports_missing_runtime_without_secrets(self) -> None:
         env = {

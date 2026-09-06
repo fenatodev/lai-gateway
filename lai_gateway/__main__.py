@@ -17,7 +17,7 @@ from .doctor import collect_doctor, render_doctor
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .lan import collect_lan_info, render_lan_info
-from .model import check_model_api_key_file, collect_model_files, collect_model_plan, collect_model_smoke, collect_model_status, create_model_api_key_file, render_model_files, render_model_key, render_model_plan, render_model_smoke, render_model_status
+from .model import check_model_api_key_file, collect_model_files, collect_model_plan, collect_model_smoke, collect_model_status, collect_model_task, create_model_api_key_file, render_model_files, render_model_key, render_model_plan, render_model_smoke, render_model_status, render_model_task
 from .mobile import (
     collect_mobile_repair,
     collect_mobile_start,
@@ -142,6 +142,10 @@ def main(argv: list[str] | None = None) -> int:
     model_smoke_parser.add_argument("--expected", default="LAI_SMOKE_OK", help="expected fixed marker for the smoke response")
     model_smoke_parser.add_argument("--timeout-seconds", type=float, default=60.0, help="bounded local completion timeout")
     model_smoke_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    model_task_parser = sub.add_parser("model-task", help="run a fixed local model task without accepting arbitrary prompts")
+    model_task_parser.add_argument("--task", choices=["code-mini"], default="code-mini", help="fixed task to run")
+    model_task_parser.add_argument("--timeout-seconds", type=float, default=60.0, help="bounded local completion timeout")
+    model_task_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     model_key_create_parser = sub.add_parser("model-key-create", help="create a local model API key file without printing the key by default")
     model_key_create_parser.add_argument("--path", default=None, help="model API key file path")
     model_key_create_parser.add_argument("--force", action="store_true", help="overwrite an existing model API key file")
@@ -374,6 +378,13 @@ def main(argv: list[str] | None = None) -> int:
             payload = collect_model_smoke(expected=args.expected, timeout_seconds=args.timeout_seconds)
             if not args.json:
                 print(render_model_smoke(payload))
+                return 0 if payload["overall"] == "ready" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] == "ready" else 1
+        if args.command == "model-task":
+            payload = collect_model_task(task=args.task, timeout_seconds=args.timeout_seconds)
+            if not args.json:
+                print(render_model_task(payload))
                 return 0 if payload["overall"] == "ready" else 1
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0 if payload["overall"] == "ready" else 1

@@ -1,6 +1,7 @@
 ## [0.1.23] - 2026-09-06
 
 ### Added
+- Add `lai-gateway model-task --task code-mini` and `/v1/gateway/model-task` for a fixed, bounded local code-generation task probe.
 - Add `lai-gateway-model --smoke` to run fixed-prompt completion validation immediately after local runtime startup.
 - Add `lai-gateway model-smoke` for fixed-prompt local completion validation with bounded output and secret-free reporting.
 - Add `lai-gateway-model` fallback launcher for starting the recommended Windows llama.cpp runtime from WSL with API-key-file auth and readiness probing.
@@ -14,6 +15,7 @@
 - Teach `model-status --probe-openai` to read `LAI_GATEWAY_MODEL_API_KEY_FILE` and send Authorization only to validated local/private endpoints.
 
 ### Security
+- Local model tasks remain fixed-template only; no arbitrary prompt route is exposed through the mobile UI/API.
 - Recommend `llama-server.exe --api-key-file` with restricted CORS flags for Windows-hosted local model runtime tests.
 - Keep model file discovery, key checks, and model probes token-free in CLI/API output.
 - Require gateway auth for `/v1/gateway/model-files` in private LAN mode.

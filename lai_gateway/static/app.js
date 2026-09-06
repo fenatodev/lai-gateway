@@ -336,6 +336,10 @@ async function runAction(action) {
       const payload = await requestJson("/v1/gateway/model-files?max_results=10");
       setPill("model-pill", `model files ${payload.models_found || 0}`, payload.recommended ? "ready" : "warn");
       show("model-output", payload);
+    } else if (action === "run-model-task") {
+      const payload = await requestJson("/v1/gateway/model-task?task=code-mini&timeout_seconds=60");
+      setPill("model-pill", `model task ${payload.overall || "unknown"}`, payload.overall === "ready" ? "ready" : "warn");
+      show("model-output", payload);
     } else if (action === "refresh-status") {
       show("status-output", await requestJson("/v1/harness/status"));
     } else if (action === "refresh-readiness") {

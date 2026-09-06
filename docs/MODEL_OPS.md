@@ -154,3 +154,15 @@ lai-gateway model-smoke: ready
 matched: true
 response_preview: LAI_SMOKE_OK
 ```
+
+## Fixed model task
+
+After `model-status --probe-openai` and `model-smoke` are ready, run the fixed code task:
+
+```bash
+lai-gateway model-task --task code-mini
+```
+
+The task asks for a tiny Python function and validates structural markers in the response. It is intentionally not a general prompt interface.
+
+The local UI exposes the same fixed task through `/v1/gateway/model-task`; in private mode it requires the gateway bearer or pair token.
