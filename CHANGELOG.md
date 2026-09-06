@@ -1,3 +1,11 @@
+## [0.1.21] - 2026-09-06
+
+### Added
+- Add `lai-gateway mobile-status` to inspect mobile listener, token, pairing, phone URL, and bridge readiness without starting servers or mutating files.
+
+### Security
+- Keep mobile status output token-free while still reporting whether access and pair-token files are ready, missing, expired, or invalid.
+
 ## [0.1.20] - 2026-09-06
 
 ### Changed

@@ -17,7 +17,14 @@ from .doctor import collect_doctor, render_doctor
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .lan import collect_lan_info, render_lan_info
-from .mobile import collect_mobile_start, prepare_mobile_serve_config, render_mobile_serve_ready, render_mobile_start
+from .mobile import (
+    collect_mobile_start,
+    collect_mobile_status,
+    prepare_mobile_serve_config,
+    render_mobile_serve_ready,
+    render_mobile_start,
+    render_mobile_status,
+)
 from .release import collect_release_check, render_release_check
 from .server import serve
 from .telegram import (
@@ -114,6 +121,11 @@ def main(argv: list[str] | None = None) -> int:
     mobile_access_parser.add_argument("--port", type=int, default=None, help="gateway port for mobile URLs")
     mobile_access_parser.add_argument("--bind", default=None, help="gateway bind address used for WSL portproxy hints")
     mobile_access_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    mobile_status_parser = sub.add_parser("mobile-status", help="inspect mobile gateway, token, and bridge readiness without starting anything")
+    mobile_status_parser.add_argument("--port", type=int, default=None, help="gateway port for mobile access")
+    mobile_status_parser.add_argument("--bind", default=None, help="gateway bind address to probe")
+    mobile_status_parser.add_argument("--candidate-ip", default=None, help="private LAN IP to probe for an active mobile gateway")
+    mobile_status_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     mobile_parser = sub.add_parser("mobile-start", help="prepare or print a safe private mobile access plan")
     mobile_parser.add_argument("--port", type=int, default=None, help="gateway port for suggested mobile URLs")
     mobile_parser.add_argument("--candidate-ip", action="append", default=None, help="override detected candidates with a specific private IP; repeatable")
@@ -254,6 +266,19 @@ def main(argv: list[str] | None = None) -> int:
                 return 0 if payload["candidate_count"] else 1
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0 if payload["candidate_count"] else 1
+        if args.command == "mobile-status":
+            payload = collect_mobile_status(
+                port=args.port or config.port,
+                bind=args.bind or config.bind,
+                candidate_ip=args.candidate_ip,
+                access_token_path=config.access_token_file,
+                pair_token_path=config.pair_token_file,
+            )
+            if not args.json:
+                print(render_mobile_status(payload))
+                return 0 if payload["overall"] != "blocked" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] != "blocked" else 1
         if args.command == "mobile-start":
             if args.show_pair and not args.prepare:
                 raise GatewayError("--show-pair requires --prepare")
