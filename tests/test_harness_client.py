@@ -21,8 +21,9 @@ class HarnessClientTest(unittest.TestCase):
             self.assertEqual(contract["version"], "0.4.2")
             self.assertEqual(client.status()["product"], "lai harness")
             self.assertEqual(client.readiness()["overall"], "ready")
-            self.assertEqual(client.list_sessions()["sessions"], [])
-            self.assertEqual(client.create_session()["session_id"], "s_test")
+            self.assertEqual(client.list_sessions()["sessions"][0]["session_id"], "s_test")
+            self.assertEqual(client.create_session()["session"]["session_id"], "s_test")
+            self.assertEqual(client.get_session("s_test")["session"]["turns"], [])
 
     def test_wrong_token_returns_bounded_harness_http_error(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

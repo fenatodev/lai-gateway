@@ -8,6 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from lai_gateway import __version__
+
 from .fake_harness import TOKEN, fake_harness
 
 
@@ -34,6 +36,33 @@ class CliTest(unittest.TestCase):
             self.assertNotIn(TOKEN, result.stdout)
             self.assertEqual(result.stderr, "")
 
+    def test_cli_sessions_commands_proxy_without_printing_token(self):
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            env = {
+                **os.environ,
+                "LAI_GATEWAY_HARNESS_URL": harness.url,
+                "LAI_GATEWAY_TOKEN_FILE": str(token_file),
+            }
+            for args, expected_key in (
+                (["sessions", "list", "--limit", "5"], "sessions"),
+                (["sessions", "create"], "session"),
+                (["sessions", "get", "s_test"], "session"),
+            ):
+                result = subprocess.run(
+                    [sys.executable, "-m", "lai_gateway", *args],
+                    text=True,
+                    capture_output=True,
+                    check=True,
+                    timeout=10,
+                    env=env,
+                )
+                payload = json.loads(result.stdout)
+                self.assertIn(expected_key, payload)
+                self.assertNotIn(TOKEN, result.stdout)
+                self.assertEqual(result.stderr, "")
+
     def test_cli_config_prints_path_not_token_value(self):
         with tempfile.TemporaryDirectory() as tmp:
             token_file = Path(tmp) / "token"
@@ -55,7 +84,7 @@ class CliTest(unittest.TestCase):
 
     def test_cli_release_check_json_is_read_only_and_secret_free(self) -> None:
         proc = subprocess.run(
-            [sys.executable, "-m", "lai_gateway", "release-check", "--target", "0.1.0", "--json"],
+            [sys.executable, "-m", "lai_gateway", "release-check", "--target", __version__, "--json"],
             cwd=Path(__file__).parents[1],
             text=True,
             stdout=subprocess.PIPE,
@@ -66,8 +95,8 @@ class CliTest(unittest.TestCase):
         self.assertEqual(proc.stderr, "")
         payload = json.loads(proc.stdout)
         self.assertEqual(payload["product"], "lai-gateway")
-        self.assertEqual(payload["target_version"], "0.1.0")
-        self.assertEqual(payload["expected_tag"], "v0.1.0")
+        self.assertEqual(payload["target_version"], __version__)
+        self.assertEqual(payload["expected_tag"], f"v{__version__}")
         self.assertIn(payload["overall"], {"ready", "blocked"})
         self.assertNotIn("TOKEN", proc.stdout.upper())
 

@@ -30,7 +30,10 @@ class FakeHarnessHandler(BaseHTTPRequestHandler):
             self._send(HTTPStatus.OK, {"overall": "ready", "version": "0.4.2"})
             return
         if self.path.startswith("/v1/sessions?"):
-            self._send(HTTPStatus.OK, {"sessions": []})
+            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.2", "sessions": [{"session_id": "s_test", "turn_count": 0}]})
+            return
+        if self.path == "/v1/sessions/s_test":
+            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.2", "session": {"session_id": "s_test", "turn_count": 0, "turns": []}})
             return
         self._send(HTTPStatus.NOT_FOUND, {"error": "not_found"})
 
@@ -39,7 +42,7 @@ class FakeHarnessHandler(BaseHTTPRequestHandler):
             self._send(HTTPStatus.UNAUTHORIZED, {"error": "auth_required"})
             return
         if self.path == "/v1/sessions":
-            self._send(HTTPStatus.CREATED, {"session_id": "s_test", "turns": []})
+            self._send(HTTPStatus.CREATED, {"product": "lai harness", "version": "0.4.2", "session": {"session_id": "s_test", "turn_count": 0, "turns": []}})
             return
         self._send(HTTPStatus.NOT_FOUND, {"error": "not_found"})
 

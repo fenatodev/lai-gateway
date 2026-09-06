@@ -22,6 +22,13 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("contract", help="fetch and validate the harness gateway contract")
     sub.add_parser("status", help="fetch harness status through the gateway client")
     sub.add_parser("readiness", help="fetch harness readiness through the gateway client")
+    sessions_parser = sub.add_parser("sessions", help="manage harness sessions without creating runs")
+    sessions_sub = sessions_parser.add_subparsers(dest="sessions_command")
+    sessions_list = sessions_sub.add_parser("list", help="list harness sessions")
+    sessions_list.add_argument("--limit", type=int, default=20, help="number of sessions to list")
+    sessions_sub.add_parser("create", help="create a harness session")
+    sessions_get = sessions_sub.add_parser("get", help="read one harness session")
+    sessions_get.add_argument("session_id", help="session id returned by sessions create/list")
     release_parser = sub.add_parser("release-check", help="check local release readiness")
     release_parser.add_argument("--target", required=True, help="target semantic version, for example 0.1.0")
     release_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
@@ -65,6 +72,16 @@ def main(argv: list[str] | None = None) -> int:
             payload = client.status()
         elif args.command == "readiness":
             payload = client.readiness()
+        elif args.command == "sessions":
+            if args.sessions_command == "list":
+                payload = client.list_sessions(args.limit)
+            elif args.sessions_command == "create":
+                payload = client.create_session()
+            elif args.sessions_command == "get":
+                payload = client.get_session(args.session_id)
+            else:
+                sessions_parser.print_help()
+                return 0
         elif args.command == "release-check":
             payload = collect_release_check(args.target)
             if not args.json:

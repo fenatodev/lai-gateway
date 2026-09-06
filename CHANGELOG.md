@@ -1,3 +1,14 @@
+## [0.1.1] - 2026-09-06
+
+Add session discovery and creation through the private gateway.
+
+- Add gateway CLI commands for listing, creating, and reading harness sessions.
+- Add loopback-only HTTP routes for `/v1/harness/sessions`.
+- Keep run creation blocked at the gateway boundary.
+- Add tests for session proxying, invalid limits, rejected request bodies, and token redaction.
+
+No remote run creation, public bind, shell authority, direct llama.cpp proxy, or source checkout mutation is exposed in this release.
+
 ## [0.1.0] - 2026-09-06
 
 Initial public companion gateway scaffold.

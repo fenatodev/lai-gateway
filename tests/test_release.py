@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from lai_gateway import __version__
 from lai_gateway.release import collect_release_check, render_release_check
 
 
@@ -15,9 +16,9 @@ class ReleaseCheckTest(unittest.TestCase):
     def _copy_minimal_project(self, repo: Path) -> None:
         source = Path(__file__).parents[1]
         (repo / "lai_gateway").mkdir()
-        (repo / "lai_gateway" / "__init__.py").write_text('__version__ = "0.1.0"\n', encoding="utf-8")
+        (repo / "lai_gateway" / "__init__.py").write_text(f'__version__ = "{__version__}"\n', encoding="utf-8")
         (repo / "pyproject.toml").write_text(
-            '[project]\nname = "lai-gateway"\nversion = "0.1.0"\n',
+            f'[project]\nname = "lai-gateway"\nversion = "{__version__}"\n',
             encoding="utf-8",
         )
         (repo / "README.md").write_text("# lai-gateway\n", encoding="utf-8")
@@ -37,7 +38,7 @@ class ReleaseCheckTest(unittest.TestCase):
             self._git(repo, "checkout", "-b", "feature/release")
             (repo / "README.md").write_text("# changed\n", encoding="utf-8")
 
-            payload = collect_release_check("0.1.0", repo)
+            payload = collect_release_check(__version__, repo)
 
             self.assertEqual(payload["overall"], "blocked")
             self.assertEqual(payload["phase"], "blocked")
@@ -58,7 +59,7 @@ class ReleaseCheckTest(unittest.TestCase):
             self._git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
             self._git(repo, "checkout", "-b", "feature/release")
 
-            payload = collect_release_check("0.1.0", repo)
+            payload = collect_release_check(__version__, repo)
 
             self.assertEqual(payload["overall"], "ready")
             self.assertEqual(payload["phase"], "ready_for_integration")
@@ -77,12 +78,12 @@ class ReleaseCheckTest(unittest.TestCase):
             self._git(repo, "remote", "add", "origin", str(repo))
             self._git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
 
-            ready = collect_release_check("0.1.0", repo)
+            ready = collect_release_check(__version__, repo)
             self.assertEqual(ready["phase"], "ready_to_tag")
             self.assertTrue(ready["tag_ready"])
 
-            self._git(repo, "tag", "-a", "v0.1.0", "-m", "lai-gateway v0.1.0")
-            tagged = collect_release_check("0.1.0", repo)
+            self._git(repo, "tag", "-a", f"v{__version__}", "-m", f"lai-gateway v{__version__}")
+            tagged = collect_release_check(__version__, repo)
             self.assertEqual(tagged["phase"], "tagged")
             self.assertFalse(tagged["tag_ready"])
             self.assertEqual(tagged["tag_target"], tagged["head"])
@@ -98,14 +99,14 @@ class ReleaseCheckTest(unittest.TestCase):
             self._git(repo, "commit", "-m", "initial")
             self._git(repo, "remote", "add", "origin", str(repo))
             self._git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
-            self._git(repo, "tag", "-a", "v0.1.0", "-m", "old")
+            self._git(repo, "tag", "-a", f"v{__version__}", "-m", "old")
             (repo / "README.md").write_text("# second\n", encoding="utf-8")
             self._git(repo, "add", ".")
             self._git(repo, "commit", "-m", "second")
             self._git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
 
             wrong = collect_release_check("0.2.0", repo)
-            drift = collect_release_check("0.1.0", repo)
+            drift = collect_release_check(__version__, repo)
 
             self.assertEqual(wrong["overall"], "blocked")
             self.assertEqual(drift["overall"], "blocked")
