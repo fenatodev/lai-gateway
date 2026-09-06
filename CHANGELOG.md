@@ -2,6 +2,8 @@
 
 ### Changed
 - Let `lai-gateway telegram notify-mobile` accept `--candidate-ip` so Telegram mobile notifications can use the same WSL/private target as `mobile-status`, `mobile-repair`, and `mobile-serve`.
+- Clarify `ops-status` rendering by separating Harness model readiness from the gateway direct model probe.
+- Add a daily operations runbook for the published Harness + Gateway + mobile flow.
 
 ### Security
 - Keep Telegram mobile notifications token-free: the message includes only the mobile URL/bridge guidance and never includes pair, gateway, harness, Telegram, or model API secrets.

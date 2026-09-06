@@ -214,3 +214,5 @@ MIT. See [LICENSE](LICENSE).
 ## Local model readiness
 
 Use `lai-gateway model-status` to inspect local model runtime readiness without starting servers, downloading models, or exposing model secrets. See `docs/MODEL_OPS.md`.
+
+For the full daily startup path after the published Harness and Gateway releases, see [docs/DAILY_OPS.md](docs/DAILY_OPS.md).

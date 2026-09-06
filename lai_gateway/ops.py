@@ -88,9 +88,10 @@ def render_ops_status(payload: dict[str, Any]) -> str:
         "starts_server: false",
         "modifies_files: false",
         f"doctor: {doctor['overall']}",
+        f"harness_model: {_harness_model_status(doctor)}",
         f"mobile: {mobile['overall']}",
         f"telegram: {telegram['overall']}",
-        f"model: {model.get('overall', 'unknown')}",
+        f"gateway_model_probe: {model.get('overall', 'unknown')}",
         f"model_runs: {model_runs.get('count', 0)}",
     ]
     config = doctor.get("config")
@@ -113,6 +114,13 @@ def render_ops_status(payload: dict[str, Any]) -> str:
         lines.append("next_steps:")
         lines.extend(f"  {step}" for step in payload["next_steps"])
     return "\n".join(lines)
+
+
+def _harness_model_status(doctor: dict[str, Any]) -> str:
+    for check in doctor.get("checks", []):
+        if check.get("name") == "harness_readiness":
+            return "ready" if check.get("status") == "ok" else str(check.get("status") or "unknown")
+    return "unknown"
 
 
 def _ops_overall(*, doctor: dict[str, Any], mobile: dict[str, Any], telegram: dict[str, Any]) -> str:
