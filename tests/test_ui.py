@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import threading
 import unittest
@@ -7,6 +8,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 from lai_gateway.config import GatewayConfig
+from lai_gateway.tokens import create_gateway_access_token, create_gateway_pairing_token
 from lai_gateway.server import GatewayHTTPServer
 
 from .fake_harness import TOKEN, fake_harness
@@ -32,8 +34,9 @@ class RunningGateway:
         self.thread.join(timeout=5)
 
 
-def read_url(url: str) -> tuple[int, dict[str, str], str]:
-    with urlopen(Request(url, headers={"Accept": "*/*"}), timeout=5) as response:
+def read_url(url: str, headers: dict[str, str] | None = None) -> tuple[int, dict[str, str], str]:
+    request_headers = {"Accept": "*/*", **(headers or {})}
+    with urlopen(Request(url, headers=request_headers), timeout=5) as response:
         headers = {key.lower(): value for key, value in response.headers.items()}
         return response.status, headers, response.read().decode("utf-8")
 
@@ -68,12 +71,16 @@ class GatewayUITest(unittest.TestCase):
                 self.assertIn('id="check-access"', html)
                 self.assertIn('id="check-session"', html)
                 self.assertIn('id="check-run"', html)
+                self.assertIn('id="check-model"', html)
                 self.assertIn('lai-gateway mobile-serve --show-pair', html)
                 self.assertIn('lai-gateway pair create --ttl-seconds 600 --show', html)
                 self.assertIn('data-action="use-gateway-token"', html)
                 self.assertIn('data-action="forget-gateway-token"', html)
                 self.assertIn('data-action="refresh-token-countdown"', html)
                 self.assertIn('id="readiness-pill"', html)
+                self.assertIn('id="ops-pill"', html)
+                self.assertIn('id="ops-output"', html)
+                self.assertIn('data-action="refresh-ops-status"', html)
                 self.assertIn('id="active-session-pill"', html)
                 self.assertIn('id="active-run-pill"', html)
                 self.assertIn('data-action="poll-run"', html)
@@ -114,6 +121,11 @@ class GatewayUITest(unittest.TestCase):
         self.assertEqual(js_status, 200)
         self.assertIn("application/javascript", js_headers["content-type"])
         self.assertIn("/v1/gateway/mobile-access", js)
+        self.assertIn("/v1/gateway/ops-status", js)
+        self.assertIn("/v1/gateway/model-status", js)
+        self.assertIn("/v1/gateway/model-plan", js)
+        self.assertIn("setOpsStatus", js)
+        self.assertIn("setModelStatus", js)
         self.assertIn("data:image/svg+xml", js)
         self.assertIn("setMobileQr", js)
         self.assertIn("copyMobileUrl", js)
@@ -160,6 +172,131 @@ class GatewayUITest(unittest.TestCase):
         self.assertFalse(payload["security"]["qr_contains_token"])
         self.assertNotIn(TOKEN, body)
         self.assertNotIn("Bearer", body)
+
+
+    def test_gateway_ops_status_endpoint_is_read_only_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with RunningGateway(config) as gateway:
+                status, headers, body = read_url(f"{gateway.url}/v1/gateway/ops-status")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        payload = json.loads(body)
+        self.assertEqual(payload["operation"], "ops-status")
+        self.assertFalse(payload["starts_server"])
+        self.assertFalse(payload["modifies_files"])
+        self.assertFalse(payload["security"]["prints_tokens"])
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
+
+    def test_private_ops_status_requires_gateway_auth(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            access_file = Path(tmp) / "access-token"
+            pair_file = Path(tmp) / "pair-token.json"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            access = create_gateway_access_token(access_file, include_token=True)["token"]
+            create_gateway_pairing_token(pair_file, ttl_seconds=600)
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            with RunningGateway(config) as gateway:
+                try:
+                    read_url(f"{gateway.url}/v1/gateway/ops-status")
+                except Exception as exc:
+                    self.assertIn("HTTP Error 401", str(exc))
+                status, _headers, body = read_url(
+                    f"{gateway.url}/v1/gateway/ops-status",
+                    headers={"Authorization": f"Bearer {access}"},
+                )
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["operation"], "ops-status")
+        self.assertNotIn(access, body)
+        self.assertNotIn(TOKEN, body)
+
+    def test_gateway_model_status_endpoint_is_read_only_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with RunningGateway(config) as gateway:
+                status, headers, body = read_url(f"{gateway.url}/v1/gateway/model-status")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        payload = __import__("json").loads(body)
+        self.assertEqual(payload["operation"], "model-status")
+        self.assertFalse(payload["starts_server"])
+        self.assertFalse(payload["modifies_files"])
+        self.assertFalse(payload["downloads_models"])
+        self.assertFalse(payload["network_calls"]["local_openai_probe"])
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
+
+    def test_gateway_model_plan_endpoint_is_read_only_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with RunningGateway(config) as gateway:
+                status, headers, body = read_url(f"{gateway.url}/v1/gateway/model-plan")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        payload = __import__("json").loads(body)
+        self.assertEqual(payload["operation"], "model-plan")
+        self.assertFalse(payload["starts_server"])
+        self.assertFalse(payload["modifies_files"])
+        self.assertFalse(payload["downloads_models"])
+        self.assertIn("commands", payload)
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
+
+    def test_private_model_status_requires_gateway_auth(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            access_file = Path(tmp) / "access-token"
+            access_file.write_text("gateway-access-secret-value-1234567890", encoding="utf-8")
+            access_file.chmod(0o600)
+            pair_file = Path(tmp) / "pair-token.json"
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                bind="127.0.0.1",
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            with RunningGateway(config) as gateway:
+                with self.assertRaises(__import__("urllib.error").error.HTTPError) as ctx:
+                    read_url(f"{gateway.url}/v1/gateway/model-status")
+        self.assertEqual(ctx.exception.code, 401)
+
+    def test_private_model_plan_requires_gateway_auth(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            access_file = Path(tmp) / "access-token"
+            access_file.write_text("gateway-access-secret-value-1234567890", encoding="utf-8")
+            access_file.chmod(0o600)
+            pair_file = Path(tmp) / "pair-token.json"
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                bind="127.0.0.1",
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            with RunningGateway(config) as gateway:
+                with self.assertRaises(__import__("urllib.error").error.HTTPError) as ctx:
+                    read_url(f"{gateway.url}/v1/gateway/model-plan")
+        self.assertEqual(ctx.exception.code, 401)
 
 
 if __name__ == "__main__":

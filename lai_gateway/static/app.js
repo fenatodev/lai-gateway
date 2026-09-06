@@ -46,6 +46,25 @@ function setMobileAccess(payload) {
   show("mobile-access-output", payload);
 }
 
+
+function setModelStatus(payload) {
+  const overall = payload.overall || "unknown";
+  const state = overall === "ready" ? "ready" : overall === "blocked" ? "danger" : "running";
+  show("model-output", payload);
+  setCheck("check-model", `Model ${overall}.`, state);
+}
+
+function setOpsStatus(payload) {
+  const overall = payload.overall || "unknown";
+  const state = overall === "ready" ? "ready" : overall === "blocked" ? "danger" : "running";
+  setPill("ops-pill", `ops ${overall}`, state);
+  const doctor = payload.doctor && payload.doctor.overall ? payload.doctor.overall : "unknown";
+  const mobile = payload.mobile && payload.mobile.overall ? payload.mobile.overall : "unknown";
+  const telegram = payload.telegram && payload.telegram.overall ? payload.telegram.overall : "unknown";
+  setCheck("check-access", `Ops: doctor ${doctor}, mobile ${mobile}, telegram ${telegram}.`, state);
+  show("ops-output", payload);
+}
+
 async function copyMobileUrl() {
   const text = lastMobileUrl || byId("mobile-access-url").textContent;
   if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -305,6 +324,14 @@ async function runAction(action) {
       setMobileAccess(await requestJson("/v1/gateway/mobile-access"));
     } else if (action === "copy-mobile-url") {
       await copyMobileUrl();
+    } else if (action === "refresh-ops-status") {
+      setOpsStatus(await requestJson("/v1/gateway/ops-status"));
+    } else if (action === "refresh-model-status") {
+      setModelStatus(await requestJson("/v1/gateway/model-status"));
+    } else if (action === "refresh-model-plan") {
+      const payload = await requestJson("/v1/gateway/model-plan");
+      setPill("model-pill", `model plan ${payload.overall || "unknown"}`, payload.overall === "ready_to_prepare" ? "ready" : "warn");
+      show("model-output", payload);
     } else if (action === "refresh-status") {
       show("status-output", await requestJson("/v1/harness/status"));
     } else if (action === "refresh-readiness") {
@@ -362,7 +389,15 @@ async function runAction(action) {
     }
   } catch (err) {
     stopRunPolling();
-    const target = action.includes("session") ? "sessions-output" : action.includes("run") || action.includes("copy") ? "runs-output" : "status-output";
+    const target = action.includes("session")
+      ? "sessions-output"
+      : action.includes("run") || action === "copy-run-output"
+        ? "runs-output"
+        : action.includes("ops")
+          ? "ops-output"
+        : action.includes("model")
+          ? "model-output"
+          : "status-output";
     show(target, String(err.message || err));
   }
 }
@@ -382,5 +417,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const taskBox = byId("run-task");
   if (taskBox) taskBox.addEventListener("input", updateTaskCounter);
   runAction("refresh-mobile-access");
+  runAction("refresh-model-status");
   runAction("refresh-readiness");
+  runAction("refresh-ops-status");
 });
