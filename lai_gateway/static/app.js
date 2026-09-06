@@ -25,7 +25,39 @@ function byId(id) {
 }
 
 function show(targetId, payload) {
-  byId(targetId).textContent = typeof payload === "string" ? payload : pretty(payload);
+  const target = byId(targetId);
+  if (!target) return;
+  target.textContent = typeof payload === "string" ? payload : pretty(payload);
+}
+
+function setCallout(id, text, state = "warn") {
+  const item = byId(id);
+  if (!item) return;
+  item.textContent = text;
+  item.className = `callout ${state}`;
+}
+
+function setAuthBanner(text, state = "warn") {
+  setCallout("auth-banner", text, state);
+}
+
+function isLoopbackHost() {
+  const host = window.location.hostname;
+  return host === "127.0.0.1" || host === "localhost" || host === "::1";
+}
+
+function showPairRequiredOutputs() {
+  const message = "Pair this phone first, then refresh this panel.";
+  for (const id of ["ops-output", "status-output", "model-output", "sessions-output", "runs-output"]) {
+    show(id, message);
+    const target = byId(id);
+    if (target) target.classList.add("output-pair-required");
+  }
+}
+
+function clearPairRequiredOutput(targetId) {
+  const target = byId(targetId);
+  if (target) target.classList.remove("output-pair-required");
 }
 
 
@@ -38,12 +70,19 @@ function setMobileQr(svg) {
   image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
+function currentBrowserUrl() {
+  if (isLoopbackHost()) return "";
+  return `${window.location.protocol}//${window.location.host}/`;
+}
+
 function setMobileAccess(payload) {
-  lastMobileUrl = payload.recommended_url || "";
+  const browserUrl = currentBrowserUrl();
+  lastMobileUrl = browserUrl || payload.recommended_url || "";
   byId("mobile-access-url").textContent = lastMobileUrl || "No mobile URL detected.";
-  setPill("mobile-access-kind", payload.recommended_kind ? `mobile ${payload.recommended_kind}` : "mobile URL unavailable", lastMobileUrl ? "ready" : "danger");
+  const label = browserUrl ? "mobile current browser URL" : (payload.recommended_kind ? `mobile ${payload.recommended_kind}` : "mobile URL unavailable");
+  setPill("mobile-access-kind", label, lastMobileUrl ? "ready" : "danger");
   setMobileQr(payload.qr_svg || "");
-  show("mobile-access-output", payload);
+  show("mobile-access-output", browserUrl ? { ...payload, active_phone_url: browserUrl } : payload);
 }
 
 
@@ -62,6 +101,7 @@ function setOpsStatus(payload) {
   const mobile = payload.mobile && payload.mobile.overall ? payload.mobile.overall : "unknown";
   const telegram = payload.telegram && payload.telegram.overall ? payload.telegram.overall : "unknown";
   setCheck("check-access", `Ops: doctor ${doctor}, mobile ${mobile}, telegram ${telegram}.`, state);
+  clearPairRequiredOutput("ops-output");
   show("ops-output", payload);
 }
 
@@ -98,6 +138,7 @@ function applyPreset(mode) {
 
 function setPill(id, text, state = "muted") {
   const pill = byId(id);
+  if (!pill) return;
   pill.textContent = text;
   pill.className = `pill ${state}`;
 }
@@ -141,13 +182,19 @@ function updateGatewayAuthState(status, ok) {
     return;
   }
   if (status === 401) {
-    byId("gateway-access-state").textContent = "Private API requires a gateway or pair token.";
-    setCheck("check-access", "Private API still needs a token.", "warn");
+    byId("gateway-access-state").textContent = "Loaded token is missing, invalid, or expired.";
+    setCallout("gateway-auth-result", "Token was not accepted. Generate a fresh pair token and try again.", "danger");
+    setAuthBanner("Pairing failed. Generate a fresh pair token and try again.", "danger");
+    setCheck("check-access", "Pair token missing, invalid, or expired.", "danger");
   } else if (status === 403) {
     byId("gateway-access-state").textContent = "Loaded token was rejected by the gateway.";
+    setCallout("gateway-auth-result", "Token rejected by gateway.", "danger");
+    setAuthBanner("Token rejected by gateway.", "danger");
     setCheck("check-access", "Loaded token rejected.", "danger");
   } else if (status === 429) {
     byId("gateway-access-state").textContent = "Too many failed token attempts. Wait before retrying.";
+    setCallout("gateway-auth-result", "Too many failed token attempts. Wait before retrying.", "danger");
+    setAuthBanner("Too many failed token attempts. Wait before retrying.", "danger");
     setCheck("check-access", "Token attempts rate limited.", "danger");
   }
 }
@@ -303,9 +350,23 @@ async function runAction(action) {
       gatewayTokenKind = byId("gateway-token-kind").value === "permanent" ? "permanent" : "pair";
       pairExpiresAt = gatewayTokenKind === "pair" ? parsePairExpiresAt(byId("pair-expires-at").value) : null;
       byId("gateway-token").value = "";
-      byId("gateway-access-state").textContent = gatewayAccessToken ? `${gatewayTokenKind === "pair" ? "Pair" : "Gateway"} token loaded in page memory.` : "No gateway token loaded in page memory.";
-      setCheck("check-access", gatewayAccessToken ? `${gatewayTokenKind === "pair" ? "Pair" : "Gateway"} token loaded in memory.` : "Pair token not loaded yet.", gatewayAccessToken ? "running" : "muted");
+      if (!gatewayAccessToken) {
+        byId("gateway-access-state").textContent = "No gateway token loaded in page memory.";
+        setCallout("gateway-auth-result", "Paste a pair token before pairing this phone.", "danger");
+        setAuthBanner("Paste a pair token before using private controls.", "warn");
+        setCheck("check-access", "Pair token not loaded yet.", "muted");
+        return;
+      }
+      byId("gateway-access-state").textContent = `${gatewayTokenKind === "pair" ? "Pair" : "Gateway"} token loaded in page memory. Validating now...`;
+      setCallout("gateway-auth-result", "Validating token with the gateway...", "warn");
+      setAuthBanner("Validating phone pairing...", "warn");
+      setCheck("check-access", `${gatewayTokenKind === "pair" ? "Pair" : "Gateway"} token validating.`, "running");
       startPairCountdown();
+      const payload = await requestJson("/v1/gateway/ops-status");
+      setOpsStatus(payload);
+      setCallout("gateway-auth-result", "Paired successfully. Private controls are unlocked for this page.", "ready");
+      setAuthBanner("Phone paired. Private controls are unlocked in this page only.", "ready");
+      await runAction("refresh-readiness");
     } else if (action === "forget-gateway-token") {
       gatewayAccessToken = "";
       gatewayTokenKind = "none";
@@ -314,8 +375,11 @@ async function runAction(action) {
       byId("gateway-token").value = "";
       byId("pair-expires-at").value = "";
       byId("gateway-access-state").textContent = "No gateway token loaded in page memory.";
+      setCallout("gateway-auth-result", "Token forgotten. Paste a new pair token to unlock this phone.", "warn");
+      setAuthBanner("Phone is not paired. Private controls are locked.", "warn");
       setCheck("check-access", "Pair token not loaded yet.", "muted");
       renderPairCountdown();
+      if (!isLoopbackHost()) showPairRequiredOutputs();
     } else if (action === "refresh-token-countdown") {
       pairExpiresAt = parsePairExpiresAt(byId("pair-expires-at").value);
       if (pairExpiresAt !== null) gatewayTokenKind = "pair";
@@ -325,6 +389,7 @@ async function runAction(action) {
     } else if (action === "copy-mobile-url") {
       await copyMobileUrl();
     } else if (action === "refresh-ops-status") {
+      clearPairRequiredOutput("ops-output");
       setOpsStatus(await requestJson("/v1/gateway/ops-status"));
     } else if (action === "refresh-model-status") {
       setModelStatus(await requestJson("/v1/gateway/model-status"));
@@ -349,8 +414,10 @@ async function runAction(action) {
       setPill("model-pill", `model runs ${payload.count || 0}`, payload.count ? "ready" : "warn");
       show("model-output", payload);
     } else if (action === "refresh-status") {
+      clearPairRequiredOutput("status-output");
       show("status-output", await requestJson("/v1/harness/status"));
     } else if (action === "refresh-readiness") {
+      clearPairRequiredOutput("status-output");
       const payload = await requestJson("/v1/harness/readiness");
       const overall = payload.overall || "unknown";
       setPill("readiness-pill", `readiness ${overall}`, overall === "ready" ? "ready" : "danger");
@@ -405,6 +472,13 @@ async function runAction(action) {
     }
   } catch (err) {
     stopRunPolling();
+    if (action === "use-gateway-token") {
+      gatewayAccessToken = "";
+      gatewayTokenKind = "none";
+      pairExpiresAt = null;
+      stopPairCountdown();
+      renderPairCountdown();
+    }
     const target = action.includes("session")
       ? "sessions-output"
       : action.includes("run") || action === "copy-run-output"
@@ -432,8 +506,20 @@ document.addEventListener("DOMContentLoaded", () => {
   updateTaskCounter();
   const taskBox = byId("run-task");
   if (taskBox) taskBox.addEventListener("input", updateTaskCounter);
+  const tokenBox = byId("gateway-token");
+  if (tokenBox) {
+    tokenBox.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") runAction("use-gateway-token");
+    });
+  }
   runAction("refresh-mobile-access");
-  runAction("refresh-model-status");
-  runAction("refresh-readiness");
-  runAction("refresh-ops-status");
+  if (isLoopbackHost()) {
+    setAuthBanner("Loopback access does not need phone pairing.", "ready");
+    runAction("refresh-model-status");
+    runAction("refresh-readiness");
+    runAction("refresh-ops-status");
+  } else {
+    setAuthBanner("Paste a fresh pair token to unlock private controls on this phone.", "warn");
+    showPairRequiredOutputs();
+  }
 });

@@ -5,9 +5,10 @@
   color: #eef1f7;
 }
 * { box-sizing: border-box; }
+html, body { max-width: 100%; overflow-x: hidden; }
 body { margin: 0; min-height: 100vh; background: radial-gradient(circle at top, #252a36, #111318 55%); }
 button, input, select, textarea { font: inherit; }
-.shell { width: min(1120px, calc(100vw - 32px)); margin: 0 auto; padding: 32px 0; }
+.shell { width: min(1120px, calc(100vw - 32px)); margin: 0 auto; padding: 32px 0; overflow-x: hidden; }
 .hero { margin-bottom: 24px; }
 .eyebrow { margin: 0 0 6px; text-transform: uppercase; letter-spacing: .14em; opacity: .72; font-size: .78rem; }
 h1 { margin: 0; font-size: clamp(2rem, 8vw, 4rem); }
@@ -15,15 +16,15 @@ h2 { margin-top: 0; }
 h3 { margin: 18px 0 8px; }
 code { background: rgb(255 255 255 / .08); padding: .08rem .32rem; border-radius: .35rem; }
 .muted { color: #aeb8ca; }
-.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.card { border: 1px solid rgb(255 255 255 / .14); background: rgb(17 19 24 / .78); border-radius: 18px; padding: 18px; box-shadow: 0 20px 70px rgb(0 0 0 / .25); }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; min-width: 0; }
+.card { min-width: 0; max-width: 100%; border: 1px solid rgb(255 255 255 / .14); background: rgb(17 19 24 / .78); border-radius: 18px; padding: 18px; box-shadow: 0 20px 70px rgb(0 0 0 / .25); }
 .wide { grid-column: 1 / -1; }
 .actions, .form-row, .status-strip { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
 label { display: grid; gap: 6px; margin: 10px 0; color: #cbd3e1; }
 input, select, textarea { width: 100%; border: 1px solid rgb(255 255 255 / .18); border-radius: 12px; padding: 10px 12px; color: inherit; background: rgb(255 255 255 / .07); }
-button { border: 0; border-radius: 999px; padding: 10px 14px; cursor: pointer; color: #111318; background: #eef1f7; }
+button { border: 0; border-radius: 999px; padding: 10px 14px; cursor: pointer; color: #111318; background: #eef1f7; font-weight: 700; line-height: 1.2; }
 button:hover { filter: brightness(.92); }
-pre { overflow: auto; max-height: 420px; min-height: 120px; padding: 14px; border-radius: 14px; background: rgb(0 0 0 / .38); border: 1px solid rgb(255 255 255 / .1); color: #dce6ff; }
+pre { min-width: 0; max-width: 100%; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 420px; min-height: 96px; padding: 14px; border-radius: 14px; background: rgb(0 0 0 / .38); border: 1px solid rgb(255 255 255 / .1); color: #dce6ff; }
 .pill { display: inline-flex; align-items: center; min-height: 32px; border-radius: 999px; padding: 6px 12px; font-size: .9rem; background: rgb(255 255 255 / .09); border: 1px solid rgb(255 255 255 / .14); }
 .pill.ready { background: rgb(64 196 125 / .18); }
 .pill.running { background: rgb(120 168 255 / .18); }
@@ -113,4 +114,40 @@ textarea { resize: vertical; }
 .qr { width: min(260px, 100%); aspect-ratio: 1; display: block; padding: 12px; border-radius: 18px; background: #fff; }
 @media (max-width: 480px) {
   .qr { width: 100%; max-width: 320px; margin-inline: auto; }
+}
+
+
+.callout {
+  border-radius: 14px;
+  padding: 10px 12px;
+  margin: 12px 0;
+  border: 1px solid rgb(255 255 255 / .12);
+  background: rgb(255 255 255 / .07);
+}
+.callout.ready { background: rgb(64 196 125 / .16); }
+.callout.warn { background: rgb(255 198 87 / .14); }
+.callout.danger { background: rgb(255 106 106 / .16); }
+.primary { background: #ffffff; }
+.primary-actions .primary { flex: 2 1 220px; }
+.token-input { font-size: 1rem; letter-spacing: .02em; }
+.output-pair-required { color: #aeb8ca; }
+@media (max-width: 780px) {
+  .hero { margin-bottom: 14px; }
+  h1 { font-size: 2rem; }
+  h2 { font-size: 1.12rem; }
+  .card { box-shadow: none; }
+  .mobile-guide { display: none; }
+  .actions { gap: 8px; }
+  .actions button { flex: 1 1 100%; justify-content: center; }
+  pre { max-height: 220px; min-height: 70px; font-size: .78rem; line-height: 1.35; }
+}
+@media (max-width: 480px) {
+  .shell { width: calc(100vw - 10px); padding: 8px 0 24px; }
+  .hero p { font-size: .9rem; }
+  .card { padding: 12px; border-radius: 12px; }
+  .status-strip { gap: 6px; }
+  .pill { width: 100%; justify-content: center; min-height: 30px; font-size: .82rem; }
+  input, select, textarea { font-size: 16px; padding: 10px; }
+  button { width: 100%; min-height: 48px; }
+  .hint code { display: block; overflow-wrap: anywhere; }
 }

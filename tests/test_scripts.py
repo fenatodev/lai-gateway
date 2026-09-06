@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import socket
 import subprocess
 import sys
 import tempfile
@@ -11,6 +12,12 @@ from urllib.request import Request, urlopen
 from lai_gateway import __version__
 
 from .fake_harness import TOKEN, fake_harness
+
+
+def free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
 
 
 class ScriptTest(unittest.TestCase):
@@ -113,8 +120,9 @@ class ScriptTest(unittest.TestCase):
                 "LAI_GATEWAY_HARNESS_URL": harness.url,
                 "LAI_GATEWAY_TOKEN_FILE": str(token_file),
             }
+            port = free_port()
             proc = subprocess.Popen(
-                ["bash", "scripts/launch-local.sh", "--bind", "127.0.0.1", "--port", "18787"],
+                ["bash", "scripts/launch-local.sh", "--bind", "127.0.0.1", "--port", str(port)],
                 cwd=repo,
                 env=env,
                 text=True,
@@ -126,12 +134,12 @@ class ScriptTest(unittest.TestCase):
                 self.assertEqual(proc.stdout.readline().strip(), "lai-gateway dev: ready")
                 self.assertEqual(proc.stdout.readline().strip(), f"harness: {harness.url}")
                 self.assertEqual(proc.stdout.readline().strip(), "access: loopback")
-                self.assertEqual(proc.stdout.readline().strip(), "ui: http://127.0.0.1:18787/")
+                self.assertEqual(proc.stdout.readline().strip(), f"ui: http://127.0.0.1:{port}/")
                 self.assertEqual(
                     proc.stdout.readline().strip(),
-                    "lai-gateway listening on http://127.0.0.1:18787",
+                    f"lai-gateway listening on http://127.0.0.1:{port}",
                 )
-                with urlopen(Request("http://127.0.0.1:18787/healthz"), timeout=5) as response:
+                with urlopen(Request(f"http://127.0.0.1:{port}/healthz"), timeout=5) as response:
                     self.assertEqual(response.status, 200)
             finally:
                 proc.terminate()

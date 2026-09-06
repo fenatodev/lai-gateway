@@ -15,9 +15,11 @@
       <div class="status-strip" aria-label="Runtime summary">
         <span id="readiness-pill" class="pill muted">readiness unknown</span>
         <span id="ops-pill" class="pill muted">ops unknown</span>
+        <span id="model-pill" class="pill muted">model unknown</span>
         <span id="active-session-pill" class="pill muted">no active session</span>
         <span id="active-run-pill" class="pill muted">no active run</span>
       </div>
+      <p id="auth-banner" class="callout warn" aria-live="polite">Phone access needs pairing before private controls will work.</p>
     </header>
 
     <section class="card wide mobile-guide" aria-label="Mobile pairing checklist">
@@ -51,9 +53,9 @@
         <pre id="mobile-access-output" aria-live="polite">Not loaded.</pre>
       </article>
 
-      <article class="card">
+      <article class="card auth-card">
         <h2>Gateway access</h2>
-        <p class="muted">Loopback does not need this. Private LAN mode requires a gateway token or short-lived pair token.</p>
+        <p class="muted">Paste the short-lived pair token from the terminal, then tap <strong>Pair this phone</strong>. The token stays only in page memory.</p>
         <label>Token type
           <select id="gateway-token-kind">
             <option value="pair">temporary pair token</option>
@@ -61,16 +63,17 @@
           </select>
         </label>
         <label>Gateway or pair token
-          <input id="gateway-token" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="paste token from lai-gateway pair create --show">
+          <input id="gateway-token" class="token-input" type="password" autocomplete="one-time-code" inputmode="text" autocapitalize="none" spellcheck="false" placeholder="paste the temporary token here">
         </label>
         <label>Pair token expires at, optional
           <input id="pair-expires-at" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="2026-09-06T06:35:00Z">
         </label>
-        <div class="actions">
-          <button data-action="use-gateway-token">Use token</button>
+        <div class="actions primary-actions">
+          <button class="primary" data-action="use-gateway-token">Pair this phone</button>
           <button data-action="forget-gateway-token">Forget token</button>
           <button data-action="refresh-token-countdown">Refresh pairing timer</button>
         </div>
+        <p id="gateway-auth-result" class="callout warn" aria-live="assertive">Paste a pair token and tap Pair this phone.</p>
         <p id="gateway-access-state" class="muted" aria-live="polite">No gateway token loaded in page memory.</p>
         <p id="pairing-state" class="muted" aria-live="polite">No pairing token timer loaded.</p>
         <p class="hint"><code>lai-gateway pair create --ttl-seconds 600 --show</code> creates a temporary token for phone pairing.</p>

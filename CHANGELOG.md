@@ -1,3 +1,11 @@
+## [0.1.25] - 2026-09-06
+
+### Changed
+- Improve mobile-first gateway UI layout so phone screens no longer widen around large JSON/preformatted output.
+- Validate pair tokens immediately from the Gateway access card and show clear success, invalid, expired, or rate-limited feedback.
+- Avoid auto-loading protected panels on non-loopback phone access before pairing, preventing repeated `gateway_auth_required` output noise.
+- Add the missing model status pill used by model actions.
+
 ## [0.1.24] - 2026-09-06
 
 ### Changed
