@@ -17,7 +17,7 @@ from .config import GatewayConfig, read_gateway_access_token, validate_gateway_b
 from .tokens import read_valid_gateway_pairing_token
 from .errors import ConfigError, GatewayError, HarnessHTTPError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient, build_read_only_run_body
-from .model import collect_model_plan, collect_model_status
+from .model import collect_model_files, collect_model_plan, collect_model_status
 
 _REQUEST_BODY_MAX_BYTES = 64 * 1024
 _AUTH_FAILURE_LIMIT = 5
@@ -87,6 +87,15 @@ class GatewayHandler(BaseHTTPRequestHandler):
             if not self._authorize_gateway_api(parsed.path):
                 return
             self._send_json(HTTPStatus.OK, collect_model_plan())
+            return
+        if parsed.path == "/v1/gateway/model-files":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            max_results = self._positive_int_query(values.get("max_results", ["10"])[0], default=10, maximum=50)
+            if max_results is None:
+                return
+            self._send_json(HTTPStatus.OK, collect_model_files(max_results=max_results, max_seconds=12.0))
             return
         if parsed.path == "/v1/gateway/ops-status":
             if not self._authorize_gateway_api(parsed.path):
@@ -198,7 +207,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
 
 
     def _authorize_gateway_api(self, path: str) -> bool:
-        if not (path.startswith("/v1/harness/") or path in {"/v1/gateway/ops-status", "/v1/gateway/model-status", "/v1/gateway/model-plan"}):
+        if not (path.startswith("/v1/harness/") or path in {"/v1/gateway/ops-status", "/v1/gateway/model-status", "/v1/gateway/model-plan", "/v1/gateway/model-files"}):
             return True
         expected = self.server.access_token
         if expected is None:
@@ -283,6 +292,17 @@ class GatewayHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_limit"})
             return None
         return limit
+
+    def _positive_int_query(self, raw: str, *, default: int, maximum: int, error_name: str = "value") -> int | None:
+        try:
+            value = int(raw or str(default))
+        except ValueError:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": f"invalid_{error_name}"})
+            return None
+        if not 1 <= value <= maximum:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": f"invalid_{error_name}"})
+            return None
+        return value
 
     def _require_empty_body(self) -> bool:
         raw_length = self.headers.get("Content-Length", "0")

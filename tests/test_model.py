@@ -15,6 +15,7 @@ from lai_gateway.model import collect_model_files, collect_model_plan, collect_m
 
 
 SECRET = "sk-local-secret-value"
+MODEL_API_KEY = "model-local-test-key-12345678901234567890"
 
 
 class FakeOpenAIModelsHandler(BaseHTTPRequestHandler):
@@ -22,6 +23,18 @@ class FakeOpenAIModelsHandler(BaseHTTPRequestHandler):
         return
 
     def do_GET(self) -> None:  # noqa: N802
+        if self.path.startswith("/auth/v1/models"):
+            if self.headers.get("Authorization") != f"Bearer {MODEL_API_KEY}":
+                self.send_response(401)
+                self.end_headers()
+                return
+            body = json.dumps({"object": "list", "data": [{"id": "auth-local-code-model"}]}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path == "/v1/models":
             body = json.dumps({"object": "list", "data": [{"id": "local-code-model"}]}).encode("utf-8")
             self.send_response(200)
@@ -53,6 +66,59 @@ class FakeOpenAIModelsServer:
 
 
 class ModelStatusTest(unittest.TestCase):
+
+    def test_model_status_probe_uses_redacted_local_model_api_key_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, FakeOpenAIModelsServer() as server:
+            key_file = Path(tmp) / "model-api-key"
+            key_file.write_text(MODEL_API_KEY + "\n", encoding="utf-8")
+            key_file.chmod(0o600)
+            payload = collect_model_status(
+                env={
+                    "LAI_GATEWAY_MODEL_BASE_URL": server.url + "/auth",
+                    "LAI_GATEWAY_MODEL_NAME": "auth-local-code-model",
+                    "LAI_GATEWAY_MODEL_API_KEY_FILE": str(key_file),
+                },
+                probe_openai=True,
+            )
+        text = json.dumps(payload, sort_keys=True)
+        self.assertEqual(payload["overall"], "ready")
+        self.assertEqual(payload["openai_probe"]["status"], "ready")
+        self.assertTrue(payload["openai_probe"]["auth_used"])
+        self.assertTrue(payload["model_config"]["api_key_configured"])
+        self.assertEqual(payload["model_config"]["api_key_file"], str(key_file))
+        self.assertNotIn(MODEL_API_KEY, text)
+        self.assertNotIn("Bearer", text)
+
+    def test_cli_model_key_create_and_check_are_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            key_file = Path(tmp) / "model-api-key"
+            created = subprocess.run(
+                [sys.executable, "-m", "lai_gateway", "model-key-create", "--path", str(key_file), "--json"],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=10,
+            )
+            checked = subprocess.run(
+                [sys.executable, "-m", "lai_gateway", "model-key-check", "--path", str(key_file), "--json"],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=10,
+            )
+        self.assertEqual(created.returncode, 0)
+        self.assertEqual(checked.returncode, 0)
+        created_payload = json.loads(created.stdout)
+        checked_payload = json.loads(checked.stdout)
+        self.assertEqual(created_payload["operation"], "model-key-create")
+        self.assertEqual(checked_payload["operation"], "model-key-check")
+        self.assertFalse(created_payload["key_printed"])
+        self.assertFalse(checked_payload["key_printed"])
+        self.assertNotIn("\"key\":", created.stdout)
+        self.assertNotIn("Bearer", created.stdout + checked.stdout + created.stderr + checked.stderr)
+
     def test_model_status_reports_missing_runtime_without_secrets(self) -> None:
         env = {
             "LAI_GATEWAY_MODEL_BASE_URL": "http://user:pass@127.0.0.1:11434",
@@ -118,6 +184,26 @@ class ModelStatusTest(unittest.TestCase):
         self.assertEqual(payload["openai_probe"]["model_count"], 1)
         self.assertTrue(payload["network_calls"]["local_openai_probe"])
 
+
+    def test_model_status_probe_uses_redacted_local_model_api_key(self) -> None:
+        with FakeOpenAIModelsServer() as server:
+            payload = collect_model_status(
+                env={
+                    "LAI_GATEWAY_MODEL_BASE_URL": server.url + "/auth",
+                    "LAI_GATEWAY_MODEL_NAME": "auth-local-code-model",
+                    "LAI_GATEWAY_MODEL_API_KEY": MODEL_API_KEY,
+                },
+                probe_openai=True,
+            )
+        text = json.dumps(payload, sort_keys=True)
+        self.assertEqual(payload["overall"], "ready")
+        self.assertEqual(payload["openai_probe"]["status"], "ready")
+        self.assertTrue(payload["openai_probe"]["auth_used"])
+        self.assertEqual(payload["openai_probe"]["model_count"], 1)
+        self.assertIn("LAI_GATEWAY_MODEL_API_KEY=<redacted>", payload["model_config"]["env_keys_present"])
+        self.assertNotIn(MODEL_API_KEY, text)
+        self.assertNotIn("Bearer", text)
+
     def test_model_status_probe_blocks_public_or_credentialed_urls_before_network(self) -> None:
         unsafe_urls = [
             "https://127.0.0.1:11434",
@@ -137,6 +223,18 @@ class ModelStatusTest(unittest.TestCase):
                 self.assertFalse(payload["openai_probe"]["network_call"])
                 self.assertFalse(payload["network_calls"]["local_openai_probe"])
                 opener.assert_not_called()
+
+
+    def test_model_files_recommendation_uses_all_scanned_models_before_output_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            # Create an oversized complete code model first alphabetically and a smaller split code model.
+            (root / "aaa-big-coder-00001-of-00001.gguf").write_bytes(b"a" * 64)
+            (root / "qwen2.5-coder-7b-instruct-q4_k_m-00001-of-00002.gguf").write_bytes(b"q" * 128)
+            (root / "qwen2.5-coder-7b-instruct-q4_k_m-00002-of-00002.gguf").write_bytes(b"w" * 64)
+            payload = collect_model_files(paths=[tmp], max_results=1)
+        self.assertEqual(len(payload["models"]), 1)
+        self.assertEqual(payload["recommended"]["name"], "qwen2.5-coder-7b-instruct-q4_k_m")
 
     def test_model_plan_auto_prefers_docker_without_mutation(self) -> None:
         def fake_which(name: str) -> str | None:
@@ -191,7 +289,9 @@ class ModelStatusTest(unittest.TestCase):
         text = json.dumps(payload, sort_keys=True) + rendered
         self.assertEqual(payload["backend"], "windows-llama-cpp")
         self.assertIn("llama-server.exe", text)
-        self.assertIn("<windows-host-ip>", text)
+        self.assertIn("--port 18082", text)
+        self.assertIn("configure_api_key_file", text)
+        self.assertIn("model-api-key", text)
         self.assertFalse(payload["starts_server"])
         self.assertFalse(payload["modifies_files"])
         self.assertFalse(payload["downloads_models"])
@@ -241,6 +341,9 @@ class ModelStatusTest(unittest.TestCase):
         self.assertEqual(recommended_model["shard_total"], 2)
         self.assertTrue(recommended_model["complete"])
         self.assertIn("llama-server.exe", payload["recommended"]["start_runtime_example"])
+        self.assertIn("model-key-create", payload["recommended"]["create_api_key_file"])
+        self.assertIn("LAI_GATEWAY_MODEL_API_KEY_FILE", payload["recommended"]["configure_api_key_file"])
+        self.assertIn("configure_api_key_file", rendered)
         self.assertNotIn("Bearer", text)
 
     def test_cli_model_files_json_is_secret_free(self) -> None:

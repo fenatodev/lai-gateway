@@ -78,3 +78,24 @@ lai-gateway model-files --max-results 10
 It performs a bounded local scan only, groups split GGUF files, ignores accessory-only files such as `mmproj`, and recommends the best local candidate for the <=8 GiB code-model path.
 
 On WSL with Windows llama.cpp available, the recommended command keeps the raw model behind `llama-server.exe` and still requires the normal `model-status --probe-openai` verification before any harness integration.
+
+
+## Proven Windows llama.cpp route from WSL
+
+For this machine, Windows llama.cpp was reachable from WSL when bound to the Windows vEthernet gateway, not Windows loopback and not the WSL DNS proxy:
+
+```bash
+ip route | awk '/default via/ {print $3; exit}'
+```
+
+Use the generated `model-files` recommendation. The validated shape is:
+
+```bash
+LLAMA_API_KEY='<set-local-model-api-key>' llama-server.exe --host <wsl-default-gateway> --port 18082 --model '<recommended-windows-gguf-path>' --ctx-size 2048 --threads 8 --n-gpu-layers 0 --cors-origins localhost --no-cors-credentials
+export LAI_GATEWAY_MODEL_BASE_URL='http://<wsl-default-gateway>:18082'
+export LAI_GATEWAY_MODEL_NAME='<recommended-model-name>'
+export LAI_GATEWAY_MODEL_API_KEY='<same-local-model-api-key>'
+lai-gateway model-status --probe-openai
+```
+
+A real smoke test loaded the local Qwen2.5-Coder 7B Q4_K_M split GGUF and returned `LAI_OK` through the OpenAI-compatible chat endpoint.

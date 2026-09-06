@@ -1,3 +1,20 @@
+## [0.1.23] - 2026-09-06
+
+### Added
+- Add `lai-gateway model-files` to find local GGUF files, group split models, ignore accessory-only files, and recommend the best local code-model candidate.
+- Add `lai-gateway model-key-create` and `model-key-check` for secret-free local model API key-file setup.
+- Add `/v1/gateway/model-files` and a Model panel action to inspect local model files from the UI.
+
+### Changed
+- Detect Windows `llama-server.exe` and `llama-cli.exe` from WSL and prefer the proven Windows llama.cpp route before Docker.
+- Use the WSL default gateway and port `18082` for Windows llama.cpp planning instead of a generic placeholder.
+- Teach `model-status --probe-openai` to read `LAI_GATEWAY_MODEL_API_KEY_FILE` and send Authorization only to validated local/private endpoints.
+
+### Security
+- Recommend `llama-server.exe --api-key-file` with restricted CORS flags for Windows-hosted local model runtime tests.
+- Keep model file discovery, key checks, and model probes token-free in CLI/API output.
+- Require gateway auth for `/v1/gateway/model-files` in private LAN mode.
+
 ## [0.1.22] - 2026-09-06
 
 ### Added

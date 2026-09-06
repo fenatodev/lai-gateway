@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 import os
 import re
+import secrets
 import shutil
 import subprocess
+import stat
 import time
 from pathlib import Path
 from typing import Any
@@ -21,6 +23,9 @@ _MODEL_RUNTIME_COMMANDS = (
     "podman",
 )
 _WINDOWS_RUNTIME_COMMANDS = ("ollama.exe", "llama-server.exe", "llama-cli.exe")
+_WINDOWS_LLAMA_CPP_DEFAULT_PORT = 18082
+_DEFAULT_MODEL_API_KEY_FILE = "~/.config/lai-gateway/model-api-key"
+_DEFAULT_MODEL_API_KEY_BYTES = 32
 _GPU_COMMANDS = ("rocminfo", "rocm-smi", "clinfo", "nvidia-smi")
 _SECRET_ENV_PARTS = ("TOKEN", "KEY", "SECRET", "PASSWORD", "AUTH", "BEARER")
 
@@ -46,8 +51,9 @@ def collect_model_status(*, env: dict[str, str] | None = None, probe_openai: boo
     windows_commands = _windows_runtime_payloads(values)
     hardware = _hardware_snapshot()
     raw_base_url = values.get("LAI_GATEWAY_MODEL_BASE_URL", "").strip()
+    api_key = _model_api_key_from_env(values)
     config = _model_env_config(values)
-    openai_probe = _probe_openai_compatible(raw_base_url) if probe_openai and raw_base_url else None
+    openai_probe = _probe_openai_compatible(raw_base_url, api_key=api_key) if probe_openai and raw_base_url else None
     overall = _overall(commands=commands, windows_commands=windows_commands, config=config, openai_probe=openai_probe)
     return {
         "product": "lai-gateway",
@@ -174,6 +180,137 @@ def render_model_plan(payload: dict[str, Any]) -> str:
 
 
 
+
+def default_model_api_key_path() -> Path:
+    return Path(_DEFAULT_MODEL_API_KEY_FILE).expanduser()
+
+
+def create_model_api_key_file(path: Path | None = None, *, force: bool = False, include_key: bool = False) -> dict[str, Any]:
+    target = (path or default_model_api_key_path()).expanduser()
+    target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if target.exists() and not force:
+        from .errors import ConfigError
+
+        raise ConfigError(f"model API key file already exists: {target}")
+    key = secrets.token_urlsafe(_DEFAULT_MODEL_API_KEY_BYTES)
+    _write_model_secret_file(target, key + "\n", force=force)
+    payload: dict[str, Any] = {
+        "product": "lai-gateway",
+        "version": __version__,
+        "operation": "model-key-create",
+        "path": str(target),
+        "created": True,
+        "mode": _model_secret_file_mode(target),
+        "key_length": len(key),
+        "key_printed": include_key,
+    }
+    if include_key:
+        payload["key"] = key
+    return payload
+
+
+def check_model_api_key_file(path: Path | None = None) -> dict[str, Any]:
+    target = (path or default_model_api_key_path()).expanduser()
+    key = _read_model_api_key_file(target)
+    return {
+        "product": "lai-gateway",
+        "version": __version__,
+        "operation": "model-key-check",
+        "path": str(target),
+        "ok": True,
+        "mode": _model_secret_file_mode(target),
+        "key_length": len(key),
+        "key_printed": False,
+    }
+
+
+def render_model_key(payload: dict[str, Any]) -> str:
+    label = payload["operation"]
+    lines = [
+        f"lai-gateway {label}: ok",
+        f"version: {payload['version']}",
+        f"path: {payload['path']}",
+        f"mode: {payload['mode']}",
+        f"key_length: {payload['key_length']}",
+        f"key_printed: {str(payload.get('key_printed', False)).lower()}",
+    ]
+    if payload.get("key_printed") and payload.get("key"):
+        lines.append(f"key: {payload['key']}")
+    return "\n".join(lines)
+
+
+def _model_api_key_from_env(values: dict[str, str]) -> str:
+    direct = values.get("LAI_GATEWAY_MODEL_API_KEY", "").strip()
+    if direct:
+        return direct
+    file_name = values.get("LAI_GATEWAY_MODEL_API_KEY_FILE", "").strip()
+    if not file_name:
+        return ""
+    try:
+        return _read_model_api_key_file(Path(file_name).expanduser())
+    except Exception:
+        return ""
+
+
+def _read_model_api_key_file(path: Path) -> str:
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        from .errors import ConfigError
+
+        raise ConfigError(f"model API key file not found: {path}") from exc
+    except OSError as exc:
+        from .errors import ConfigError
+
+        raise ConfigError(f"cannot read model API key file: {path}: {exc}") from exc
+    key = raw.strip()
+    if not key:
+        from .errors import ConfigError
+
+        raise ConfigError(f"model API key file is empty: {path}")
+    if any(ch.isspace() for ch in key):
+        from .errors import ConfigError
+
+        raise ConfigError("model API key must be a single token without whitespace")
+    if len(key) < 32:
+        from .errors import ConfigError
+
+        raise ConfigError("model API key must be at least 32 characters")
+    _require_model_secret_file_mode(path)
+    return key
+
+
+def _write_model_secret_file(target: Path, content: str, *, force: bool) -> None:
+    flags = os.O_WRONLY | os.O_CREAT
+    if force:
+        flags |= os.O_TRUNC
+    else:
+        flags |= os.O_EXCL
+    fd = os.open(target, flags, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(content)
+    except Exception:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        raise
+    os.chmod(target, 0o600)
+
+
+def _model_secret_file_mode(path: Path) -> str:
+    mode = stat.S_IMODE(path.stat().st_mode)
+    return f"{mode:04o}"
+
+
+def _require_model_secret_file_mode(path: Path) -> None:
+    current_mode = stat.S_IMODE(path.stat().st_mode)
+    if os.name == "posix" and not str(path).startswith("/mnt/") and current_mode & 0o077:
+        from .errors import ConfigError
+
+        raise ConfigError(f"model API key file permissions must be 0600, got {current_mode:04o}: {path}")
+
 def collect_model_files(
     *,
     paths: list[str] | None = None,
@@ -203,7 +340,7 @@ def collect_model_files(
             if payload is None:
                 continue
             file_payloads.append(payload)
-            if len(file_payloads) >= max_results * 4:
+            if len(file_payloads) >= max(100, max_results * 8):
                 truncated = True
                 break
         if truncated:
@@ -211,7 +348,7 @@ def collect_model_files(
     models = _group_gguf_models(file_payloads)
     models.sort(key=_model_sort_key)
     limited = models[:max_results]
-    recommended = _recommend_model_file(limited)
+    recommended = _recommend_model_file(models)
     return {
         "product": "lai-gateway",
         "version": __version__,
@@ -256,7 +393,9 @@ def render_model_files(payload: dict[str, Any]) -> str:
         lines.append(f"  primary_path: {recommended['primary_path']}")
         if recommended.get("windows_path"):
             lines.append(f"  windows_path: {recommended['windows_path']}")
-        lines.append(f"  start_runtime_example: {recommended['start_runtime_example']}")
+        for key in ("create_api_key_file", "start_runtime_example", "configure_base_url", "configure_model", "configure_api_key_file", "verify"):
+            if recommended.get(key):
+                lines.append(f"  {key}: {recommended[key]}")
     if payload.get("models"):
         lines.append("models:")
         for model in payload["models"]:
@@ -379,6 +518,22 @@ def _model_sort_key(model: dict[str, Any]) -> tuple[int, int, int, int]:
     )
 
 
+
+def _wsl_model_api_key_path(windows_model_path: str) -> str:
+    prefix = "C:\\Users\\"
+    if windows_model_path.startswith(prefix):
+        user = windows_model_path[len(prefix):].split("\\", 1)[0]
+        return f"/mnt/c/Users/{user}/.config/lai-gateway/model-api-key"
+    return str(default_model_api_key_path())
+
+
+def _windows_model_api_key_path(windows_model_path: str) -> str:
+    prefix = "C:\\Users\\"
+    if windows_model_path.startswith(prefix):
+        user = windows_model_path[len(prefix):].split("\\", 1)[0]
+        return f"C:\\Users\\{user}\\.config\\lai-gateway\\model-api-key"
+    return "C:\\Users\\<user>\\.config\\lai-gateway\\model-api-key"
+
 def _recommend_model_file(models: list[dict[str, Any]]) -> dict[str, Any] | None:
     candidates = [
         model for model in models
@@ -390,6 +545,8 @@ def _recommend_model_file(models: list[dict[str, Any]]) -> dict[str, Any] | None
         return None
     chosen = sorted(pool, key=lambda model: model["size_total_bytes"], reverse=True)[0]
     windows_path = chosen.get("windows_path") or chosen["primary_path"]
+    host = _windows_model_host()
+    port = _WINDOWS_LLAMA_CPP_DEFAULT_PORT
     return {
         "name": chosen["name"],
         "primary_path": chosen["primary_path"],
@@ -397,9 +554,11 @@ def _recommend_model_file(models: list[dict[str, Any]]) -> dict[str, Any] | None
         "size_total_gib": chosen["size_total_gib"],
         "is_code_model": chosen["is_code_model"],
         "is_split": chosen["is_split"],
-        "start_runtime_example": f"llama-server.exe --host <windows-host-ip> --port 8080 --model '{windows_path}'",
-        "configure_base_url": "export LAI_GATEWAY_MODEL_BASE_URL='http://<windows-host-ip>:8080'",
+        "create_api_key_file": f"lai-gateway model-key-create --path '{_wsl_model_api_key_path(windows_path)}' --force",
+        "start_runtime_example": f"llama-server.exe --host {host} --port {port} --model '{windows_path}' --ctx-size 2048 --threads 8 --n-gpu-layers 0 --api-key-file '{_windows_model_api_key_path(windows_path)}' --cors-origins localhost --no-cors-credentials",
+        "configure_base_url": f"export LAI_GATEWAY_MODEL_BASE_URL='http://{host}:{port}'",
         "configure_model": f"export LAI_GATEWAY_MODEL_NAME='{chosen['name']}'",
+        "configure_api_key_file": f"export LAI_GATEWAY_MODEL_API_KEY_FILE='{_wsl_model_api_key_path(windows_path)}'",
         "verify": "lai-gateway model-status --probe-openai",
     }
 
@@ -451,12 +610,36 @@ def _has_windows_llama_cpp(windows_commands: dict[str, Any]) -> bool:
     return any(windows_commands.get(name, {}).get("available") for name in ("llama-server.exe", "llama-cli.exe"))
 
 
+
+def _wsl_default_gateway() -> str | None:
+    if not _is_wsl():
+        return None
+    try:
+        result = subprocess.run(["ip", "route"], text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False, timeout=2)
+    except OSError:
+        return None
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[0] == "default" and parts[1] == "via":
+            return parts[2]
+    return None
+
+
+def _windows_model_host() -> str:
+    return _wsl_default_gateway() or "<windows-wsl-host-ip>"
+
+
+def _base_url_host_port(base_url: str, *, default_host: str, default_port: int) -> tuple[str, int]:
+    parsed = urlparse(base_url)
+    return parsed.hostname or default_host, parsed.port or default_port
+
 def _hardware_snapshot() -> dict[str, Any]:
     return {
         "cpu_model": _first_lscpu_value("Model name"),
         "cpu_count": os.cpu_count(),
         "memory_total_gib": _memory_total_gib(),
         "wsl": _is_wsl(),
+        "wsl_default_gateway": _wsl_default_gateway(),
         "dev_dxg_present": Path("/dev/dxg").exists(),
         "gpu_note": _gpu_note(),
     }
@@ -467,11 +650,14 @@ def _model_env_config(values: dict[str, str]) -> dict[str, Any]:
     model = values.get("LAI_GATEWAY_MODEL_NAME", "").strip()
     provider = values.get("LAI_GATEWAY_MODEL_PROVIDER", "").strip()
     exposed = sorted(_redacted_model_env(values))
+    api_key_file = values.get("LAI_GATEWAY_MODEL_API_KEY_FILE", "").strip()
     return {
         "provider": provider or None,
         "base_url": _redact_url(base_url) if base_url else None,
         "model": model or None,
-        "configured": bool(base_url or model or provider),
+        "configured": bool(base_url or model or provider or values.get("LAI_GATEWAY_MODEL_API_KEY") or api_key_file),
+        "api_key_configured": bool(values.get("LAI_GATEWAY_MODEL_API_KEY") or api_key_file),
+        "api_key_file": str(Path(api_key_file).expanduser()) if api_key_file else None,
         "env_keys_present": exposed,
     }
 
@@ -496,7 +682,7 @@ def _redact_url(url: str) -> str:
     return f"{scheme}://<redacted>@{host}" if scheme else f"<redacted>@{host}"
 
 
-def _probe_openai_compatible(base_url: str | None) -> dict[str, Any]:
+def _probe_openai_compatible(base_url: str | None, *, api_key: str = "") -> dict[str, Any]:
     if not base_url:
         return {"status": "skipped", "network_call": False, "detail": "model base URL is not configured"}
     validation = _validate_local_model_base_url(base_url)
@@ -506,15 +692,17 @@ def _probe_openai_compatible(base_url: str | None) -> dict[str, Any]:
     import urllib.request
 
     url = validation["base_url"].rstrip("/") + "/v1/models"
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    request = urllib.request.Request(url, headers=headers)
     try:
-        with urllib.request.urlopen(url, timeout=2) as response:  # nosec - local user-configured URL only
+        with urllib.request.urlopen(request, timeout=2) as response:  # nosec - local user-configured URL only
             body = response.read(32 * 1024).decode("utf-8", errors="replace")
             parsed = json.loads(body) if body else {}
     except urllib.error.HTTPError as exc:
-        return {"status": "http_error", "network_call": True, "code": exc.code, "detail": "local model endpoint returned an HTTP error"}
+        return {"status": "http_error", "network_call": True, "auth_used": bool(api_key), "code": exc.code, "detail": "local model endpoint returned an HTTP error"}
     except Exception as exc:  # noqa: BLE001 - diagnostic should be bounded, not crashy
-        return {"status": "unreachable", "network_call": True, "detail": str(exc)[:180]}
-    return {"status": "ready", "network_call": True, "model_count": len(parsed.get("data", [])) if isinstance(parsed, dict) else None}
+        return {"status": "unreachable", "network_call": True, "auth_used": bool(api_key), "detail": str(exc)[:180]}
+    return {"status": "ready", "network_call": True, "auth_used": bool(api_key), "model_count": len(parsed.get("data", [])) if isinstance(parsed, dict) else None}
 
 
 def _validate_local_model_base_url(base_url: str) -> dict[str, str]:
@@ -639,11 +827,11 @@ def _default_base_url_for_backend(backend: str) -> str:
     if backend == "docker":
         return "http://127.0.0.1:8080"
     if backend == "windows-openai":
-        return "http://<windows-host-ip>:11434"
+        return f"http://{_windows_model_host()}:11434"
     if backend == "windows-llama-cpp":
-        return "http://<windows-host-ip>:8080"
+        return f"http://{_windows_model_host()}:{_WINDOWS_LLAMA_CPP_DEFAULT_PORT}"
     if backend == "windows-ollama":
-        return "http://<windows-host-ip>:11434"
+        return f"http://{_windows_model_host()}:11434"
     return "http://127.0.0.1:11434"
 
 
@@ -685,12 +873,15 @@ def _model_plan_commands(*, backend: str, model_name: str, base_url: str) -> dic
     elif backend == "docker":
         commands["runtime_shape"] = "docker run --rm -p 127.0.0.1:8080:8080 <openai-compatible-local-image>"
     elif backend == "windows-openai":
-        commands["find_windows_host_from_wsl"] = "awk '/nameserver/ {print $2; exit}' /etc/resolv.conf"
+        commands["find_windows_host_from_wsl"] = "ip route | awk '/default via/ {print $3; exit}'"
     elif backend == "windows-llama-cpp":
-        commands["find_windows_host_from_wsl"] = "awk '/nameserver/ {print $2; exit}' /etc/resolv.conf"
-        commands["start_runtime_example"] = "llama-server.exe --host <windows-host-ip> --port 8080 --model C:\\path\\to\\model.gguf"
+        host, port = _base_url_host_port(base_url, default_host=_windows_model_host(), default_port=_WINDOWS_LLAMA_CPP_DEFAULT_PORT)
+        commands["find_windows_host_from_wsl"] = "ip route | awk '/default via/ {print $3; exit}'"
+        commands["create_api_key_file"] = "lai-gateway model-key-create --path '/mnt/c/Users/<user>/.config/lai-gateway/model-api-key' --force"
+        commands["start_runtime_example"] = f"llama-server.exe --host {host} --port {port} --model C:\\path\\to\\model.gguf --ctx-size 2048 --threads 8 --n-gpu-layers 0 --api-key-file C:\\Users\\<user>\\.config\\lai-gateway\\model-api-key --cors-origins localhost --no-cors-credentials"
+        commands["configure_api_key_file"] = "export LAI_GATEWAY_MODEL_API_KEY_FILE='/mnt/c/Users/<user>/.config/lai-gateway/model-api-key'"
     elif backend == "windows-ollama":
-        commands["find_windows_host_from_wsl"] = "awk '/nameserver/ {print $2; exit}' /etc/resolv.conf"
+        commands["find_windows_host_from_wsl"] = "ip route | awk '/default via/ {print $3; exit}'"
         commands["runtime_check"] = "curl -fsS http://<windows-host-ip>:11434/v1/models"
     return commands
 
