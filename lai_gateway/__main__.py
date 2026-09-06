@@ -16,6 +16,39 @@ from .release import collect_release_check, render_release_check
 from .server import serve
 
 
+def _config_with_overrides(config: GatewayConfig, bind: str | None, port: int | None) -> GatewayConfig:
+    if bind is None and port is None:
+        return config
+    return GatewayConfig.from_env(
+        {
+            "LAI_GATEWAY_HARNESS_URL": config.harness_url,
+            "LAI_GATEWAY_TOKEN_FILE": str(config.token_file),
+            "LAI_GATEWAY_BIND": bind or config.bind,
+            "LAI_GATEWAY_PORT": str(port or config.port),
+            "LAI_GATEWAY_TIMEOUT_SECONDS": str(config.timeout_seconds),
+        }
+    )
+
+
+def _ui_url(config: GatewayConfig) -> str:
+    return f"http://{config.bind}:{config.port}/"
+
+
+def _run_dev_stack(config: GatewayConfig, *, open_browser: bool) -> int:
+    doctor = collect_doctor(config)
+    if doctor["overall"] == "blocked":
+        print(render_doctor(doctor), file=sys.stderr)
+        return 1
+    url = _ui_url(config)
+    print(f"lai-gateway dev: {doctor['overall']}")
+    print(f"harness: {config.harness_url}")
+    print(f"ui: {url}")
+    if open_browser:
+        webbrowser.open(url, new=2)
+    serve(config)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="lai-gateway")
     parser.add_argument("--version", action="store_true", help="print gateway version and exit")
@@ -28,6 +61,10 @@ def main(argv: list[str] | None = None) -> int:
     doctor_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     open_ui_parser = sub.add_parser("open-ui", help="print or open the local gateway UI URL")
     open_ui_parser.add_argument("--print-only", action="store_true", help="only print the UI URL")
+    dev_parser = sub.add_parser("dev", help="check harness and serve the local gateway UI")
+    dev_parser.add_argument("--bind", default=None, help="loopback bind address")
+    dev_parser.add_argument("--port", type=int, default=None, help="gateway port")
+    dev_parser.add_argument("--no-open", action="store_true", help="do not open the browser")
     sessions_parser = sub.add_parser("sessions", help="manage harness sessions without creating runs")
     sessions_sub = sessions_parser.add_subparsers(dest="sessions_command")
     sessions_list = sessions_sub.add_parser("list", help="list harness sessions")
@@ -59,25 +96,12 @@ def main(argv: list[str] | None = None) -> int:
     try:
         config = GatewayConfig.from_env()
         if args.command == "serve":
-            if args.bind is not None or args.port is not None:
-                config = GatewayConfig(
-                    harness_url=config.harness_url,
-                    token_file=config.token_file,
-                    bind=args.bind or config.bind,
-                    port=args.port or config.port,
-                    timeout_seconds=config.timeout_seconds,
-                )
-                config = GatewayConfig.from_env(
-                    {
-                        "LAI_GATEWAY_HARNESS_URL": config.harness_url,
-                        "LAI_GATEWAY_TOKEN_FILE": str(config.token_file),
-                        "LAI_GATEWAY_BIND": config.bind,
-                        "LAI_GATEWAY_PORT": str(config.port),
-                        "LAI_GATEWAY_TIMEOUT_SECONDS": str(config.timeout_seconds),
-                    }
-                )
+            config = _config_with_overrides(config, args.bind, args.port)
             serve(config)
             return 0
+        if args.command == "dev":
+            config = _config_with_overrides(config, args.bind, args.port)
+            return _run_dev_stack(config, open_browser=not args.no_open)
         payload: dict[str, Any]
         client = HarnessClient(config)
         if args.command == "config":
@@ -94,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(render_doctor(payload))
                 return 0 if payload["overall"] in {"ready", "warn"} else 1
         elif args.command == "open-ui":
-            url = f"http://{config.bind}:{config.port}/"
+            url = _ui_url(config)
             if args.print_only:
                 print(url)
             else:

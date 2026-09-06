@@ -4,6 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from lai_gateway import __version__
+
 from lai_gateway.config import GatewayConfig
 from lai_gateway.doctor import collect_doctor, render_doctor
 
@@ -21,7 +23,7 @@ class DoctorTest(unittest.TestCase):
             rendered = render_doctor(payload)
 
             self.assertEqual(payload["overall"], "ready")
-            self.assertEqual(payload["version"], "0.1.5")
+            self.assertEqual(payload["version"], __version__)
             self.assertIn("harness_status", {check["name"] for check in payload["checks"]})
             self.assertIn("gateway_contract", {check["name"] for check in payload["checks"]})
             self.assertNotIn(TOKEN, rendered)

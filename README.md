@@ -80,13 +80,15 @@ lai-gateway --version
 lai-gateway doctor
 ```
 
-Start the loopback gateway and open the UI:
+Start the checked dev stack and open the UI:
 
 ```bash
+lai-gateway dev --bind 127.0.0.1 --port 8787
+# or
 scripts/launch-local.sh --bind 127.0.0.1 --port 8787
 ```
 
-The installer writes wrapper scripts to `$HOME/.local/bin` by default. Override that with `LAI_GATEWAY_INSTALL_BIN=/path/to/bin`. The wrappers point at this checkout and do not copy or print the LAI control token.
+The installer writes wrapper scripts to `$HOME/.local/bin` by default. Override that with `LAI_GATEWAY_INSTALL_BIN=/path/to/bin`. The wrappers point at this checkout and do not copy or print the LAI control token. The `dev` command runs `doctor` first and refuses to serve when the harness is not reachable or the local contract checks fail.
 
 ## Local UI
 
@@ -127,7 +129,7 @@ The gateway currently refuses public bind addresses. Private-network/mobile expo
 
 ```bash
 make check
-python3 -m lai_gateway release-check --target 0.1.5 --json
+python3 -m lai_gateway release-check --target 0.1.6 --json
 ```
 
 Release rules are documented in [docs/RELEASE.md](docs/RELEASE.md).

@@ -149,6 +149,30 @@ class CliTest(unittest.TestCase):
             self.assertNotIn(TOKEN, open_ui.stdout)
             self.assertEqual(open_ui.stderr, "")
 
+
+    def test_cli_dev_requires_ready_harness_before_serving(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            env = {
+                **os.environ,
+                "LAI_GATEWAY_HARNESS_URL": "http://127.0.0.1:9",
+                "LAI_GATEWAY_TOKEN_FILE": str(token_file),
+            }
+            result = subprocess.run(
+                [sys.executable, "-m", "lai_gateway", "dev", "--no-open"],
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(result.stdout, "")
+            self.assertIn("overall: blocked", result.stderr)
+            self.assertIn("harness_status", result.stderr)
+            self.assertNotIn(TOKEN, result.stderr)
+
     def test_cli_config_prints_path_not_token_value(self):
         with tempfile.TemporaryDirectory() as tmp:
             token_file = Path(tmp) / "token"
