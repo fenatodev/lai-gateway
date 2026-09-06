@@ -77,6 +77,7 @@ python3 -m lai_gateway lan-info --port 8787
 python3 -m lai_gateway mobile-start --port 8787
 python3 -m lai_gateway mobile-start --port 8787 --prepare
 python3 -m lai_gateway mobile-start --candidate-ip 192.168.1.20 --port 8787
+python3 -m lai_gateway mobile-serve --candidate-ip 192.168.1.20 --port 8787
 python3 -m lai_gateway token create
 python3 -m lai_gateway token check
 python3 -m lai_gateway pair create --ttl-seconds 600 --show
@@ -121,12 +122,12 @@ Start the harness and gateway, then open:
 http://127.0.0.1:8787/
 ```
 
-The UI is intentionally local-only. It can refresh readiness/status, create and inspect sessions, create read-only runs, poll selected runs, keep a compact in-memory run history, and copy run output. Use `lai-gateway lan-info` to print private LAN URL candidates and safe startup commands without starting a server. Use `lai-gateway mobile-start --prepare` to create missing token files and refresh the short-lived pair token before opening the UI on a phone. In private mode, paste either the permanent gateway token or a short-lived pair token into the Gateway access card. The optional pair expiration field shows an in-memory countdown, and Forget token clears token state from the page. It does not receive the harness control token, does not use external CDN assets, and does not use browser storage. Tiny mercy in a world full of tracking pixels.
+The UI is intentionally local-only. It can refresh readiness/status, create and inspect sessions, create read-only runs, poll selected runs, keep a compact in-memory run history, and copy run output. Use `lai-gateway lan-info` to print private LAN URL candidates and safe startup commands without starting a server. Use `lai-gateway mobile-start --prepare` to create missing token files and refresh the short-lived pair token before opening the UI on a phone. Use `lai-gateway mobile-serve --candidate-ip <private-ip>` only when you intentionally want to prepare tokens and start the private LAN gateway in one foreground command. In private mode, paste either the permanent gateway token or a short-lived pair token into the Gateway access card. The optional pair expiration field shows an in-memory countdown, and Forget token clears token state from the page. It does not receive the harness control token, does not use external CDN assets, and does not use browser storage. Tiny mercy in a world full of tracking pixels.
 
 
 ## Private LAN preview
 
-Loopback remains the default. To inspect safe private LAN candidates without opening a port, run `lai-gateway lan-info --port 8787`. To get a guided mobile setup plan, run `lai-gateway mobile-start --port 8787`; add `--prepare` to create or refresh the separate gateway and pair-token files. If autodetection picks the wrong address, pass `--candidate-ip <private-ip>`. To expose the gateway on a private LAN, use an explicit private address and a separate gateway token:
+Loopback remains the default. To inspect safe private LAN candidates without opening a port, run `lai-gateway lan-info --port 8787`. To get a guided mobile setup plan, run `lai-gateway mobile-start --port 8787`; add `--prepare` to create or refresh the separate gateway and pair-token files. If autodetection picks the wrong address, pass `--candidate-ip <private-ip>`. To intentionally prepare and serve in one step, run `lai-gateway mobile-serve --candidate-ip <private-ip> --port 8787`. To expose the gateway on a private LAN, use an explicit private address and a separate gateway token:
 
 ```bash
 lai-gateway token create
@@ -172,7 +173,7 @@ The gateway refuses wildcard and public bind addresses. Private-network/mobile e
 
 ```bash
 make check
-python3 -m lai_gateway release-check --target 0.1.12 --json
+python3 -m lai_gateway release-check --target 0.1.13 --json
 ```
 
 Release rules are documented in [docs/RELEASE.md](docs/RELEASE.md).

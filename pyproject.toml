@@ -1,6 +1,6 @@
 [project]
 name = "lai-gateway"
-version = "0.1.12"
+version = "0.1.13"
 description = "Private companion gateway for lai harness control-plane clients."
 requires-python = ">=3.11"
 readme = "README.md"
