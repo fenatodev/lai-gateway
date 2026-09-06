@@ -196,6 +196,7 @@ class ScriptTest(unittest.TestCase):
                 timeout=20,
             )
         self.assertIn("lai-gateway-model", help_result.stdout)
+        self.assertIn("--smoke", help_result.stdout)
         self.assertNotIn("Bearer", help_result.stdout + help_result.stderr + missing.stdout + missing.stderr)
         self.assertEqual(missing.returncode, 1)
         self.assertIn("model API key file is not ready", missing.stderr)
@@ -207,6 +208,7 @@ class ScriptTest(unittest.TestCase):
         self.assertNotIn("curl -fsS -H", script)
         self.assertNotIn("Authorization: Bearer $(cat", script)
         self.assertIn("probe_models_endpoint", script)
+        self.assertIn("model-smoke", script)
 
 
 if __name__ == "__main__":

@@ -16,16 +16,18 @@ force_key=0
 plan_only=0
 probe_only=0
 foreground=0
+run_smoke=0
 
 usage() {
   cat <<USAGE
-usage: lai-gateway-model [--host <windows-wsl-ip>] [--port 18082] [--model-path <gguf>] [--model-name <name>] [--key-file <path>] [--create-key] [--force-key] [--plan-only] [--probe-only] [--foreground]
+usage: lai-gateway-model [--host <windows-wsl-ip>] [--port 18082] [--model-path <gguf>] [--model-name <name>] [--key-file <path>] [--create-key] [--force-key] [--plan-only] [--probe-only] [--smoke] [--foreground]
 
 Idempotent local model launcher for Windows llama.cpp from WSL:
   - discovers the recommended local GGUF when --model-path is omitted
   - creates/verifies a local model API key file without printing the key
   - starts llama-server.exe bound to a private WSL-reachable Windows IP
   - waits for /v1/models, then runs lai-gateway model-status --probe-openai
+  - with --smoke, also runs a fixed-prompt completion smoke test
 
 No model downloads are performed. No API key values are printed.
 USAGE
@@ -80,6 +82,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --probe-only)
       probe_only=1
+      shift
+      ;;
+    --smoke)
+      run_smoke=1
       shift
       ;;
     --foreground)
@@ -197,11 +203,18 @@ if [ "$plan_only" = "1" ]; then
   echo "key_file: $key_file"
   echo "base_url: $base_url"
   echo "start: llama-server.exe --host $host --port $port --model '<model-path>' --ctx-size $ctx_size --threads $threads --n-gpu-layers $gpu_layers --api-key-file '<key-file>' --cors-origins localhost --no-cors-credentials"
+  echo "smoke: $run_smoke"
   exit 0
 fi
 
 if [ "$probe_only" = "1" ]; then
+  if [ "$run_smoke" = "1" ]; then
+    exec "$python_bin" -m lai_gateway model-smoke
+  fi
   exec "$python_bin" -m lai_gateway model-status --probe-openai
+if [ "$run_smoke" = "1" ]; then
+  "$python_bin" -m lai_gateway model-smoke
+fi
 fi
 
 if ! command -v llama-server.exe >/dev/null 2>&1; then
@@ -210,7 +223,14 @@ if ! command -v llama-server.exe >/dev/null 2>&1; then
 fi
 
 if probe_models_endpoint; then
-  exec "$python_bin" -m lai_gateway model-status --probe-openai
+  "$python_bin" -m lai_gateway model-status --probe-openai
+if [ "$run_smoke" = "1" ]; then
+  "$python_bin" -m lai_gateway model-smoke
+fi
+  if [ "$run_smoke" = "1" ]; then
+    exec "$python_bin" -m lai_gateway model-smoke
+  fi
+  exit 0
 fi
 
 if [ "$foreground" = "1" ]; then
@@ -267,3 +287,6 @@ if [ "$ready" != "1" ]; then
 fi
 
 "$python_bin" -m lai_gateway model-status --probe-openai
+if [ "$run_smoke" = "1" ]; then
+  "$python_bin" -m lai_gateway model-smoke
+fi

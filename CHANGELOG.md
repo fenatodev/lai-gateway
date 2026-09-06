@@ -1,6 +1,7 @@
 ## [0.1.23] - 2026-09-06
 
 ### Added
+- Add `lai-gateway-model --smoke` to run fixed-prompt completion validation immediately after local runtime startup.
 - Add `lai-gateway model-smoke` for fixed-prompt local completion validation with bounded output and secret-free reporting.
 - Add `lai-gateway-model` fallback launcher for starting the recommended Windows llama.cpp runtime from WSL with API-key-file auth and readiness probing.
 - Add `lai-gateway model-files` to find local GGUF files, group split models, ignore accessory-only files, and recommend the best local code-model candidate.
