@@ -10,7 +10,7 @@ The current gateway provides:
 
 - a dependency-free Python client for the harness control plane;
 - validation of the `lai harness v0.4.2` gateway contract;
-- a local CLI for `config`, `contract`, `status`, `readiness`, `sessions`, and `runs`;
+- a local CLI for `config`, `contract`, `status`, `readiness`, `doctor`, `open-ui`, `sessions`, and `runs`;
 - a loopback-only HTTP gateway exposing harness status, readiness, contract, session, and read-only run routes;
 - read-only run creation for `diagnose`, `plan`, `release`, `review`, and `security`.
 
@@ -57,6 +57,8 @@ python3 -m lai_gateway config
 python3 -m lai_gateway contract
 python3 -m lai_gateway status
 python3 -m lai_gateway readiness
+python3 -m lai_gateway doctor
+python3 -m lai_gateway open-ui --print-only
 python3 -m lai_gateway sessions list --limit 10
 python3 -m lai_gateway sessions create
 python3 -m lai_gateway sessions get <session_id>
@@ -66,6 +68,25 @@ python3 -m lai_gateway runs create --mode review --session-id <session_id> --tas
 python3 -m lai_gateway runs get <control_run_id>
 ```
 
+
+
+## Local install and launcher
+
+Install editable local wrappers without using `pip`:
+
+```bash
+scripts/install-local.sh
+lai-gateway --version
+lai-gateway doctor
+```
+
+Start the loopback gateway and open the UI:
+
+```bash
+scripts/launch-local.sh --bind 127.0.0.1 --port 8787
+```
+
+The installer writes wrapper scripts to `$HOME/.local/bin` by default. Override that with `LAI_GATEWAY_INSTALL_BIN=/path/to/bin`. The wrappers point at this checkout and do not copy or print the LAI control token.
 
 ## Local UI
 
@@ -106,7 +127,7 @@ The gateway currently refuses public bind addresses. Private-network/mobile expo
 
 ```bash
 make check
-python3 -m lai_gateway release-check --target 0.1.4 --json
+python3 -m lai_gateway release-check --target 0.1.5 --json
 ```
 
 Release rules are documented in [docs/RELEASE.md](docs/RELEASE.md).

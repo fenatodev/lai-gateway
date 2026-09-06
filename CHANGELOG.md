@@ -1,3 +1,15 @@
+## [0.1.5] - 2026-09-06
+
+Add local operational tooling for installing and diagnosing the gateway.
+
+- Add `python3 -m lai_gateway doctor` with JSON and text output for config, token, harness status, readiness, and contract checks.
+- Add `python3 -m lai_gateway open-ui --print-only` for deterministic local UI discovery.
+- Add `scripts/install-local.sh` to install checkout-backed wrappers in a chosen local bin directory.
+- Add `scripts/launch-local.sh` to print/open the UI URL and run the gateway in foreground.
+- Add shell syntax checks and tests for doctor, launcher, local install wrappers, and secret-free output.
+
+No public bind, write-capable runs, shell authority, direct llama.cpp proxy, token exposure, or source checkout mutation is exposed in this release.
+
 ## [0.1.4] - 2026-09-06
 
 Polish the local gateway UI for read-only operation.

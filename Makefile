@@ -13,6 +13,7 @@ test:
 check:
 	python3 -m compileall -q lai_gateway tests
 	python3 -m py_compile lai_gateway/*.py tests/*.py
+	bash -n scripts/*.sh
 	python3 -m unittest discover -s tests -t . -v
 	python3 -c "import tomllib; tomllib.load(open('pyproject.toml','rb'))"
 	git diff --check
