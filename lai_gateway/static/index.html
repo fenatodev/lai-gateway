@@ -20,6 +20,20 @@
     </header>
 
     <section class="grid" aria-label="Gateway controls">
+
+      <article class="card">
+        <h2>Gateway access</h2>
+        <p class="muted">Loopback does not need this. Private LAN mode requires the separate gateway access token.</p>
+        <label>Gateway token
+          <input id="gateway-token" type="password" autocomplete="off" spellcheck="false" placeholder="gateway access token">
+        </label>
+        <div class="actions">
+          <button data-action="use-gateway-token">Use token</button>
+          <button data-action="forget-gateway-token">Forget token</button>
+        </div>
+        <p id="gateway-access-state" class="muted" aria-live="polite">No gateway token loaded in page memory.</p>
+      </article>
+
       <article class="card">
         <h2>Status</h2>
         <div class="actions">

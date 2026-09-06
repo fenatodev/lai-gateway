@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from . import __version__
-from .config import GatewayConfig, read_control_token
+from .config import GatewayConfig, read_control_token, read_gateway_access_token
 from .contract import summarize_contract
 from .errors import GatewayError
 from .harness_client import HarnessClient
@@ -33,7 +33,7 @@ def collect_doctor(config: GatewayConfig | None = None) -> dict[str, Any]:
     except GatewayError as exc:
         return _payload(None, [_check("fail", "config", str(exc))])
 
-    checks.append(_check("ok", "config", "gateway configuration is loopback-only"))
+    checks.append(_check("ok", "config", "gateway configuration satisfies bind policy"))
     checks.append(_check("ok", "python", f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"))
     checks.append(_check("ok", "gateway_url", f"http://{config.bind}:{config.port}/"))
 
@@ -43,6 +43,16 @@ def collect_doctor(config: GatewayConfig | None = None) -> dict[str, Any]:
         checks.append(_check("fail", "token_file", str(exc)))
         return _payload(config, checks)
     checks.append(_check("ok", "token_file", f"readable single-token file: {config.token_file}"))
+    if config.private_bind_enabled:
+        if config.access_token_file is None:
+            checks.append(_check("fail", "access_token_file", "private bind requires LAI_GATEWAY_ACCESS_TOKEN_FILE"))
+            return _payload(config, checks)
+        try:
+            read_gateway_access_token(config.access_token_file)
+        except GatewayError as exc:
+            checks.append(_check("fail", "access_token_file", str(exc)))
+            return _payload(config, checks)
+        checks.append(_check("ok", "access_token_file", f"readable gateway access token file: {config.access_token_file}"))
 
     client = HarnessClient(config)
     try:

@@ -11,7 +11,7 @@ The current gateway provides:
 - a dependency-free Python client for the harness control plane;
 - validation of the `lai harness v0.4.2` gateway contract;
 - a local CLI for `config`, `contract`, `status`, `readiness`, `doctor`, `open-ui`, `sessions`, and `runs`;
-- a loopback-only HTTP gateway exposing harness status, readiness, contract, session, and read-only run routes;
+- an HTTP gateway exposing harness status, readiness, contract, session, and read-only run routes, loopback by default with opt-in private LAN binding;
 - read-only run creation for `diagnose`, `plan`, `release`, `review`, and `security`.
 
 It does **not** expose write-capable run modes such as `implement`, `fix`, `refactor`, or `ci-fix`.
@@ -36,7 +36,11 @@ LAI_GATEWAY_HARNESS_URL=http://127.0.0.1:8765
 LAI_GATEWAY_TOKEN_FILE=$HOME/.config/lai/control-api-key
 LAI_GATEWAY_BIND=127.0.0.1
 LAI_GATEWAY_PORT=8787
+LAI_GATEWAY_PRIVATE_BIND=0
+LAI_GATEWAY_ACCESS_TOKEN_FILE=$HOME/.config/lai-gateway/access-token
 ```
+
+For LAN access, set `LAI_GATEWAY_PRIVATE_BIND=1`, bind to a concrete private IP address, and create a separate gateway access token file. Do not use `0.0.0.0`; the gateway rejects wildcard and public binds. The browser UI may hold the gateway access token in page memory, but it still never receives the LAI harness control token.
 
 Never commit a real token. Humanity has made many mistakes; do not add this one.
 
@@ -100,6 +104,23 @@ http://127.0.0.1:8787/
 
 The UI is intentionally local-only. It can refresh readiness/status, create and inspect sessions, create read-only runs, poll selected runs, keep a compact in-memory run history, and copy run output. It does not receive the harness control token, does not use external CDN assets, and does not use browser storage. Tiny mercy in a world full of tracking pixels.
 
+
+## Private LAN preview
+
+Loopback remains the default. To expose the gateway on a private LAN, use an explicit private address and a separate gateway token:
+
+```bash
+mkdir -p "$HOME/.config/lai-gateway"
+printf '%s\n' 'replace-with-a-long-random-token' > "$HOME/.config/lai-gateway/access-token"
+chmod 600 "$HOME/.config/lai-gateway/access-token"
+LAI_GATEWAY_PRIVATE_BIND=1 \
+LAI_GATEWAY_BIND=192.168.1.20 \
+LAI_GATEWAY_ACCESS_TOKEN_FILE="$HOME/.config/lai-gateway/access-token" \
+lai-gateway dev --no-open
+```
+
+When private mode is enabled, `/v1/harness/*` requires `Authorization: Bearer <gateway-access-token>`. Static UI files and `/healthz` remain secret-free. The UI keeps the gateway token only in page memory. The harness control token stays server-side. Humanity gets one less obvious way to leak credentials.
+
 ## Gateway server MVP
 
 ```bash
@@ -129,7 +150,7 @@ The gateway currently refuses public bind addresses. Private-network/mobile expo
 
 ```bash
 make check
-python3 -m lai_gateway release-check --target 0.1.6 --json
+python3 -m lai_gateway release-check --target 0.1.7 --json
 ```
 
 Release rules are documented in [docs/RELEASE.md](docs/RELEASE.md).

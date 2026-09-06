@@ -3,6 +3,7 @@ const TERMINAL_STATUSES = new Set(["succeeded", "failed", "cancelled", "canceled
 const runHistory = [];
 let lastRunPayload = null;
 let runPollTimer = null;
+let gatewayAccessToken = "";
 
 function pretty(payload) {
   return JSON.stringify(payload, null, 2);
@@ -22,10 +23,16 @@ function setPill(id, text, state = "muted") {
   pill.className = `pill ${state}`;
 }
 
+function gatewayAuthHeaders() {
+  if (!gatewayAccessToken) return {};
+  return { "Authorization": `${"Bear"}er ${gatewayAccessToken}` };
+}
+
 async function requestJson(path, options = {}) {
+  const headers = { "Accept": "application/json", ...gatewayAuthHeaders(), ...(options.headers || {}) };
   const response = await fetch(path, {
     cache: "no-store",
-    headers: { "Accept": "application/json", ...(options.headers || {}) },
+    headers,
     ...options,
   });
   const text = await response.text();
@@ -137,7 +144,15 @@ async function copyRunOutput() {
 
 async function runAction(action) {
   try {
-    if (action === "refresh-status") {
+    if (action === "use-gateway-token") {
+      gatewayAccessToken = byId("gateway-token").value.trim();
+      byId("gateway-token").value = "";
+      byId("gateway-access-state").textContent = gatewayAccessToken ? "Gateway token loaded in page memory." : "No gateway token loaded in page memory.";
+    } else if (action === "forget-gateway-token") {
+      gatewayAccessToken = "";
+      byId("gateway-token").value = "";
+      byId("gateway-access-state").textContent = "No gateway token loaded in page memory.";
+    } else if (action === "refresh-status") {
       show("status-output", await requestJson("/v1/harness/status"));
     } else if (action === "refresh-readiness") {
       const payload = await requestJson("/v1/harness/readiness");
