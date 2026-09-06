@@ -7,7 +7,7 @@ from typing import Any
 
 from . import __version__
 from .config import GatewayConfig, read_control_token, read_gateway_access_token
-from .tokens import check_gateway_access_token_file
+from .tokens import check_gateway_access_token_file, check_gateway_pairing_token_file
 from .contract import summarize_contract
 from .errors import GatewayError
 from .harness_client import HarnessClient
@@ -56,6 +56,19 @@ def collect_doctor(config: GatewayConfig | None = None) -> dict[str, Any]:
             return _payload(config, checks)
         checks.append(_check("ok", "access_token_file", f"readable gateway access token file: {config.access_token_file}"))
         checks.append(_check("ok", "access_token_permissions", f"mode={checked['mode']}"))
+        if config.pair_token_file is not None and config.pair_token_file.exists():
+            try:
+                pair = check_gateway_pairing_token_file(config.pair_token_file)
+            except GatewayError as exc:
+                checks.append(_check("warn", "pair_token_file", str(exc)))
+            else:
+                checks.append(
+                    _check(
+                        "ok",
+                        "pair_token_file",
+                        f"expires_at={pair['expires_at']} seconds_remaining={pair['seconds_remaining']}",
+                    )
+                )
 
     client = HarnessClient(config)
     try:

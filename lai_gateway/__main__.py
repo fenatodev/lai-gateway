@@ -15,7 +15,15 @@ from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .release import collect_release_check, render_release_check
 from .server import serve
-from .tokens import check_gateway_access_token_file, create_gateway_access_token, default_access_token_path
+from .tokens import (
+    check_gateway_access_token_file,
+    check_gateway_pairing_token_file,
+    create_gateway_access_token,
+    create_gateway_pairing_token,
+    default_access_token_path,
+    default_pair_token_path,
+    revoke_gateway_pairing_token,
+)
 
 
 def _config_with_overrides(config: GatewayConfig, bind: str | None, port: int | None) -> GatewayConfig:
@@ -31,6 +39,8 @@ def _config_with_overrides(config: GatewayConfig, bind: str | None, port: int | 
     }
     if config.access_token_file is not None:
         values["LAI_GATEWAY_ACCESS_TOKEN_FILE"] = str(config.access_token_file)
+    if config.pair_token_file is not None:
+        values["LAI_GATEWAY_PAIR_TOKEN_FILE"] = str(config.pair_token_file)
     return GatewayConfig.from_env(values)
 
 
@@ -80,6 +90,20 @@ def main(argv: list[str] | None = None) -> int:
     token_check = token_sub.add_parser("check", help="validate gateway access token file permissions")
     token_check.add_argument("--path", default=None, help="token file path; defaults to ~/.config/lai-gateway/access-token")
     token_check.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    pair_parser = sub.add_parser("pair", help="create and inspect short-lived mobile pairing tokens")
+    pair_sub = pair_parser.add_subparsers(dest="pair_command")
+    pair_create = pair_sub.add_parser("create", help="create a short-lived gateway pairing token")
+    pair_create.add_argument("--path", default=None, help="pair file path; defaults to ~/.config/lai-gateway/pair-token.json")
+    pair_create.add_argument("--ttl-seconds", type=int, default=600, help="pairing token lifetime, 60..3600 seconds")
+    pair_create.add_argument("--force", action="store_true", help="overwrite an existing pair token file")
+    pair_create.add_argument("--show", action="store_true", help="print the pairing token once")
+    pair_create.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    pair_check = pair_sub.add_parser("check", help="validate the current pairing token file")
+    pair_check.add_argument("--path", default=None, help="pair file path; defaults to ~/.config/lai-gateway/pair-token.json")
+    pair_check.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    pair_revoke = pair_sub.add_parser("revoke", help="delete the current pairing token file")
+    pair_revoke.add_argument("--path", default=None, help="pair file path; defaults to ~/.config/lai-gateway/pair-token.json")
+    pair_revoke.add_argument("--json", action="store_true", help="print machine-readable JSON")
     sessions_parser = sub.add_parser("sessions", help="manage harness sessions without creating runs")
     sessions_sub = sessions_parser.add_subparsers(dest="sessions_command")
     sessions_list = sessions_sub.add_parser("list", help="list harness sessions")
@@ -140,6 +164,46 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"token_length: {payload['token_length']}")
                 return 0
             token_parser.print_help()
+            return 0
+        if args.command == "pair":
+            default_pair_path = config.pair_token_file or default_pair_token_path()
+            path = Path(args.path).expanduser() if getattr(args, "path", None) else default_pair_path
+            if args.pair_command == "create":
+                payload = create_gateway_pairing_token(
+                    path,
+                    ttl_seconds=args.ttl_seconds,
+                    force=args.force,
+                    include_token=args.show,
+                    ui_url=_ui_url(config),
+                )
+                if args.json:
+                    print(json.dumps(payload, indent=2, sort_keys=True))
+                else:
+                    print(f"created: {payload['path']}")
+                    print(f"mode: {payload['mode']}")
+                    print(f"expires_at: {payload['expires_at']}")
+                    print(f"ui: {payload['ui_url']}")
+                    if args.show:
+                        print(f"token: {payload['token']}")
+                return 0
+            if args.pair_command == "check":
+                payload = check_gateway_pairing_token_file(path)
+                if args.json:
+                    print(json.dumps(payload, indent=2, sort_keys=True))
+                else:
+                    print(f"ok: {payload['path']}")
+                    print(f"mode: {payload['mode']}")
+                    print(f"expires_at: {payload['expires_at']}")
+                    print(f"seconds_remaining: {payload['seconds_remaining']}")
+                return 0
+            if args.pair_command == "revoke":
+                payload = revoke_gateway_pairing_token(path)
+                if args.json:
+                    print(json.dumps(payload, indent=2, sort_keys=True))
+                else:
+                    print(f"revoked: {payload['revoked']} {payload['path']}")
+                return 0
+            pair_parser.print_help()
             return 0
         payload: dict[str, Any]
         client = HarnessClient(config)

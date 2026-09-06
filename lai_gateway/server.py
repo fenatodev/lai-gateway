@@ -12,6 +12,7 @@ from urllib.parse import parse_qs, urlparse
 
 from . import __version__
 from .config import GatewayConfig, read_gateway_access_token, validate_gateway_bind
+from .tokens import read_valid_gateway_pairing_token
 from .errors import ConfigError, GatewayError, HarnessHTTPError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient, build_read_only_run_body
 
@@ -51,6 +52,7 @@ class GatewayHTTPServer(ThreadingHTTPServer):
         self.config = config
         self.client = HarnessClient(config)
         self.access_token = access_token
+        self.pair_token_file = config.pair_token_file if config.private_bind_enabled else None
         self.auth_failures: dict[str, list[float]] = {}
         self.auth_lock = threading.Lock()
 
@@ -182,12 +184,25 @@ class GatewayHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "gateway_auth_required"})
             return False
         supplied = raw[len(prefix) :]
-        if not hmac.compare_digest(supplied, expected):
-            self._record_auth_failure(client_key)
-            self._send_json(HTTPStatus.FORBIDDEN, {"error": "gateway_auth_failed"})
-            return False
-        self._clear_auth_failures(client_key)
-        return True
+        if hmac.compare_digest(supplied, expected):
+            self._clear_auth_failures(client_key)
+            return True
+        pair_token = self._current_pairing_token()
+        if pair_token is not None and hmac.compare_digest(supplied, pair_token):
+            self._clear_auth_failures(client_key)
+            return True
+        self._record_auth_failure(client_key)
+        self._send_json(HTTPStatus.FORBIDDEN, {"error": "gateway_auth_failed"})
+        return False
+
+    def _current_pairing_token(self) -> str | None:
+        token_file = self.server.pair_token_file
+        if token_file is None:
+            return None
+        try:
+            return read_valid_gateway_pairing_token(token_file)
+        except GatewayError:
+            return None
 
     def _auth_rate_limited(self, client_key: str) -> bool:
         now = time.monotonic()

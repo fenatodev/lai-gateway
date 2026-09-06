@@ -1,3 +1,15 @@
+## [0.1.9] - 2026-09-06
+
+Add short-lived mobile pairing tokens for private gateway access.
+
+- Add `lai-gateway pair create/check/revoke` for temporary private API pairing.
+- Store pairing tokens in a separate `0600` JSON file with an expiration timestamp.
+- Let the server accept either the permanent gateway token or a currently valid pairing token in private mode.
+- Keep pairing token values hidden by default; `--show` is explicit for one-time phone pairing.
+- Add doctor reporting for valid pairing files without exposing token values.
+
+No public bind, harness token exposure to the browser, write-capable runs, shell authority, direct llama.cpp proxy, persistent browser storage, or automatic tunnel setup is exposed in this release.
+
 ## [0.1.8] - 2026-09-06
 
 Harden private LAN setup for mobile access.

@@ -48,6 +48,7 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(public["bind"], "192.168.1.20")
         self.assertEqual(public["access_mode"], "private-token")
         self.assertEqual(public["access_token_file"], "/tmp/gateway-access")
+        self.assertIn("pair-token.json", str(public["pair_token_file"]))
         self.assertNotIn("secret", repr(public).lower())
 
     def test_reads_single_token_without_whitespace(self):
