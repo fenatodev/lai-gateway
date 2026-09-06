@@ -1,3 +1,13 @@
+## [0.1.16] - 2026-09-06
+
+### Added
+- Add `lai-gateway mobile-bridge` to plan, apply, or remove Windows-to-WSL portproxy/firewall rules for mobile access.
+- Surface `lai_bridge_apply` commands in mobile-access and mobile-serve output so WSL/Tailscale setup is less manual.
+
+### Security
+- Keep bridge setup token-free: it forwards only the selected Windows/Tailscale IP and port to the WSL gateway bind.
+- Validate listen/connect IPs and reject wildcard, loopback, public, multicast, reserved, link-local, and IPv6 bridge targets.
+
 ## [0.1.15] - 2026-09-06
 
 Add WSL/Tailscale-aware mobile access discovery, local QR rendering, and safe Telegram outbound scaffolding.

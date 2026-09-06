@@ -75,6 +75,8 @@ python3 -m lai_gateway doctor
 python3 -m lai_gateway open-ui --print-only
 python3 -m lai_gateway lan-info --port 8787
 python3 -m lai_gateway mobile-access --port 8787
+python3 -m lai_gateway mobile-bridge --target tailscale --port 8787
+python3 -m lai_gateway mobile-bridge --target tailscale --port 8787 --apply
 python3 -m lai_gateway mobile-start --port 8787
 python3 -m lai_gateway mobile-start --port 8787 --prepare
 python3 -m lai_gateway mobile-start --candidate-ip 192.168.1.20 --port 8787
@@ -129,7 +131,7 @@ The UI is intentionally local-first and phone-friendly. It can refresh readiness
 
 ## Private LAN preview
 
-Loopback remains the default. To inspect safe private LAN candidates without opening a port, run `lai-gateway lan-info --port 8787`. To inspect phone URLs and local QR data, run `lai-gateway mobile-access --port 8787`. To get a guided mobile setup plan, run `lai-gateway mobile-start --port 8787`; add `--prepare` to create or refresh the separate gateway and pair-token files. If autodetection picks the wrong address, pass `--candidate-ip <private-ip>`. To intentionally prepare and serve in one step, run `lai-gateway mobile-serve --candidate-ip <private-ip> --port 8787`. To expose the gateway on a private LAN, use an explicit private address and a separate gateway token:
+Loopback remains the default. To inspect safe private LAN candidates without opening a port, run `lai-gateway lan-info --port 8787`. To inspect phone URLs and local QR data, run `lai-gateway mobile-access --port 8787`. In WSL2, use `lai-gateway mobile-bridge --target tailscale --port 8787` to print a Windows/Tailscale bridge plan, then `lai-gateway mobile-bridge --target tailscale --port 8787 --apply` from an elevated Windows/WSL shell to apply the portproxy/firewall rules. To get a guided mobile setup plan, run `lai-gateway mobile-start --port 8787`; add `--prepare` to create or refresh the separate gateway and pair-token files. If autodetection picks the wrong address, pass `--candidate-ip <private-ip>`. To intentionally prepare and serve in one step, run `lai-gateway mobile-serve --candidate-ip <private-ip> --port 8787`. To expose the gateway on a private LAN, use an explicit private address and a separate gateway token:
 
 ```bash
 lai-gateway token create
