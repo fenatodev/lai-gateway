@@ -181,6 +181,75 @@ def render_model_plan(payload: dict[str, Any]) -> str:
 
 
 
+
+def collect_model_smoke(
+    *,
+    env: dict[str, str] | None = None,
+    expected: str = "LAI_SMOKE_OK",
+    timeout_seconds: float = 60.0,
+) -> dict[str, Any]:
+    """Run a bounded fixed-prompt completion smoke test against a safe local model endpoint."""
+    values = env if env is not None else os.environ
+    raw_base_url = values.get("LAI_GATEWAY_MODEL_BASE_URL", "").strip()
+    model_name = values.get("LAI_GATEWAY_MODEL_NAME", "").strip()
+    api_key = _model_api_key_from_env(values)
+    started = time.monotonic()
+    smoke = _probe_openai_chat_completion(
+        raw_base_url,
+        model_name=model_name,
+        api_key=api_key,
+        expected=expected,
+        timeout_seconds=timeout_seconds,
+    )
+    elapsed_ms = round((time.monotonic() - started) * 1000, 1)
+    overall = "ready" if smoke.get("matched") else smoke.get("status", "blocked")
+    if smoke.get("status") in {"blocked", "needs_config"}:
+        overall = smoke["status"]
+    return {
+        "product": "lai-gateway",
+        "version": __version__,
+        "operation": "model-smoke",
+        "overall": overall,
+        "starts_server": False,
+        "modifies_files": False,
+        "downloads_models": False,
+        "network_calls": {"local_openai_chat_completion": bool(smoke.get("network_call"))},
+        "model_config": _model_env_config(values),
+        "smoke": smoke,
+        "elapsed_ms": elapsed_ms,
+        "security": {
+            "prints_tokens": False,
+            "starts_server": False,
+            "modifies_files": False,
+            "downloads_models": False,
+            "fixed_prompt_only": True,
+            "user_prompt_supported": False,
+        },
+    }
+
+
+def render_model_smoke(payload: dict[str, Any]) -> str:
+    smoke = payload["smoke"]
+    lines = [
+        f"lai-gateway model-smoke: {payload['overall']}",
+        f"version: {payload['version']}",
+        "starts_server: false",
+        "modifies_files: false",
+        "downloads_models: false",
+        "fixed_prompt_only: true",
+        f"status: {smoke.get('status')}",
+    ]
+    if smoke.get("auth_used") is not None:
+        lines.append(f"auth_used: {str(bool(smoke.get('auth_used'))).lower()}")
+    if smoke.get("matched") is not None:
+        lines.append(f"matched: {str(bool(smoke.get('matched'))).lower()}")
+    if smoke.get("response_preview"):
+        lines.append(f"response_preview: {smoke['response_preview']}")
+    if smoke.get("detail"):
+        lines.append(f"detail: {smoke['detail']}")
+    lines.append(f"elapsed_ms: {payload['elapsed_ms']}")
+    return "\n".join(lines)
+
 def default_model_api_key_path() -> Path:
     return Path(_DEFAULT_MODEL_API_KEY_FILE).expanduser()
 
@@ -704,6 +773,73 @@ def _probe_openai_compatible(base_url: str | None, *, api_key: str = "") -> dict
         return {"status": "unreachable", "network_call": True, "auth_used": bool(api_key), "detail": str(exc)[:180]}
     return {"status": "ready", "network_call": True, "auth_used": bool(api_key), "model_count": len(parsed.get("data", [])) if isinstance(parsed, dict) else None}
 
+
+
+def _probe_openai_chat_completion(
+    base_url: str | None,
+    *,
+    model_name: str,
+    api_key: str = "",
+    expected: str = "LAI_SMOKE_OK",
+    timeout_seconds: float = 60.0,
+) -> dict[str, Any]:
+    if not base_url:
+        return {"status": "needs_config", "network_call": False, "detail": "model base URL is not configured"}
+    if not model_name:
+        return {"status": "needs_config", "network_call": False, "detail": "model name is not configured"}
+    validation = _validate_local_model_base_url(base_url)
+    if validation["status"] != "ok":
+        return {"status": "blocked", "network_call": False, "detail": validation["detail"]}
+    import urllib.error
+    import urllib.request
+
+    expected = (expected or "LAI_SMOKE_OK").strip()[:80] or "LAI_SMOKE_OK"
+    body = json.dumps(
+        {
+            "model": model_name,
+            "messages": [{"role": "user", "content": f"Reply exactly: {expected}"}],
+            "max_tokens": 16,
+            "temperature": 0,
+            "stream": False,
+        }
+    ).encode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    request = urllib.request.Request(validation["base_url"].rstrip("/") + "/v1/chat/completions", data=body, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=max(1.0, float(timeout_seconds))) as response:  # nosec - local user-configured URL only
+            raw = response.read(64 * 1024).decode("utf-8", errors="replace")
+            parsed = json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as exc:
+        return {"status": "http_error", "network_call": True, "auth_used": bool(api_key), "code": exc.code, "detail": "local model endpoint returned an HTTP error"}
+    except Exception as exc:  # noqa: BLE001 - diagnostic should be bounded, not crashy
+        return {"status": "unreachable", "network_call": True, "auth_used": bool(api_key), "detail": str(exc)[:180]}
+    text = _chat_completion_text(parsed)
+    preview = text.replace("\n", " ")[:200]
+    return {
+        "status": "ready" if expected in text else "mismatch",
+        "network_call": True,
+        "auth_used": bool(api_key),
+        "expected": expected,
+        "matched": expected in text,
+        "response_chars": len(text),
+        "response_preview": preview,
+    }
+
+
+def _chat_completion_text(payload: Any) -> str:
+    try:
+        choices = payload.get("choices", []) if isinstance(payload, dict) else []
+        first = choices[0] if choices else {}
+        message = first.get("message", {}) if isinstance(first, dict) else {}
+        content = message.get("content") if isinstance(message, dict) else None
+        if isinstance(content, str):
+            return content
+        text = first.get("text") if isinstance(first, dict) else None
+        return text if isinstance(text, str) else ""
+    except Exception:
+        return ""
 
 def _validate_local_model_base_url(base_url: str) -> dict[str, str]:
     parsed = urlparse(base_url)

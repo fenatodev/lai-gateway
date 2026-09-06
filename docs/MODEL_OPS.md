@@ -124,3 +124,32 @@ The launcher:
 - waits for `/v1/models`, then runs `lai-gateway model-status --probe-openai`.
 
 Never pass the model API key through a shell `curl -H` command. That exposes the secret in process arguments.
+
+
+## Completion smoke test
+
+After the local model endpoint is reachable, run a bounded fixed-prompt completion test:
+
+```bash
+lai-gateway model-smoke
+```
+
+`model-smoke` sends only a fixed health-check prompt asking the model to return `LAI_SMOKE_OK`. It does not accept arbitrary user prompts, does not download models, does not start servers, and does not print API keys.
+
+Use it after:
+
+```bash
+export LAI_GATEWAY_MODEL_BASE_URL='http://172.29.192.1:18082'
+export LAI_GATEWAY_MODEL_NAME='qwen2.5-coder-7b-instruct-q4_k_m'
+export LAI_GATEWAY_MODEL_API_KEY_FILE='/mnt/c/Users/fenat/.config/lai-gateway/model-api-key'
+lai-gateway model-status --probe-openai
+lai-gateway model-smoke
+```
+
+Expected result:
+
+```text
+lai-gateway model-smoke: ready
+matched: true
+response_preview: LAI_SMOKE_OK
+```
