@@ -340,6 +340,10 @@ async function runAction(action) {
       const payload = await requestJson("/v1/gateway/model-task?task=code-mini&timeout_seconds=60");
       setPill("model-pill", `model task ${payload.overall || "unknown"}`, payload.overall === "ready" ? "ready" : "warn");
       show("model-output", payload);
+    } else if (action === "run-model-eval") {
+      const payload = await requestJson("/v1/gateway/model-eval?timeout_seconds=60");
+      setPill("model-pill", `model eval ${payload.overall || "unknown"}`, payload.overall === "ready" ? "ready" : "warn");
+      show("model-output", payload);
     } else if (action === "refresh-model-runs") {
       const payload = await requestJson("/v1/gateway/model-runs?limit=20");
       setPill("model-pill", `model runs ${payload.count || 0}`, payload.count ? "ready" : "warn");

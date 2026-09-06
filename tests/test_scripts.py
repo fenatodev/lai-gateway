@@ -198,6 +198,7 @@ class ScriptTest(unittest.TestCase):
         self.assertIn("lai-gateway-model", help_result.stdout)
         self.assertIn("--smoke", help_result.stdout)
         self.assertIn("--record", help_result.stdout)
+        self.assertIn("--eval", help_result.stdout)
         self.assertIn("--task", help_result.stdout)
         self.assertNotIn("Bearer", help_result.stdout + help_result.stderr + missing.stdout + missing.stderr)
         self.assertEqual(missing.returncode, 1)

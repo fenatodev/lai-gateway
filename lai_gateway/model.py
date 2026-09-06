@@ -356,6 +356,88 @@ def render_model_task(payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+
+
+def collect_model_eval(
+    *,
+    env: dict[str, str] | None = None,
+    tasks: tuple[str, ...] | None = None,
+    timeout_seconds: float = 60.0,
+    record: bool = False,
+    runs_file: Path | None = None,
+) -> dict[str, Any]:
+    """Run a bounded fixed local model evaluation suite without accepting arbitrary prompts."""
+    selected_tasks = tasks or ("code-mini",)
+    started = time.monotonic()
+    smoke = collect_model_smoke(env=env, timeout_seconds=timeout_seconds, record=record, runs_file=runs_file)
+    task_results = [
+        collect_model_task(env=env, task=task, timeout_seconds=timeout_seconds, record=record, runs_file=runs_file)
+        for task in selected_tasks
+    ]
+    elapsed_ms = round((time.monotonic() - started) * 1000, 1)
+    checks = [smoke, *task_results]
+    ready_count = sum(1 for item in checks if item.get("overall") == "ready")
+    overall = "ready" if ready_count == len(checks) else "warn"
+    if any(item.get("overall") == "blocked" for item in checks):
+        overall = "blocked"
+    if any(item.get("overall") == "needs_config" for item in checks):
+        overall = "needs_config"
+    return {
+        "product": "lai-gateway",
+        "version": __version__,
+        "operation": "model-eval",
+        "overall": overall,
+        "starts_server": False,
+        "modifies_files": bool(record),
+        "downloads_models": False,
+        "network_calls": {"local_openai_chat_completion": any(item.get("network_calls", {}).get("local_openai_chat_completion") for item in checks)},
+        "record": record,
+        "smoke": smoke,
+        "tasks": task_results,
+        "summary": {
+            "checks": len(checks),
+            "ready": ready_count,
+            "failed": len(checks) - ready_count,
+            "task_names": list(selected_tasks),
+            "elapsed_ms": elapsed_ms,
+        },
+        "elapsed_ms": elapsed_ms,
+        "security": {
+            "prints_tokens": False,
+            "starts_server": False,
+            "downloads_models": False,
+            "fixed_prompt_only": True,
+            "fixed_task_only": True,
+            "user_prompt_supported": False,
+            "stores_prompts": False,
+            "recording_requires_explicit_flag": True,
+        },
+    }
+
+
+def render_model_eval(payload: dict[str, Any]) -> str:
+    summary = payload["summary"]
+    lines = [
+        f"lai-gateway model-eval: {payload['overall']}",
+        f"version: {payload['version']}",
+        "starts_server: false",
+        f"modifies_files: {str(bool(payload.get('modifies_files'))).lower()}",
+        "downloads_models: false",
+        "fixed_prompt_only: true",
+        "fixed_task_only: true",
+        f"checks: {summary['checks']}",
+        f"ready: {summary['ready']}",
+        f"failed: {summary['failed']}",
+        f"elapsed_ms: {payload['elapsed_ms']}",
+        f"smoke: {payload['smoke'].get('overall')}",
+    ]
+    for task in payload.get("tasks", []):
+        result = task.get("result", {})
+        lines.append(f"task {task.get('task')}: {task.get('overall')} matched={str(bool(result.get('matched'))).lower()} elapsed_ms={task.get('elapsed_ms')}")
+    if payload.get("record"):
+        lines.append("record: enabled")
+    return "\n".join(lines)
+
 def default_model_runs_path() -> Path:
     return Path(os.environ.get("LAI_GATEWAY_MODEL_RUNS_FILE", _DEFAULT_MODEL_RUNS_FILE)).expanduser()
 

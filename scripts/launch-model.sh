@@ -18,12 +18,13 @@ probe_only=0
 foreground=0
 run_smoke=0
 run_task=0
+run_eval=0
 run_record=0
 task_name=code-mini
 
 usage() {
   cat <<USAGE
-usage: lai-gateway-model [--host <windows-wsl-ip>] [--port 18082] [--model-path <gguf>] [--model-name <name>] [--key-file <path>] [--create-key] [--force-key] [--plan-only] [--probe-only] [--smoke] [--task [code-mini]] [--record] [--foreground]
+usage: lai-gateway-model [--host <windows-wsl-ip>] [--port 18082] [--model-path <gguf>] [--model-name <name>] [--key-file <path>] [--create-key] [--force-key] [--plan-only] [--probe-only] [--smoke] [--task [code-mini]] [--eval] [--record] [--foreground]
 
 Idempotent local model launcher for Windows llama.cpp from WSL:
   - discovers the recommended local GGUF when --model-path is omitted
@@ -32,7 +33,8 @@ Idempotent local model launcher for Windows llama.cpp from WSL:
   - waits for /v1/models, then runs lai-gateway model-status --probe-openai
   - with --smoke, also runs a fixed-prompt completion smoke test
   - with --task, also runs a fixed local model task such as code-mini
-  - with --record, writes prompt-free local model metrics for smoke/task
+  - with --eval, runs the fixed smoke + task evaluation suite
+  - with --record, writes prompt-free local model metrics for smoke/task/eval
 
 No model downloads are performed. No API key values are printed.
 USAGE
@@ -91,6 +93,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --smoke)
       run_smoke=1
+      shift
+      ;;
+    --eval)
+      run_eval=1
       shift
       ;;
     --record)
@@ -214,6 +220,10 @@ run_validations() {
   if [ "$run_record" = "1" ]; then
     record_args+=(--record)
   fi
+  if [ "$run_eval" = "1" ]; then
+    "$python_bin" -m lai_gateway model-eval "${record_args[@]}"
+    return
+  fi
   if [ "$run_smoke" = "1" ]; then
     "$python_bin" -m lai_gateway model-smoke "${record_args[@]}"
   fi
@@ -234,6 +244,7 @@ if [ "$plan_only" = "1" ]; then
   echo "smoke: $run_smoke"
   echo "task: $run_task"
   echo "task_name: $task_name"
+  echo "eval: $run_eval"
   echo "record: $run_record"
   exit 0
 fi

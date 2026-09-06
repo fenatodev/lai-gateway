@@ -17,7 +17,7 @@ from .config import GatewayConfig, read_gateway_access_token, validate_gateway_b
 from .tokens import read_valid_gateway_pairing_token
 from .errors import ConfigError, GatewayError, HarnessHTTPError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient, build_read_only_run_body
-from .model import collect_model_files, collect_model_plan, collect_model_runs, collect_model_status, collect_model_task
+from .model import collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_status, collect_model_task
 
 _REQUEST_BODY_MAX_BYTES = 64 * 1024
 _AUTH_FAILURE_LIMIT = 5
@@ -97,6 +97,15 @@ class GatewayHandler(BaseHTTPRequestHandler):
             if timeout is None:
                 return
             self._send_json(HTTPStatus.OK, collect_model_task(task=task, timeout_seconds=timeout))
+            return
+        if parsed.path == "/v1/gateway/model-eval":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            timeout = self._positive_float_query(values.get("timeout_seconds", ["60"])[0], default=60.0, maximum=120.0)
+            if timeout is None:
+                return
+            self._send_json(HTTPStatus.OK, collect_model_eval(timeout_seconds=timeout))
             return
         if parsed.path == "/v1/gateway/model-files":
             if not self._authorize_gateway_api(parsed.path):
@@ -226,7 +235,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
 
 
     def _authorize_gateway_api(self, path: str) -> bool:
-        if not (path.startswith("/v1/harness/") or path in {"/v1/gateway/ops-status", "/v1/gateway/model-status", "/v1/gateway/model-plan", "/v1/gateway/model-files", "/v1/gateway/model-task", "/v1/gateway/model-runs"}):
+        if not (path.startswith("/v1/harness/") or path in {"/v1/gateway/ops-status", "/v1/gateway/model-status", "/v1/gateway/model-plan", "/v1/gateway/model-files", "/v1/gateway/model-task", "/v1/gateway/model-runs", "/v1/gateway/model-eval"}):
             return True
         expected = self.server.access_token
         if expected is None:

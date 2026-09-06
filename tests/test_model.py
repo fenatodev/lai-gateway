@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
 
-from lai_gateway.model import collect_model_files, collect_model_plan, collect_model_runs, collect_model_smoke, collect_model_status, collect_model_task, render_model_files, render_model_plan, render_model_runs, render_model_smoke, render_model_status, render_model_task
+from lai_gateway.model import collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_smoke, collect_model_status, collect_model_task, render_model_eval, render_model_files, render_model_plan, render_model_runs, render_model_smoke, render_model_status, render_model_task
 
 
 SECRET = "sk-local-secret-value"
@@ -473,6 +473,67 @@ class ModelStatusTest(unittest.TestCase):
         self.assertNotIn("Bearer", result.stdout + result.stderr)
 
 
+
+
+    def test_model_eval_runs_fixed_suite_and_can_record(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, FakeOpenAIModelsServer() as server:
+            runs_file = Path(tmp) / "model-runs.jsonl"
+            key_file = Path(tmp) / "model-api-key"
+            key_file.write_text(MODEL_API_KEY + "\n", encoding="utf-8")
+            key_file.chmod(0o600)
+            payload = collect_model_eval(
+                env={
+                    "LAI_GATEWAY_MODEL_BASE_URL": server.url + "/auth",
+                    "LAI_GATEWAY_MODEL_NAME": "auth-local-code-model",
+                    "LAI_GATEWAY_MODEL_API_KEY_FILE": str(key_file),
+                },
+                record=True,
+                runs_file=runs_file,
+            )
+            rendered = render_model_eval(payload)
+            recorded = collect_model_runs(path=runs_file, limit=10)
+            raw = runs_file.read_text(encoding="utf-8")
+        self.assertEqual(payload["operation"], "model-eval")
+        self.assertEqual(payload["overall"], "ready")
+        self.assertEqual(payload["summary"]["checks"], 2)
+        self.assertEqual(payload["summary"]["ready"], 2)
+        self.assertEqual(recorded["count"], 2)
+        self.assertIn("model-smoke", recorded["summary"]["operations"])
+        self.assertIn("model-task", recorded["summary"]["operations"])
+        self.assertIn("model-eval: ready", rendered)
+        self.assertNotIn(MODEL_API_KEY, raw + rendered)
+        self.assertNotIn("Bearer", raw + rendered)
+        self.assertNotIn("Return only this exact one-line", raw + rendered)
+
+    def test_cli_model_eval_json_is_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, FakeOpenAIModelsServer() as server:
+            runs_file = Path(tmp) / "model-runs.jsonl"
+            key_file = Path(tmp) / "model-api-key"
+            key_file.write_text(MODEL_API_KEY + "\n", encoding="utf-8")
+            key_file.chmod(0o600)
+            env = dict(os.environ)
+            env.update({
+                "LAI_GATEWAY_MODEL_BASE_URL": server.url + "/auth",
+                "LAI_GATEWAY_MODEL_NAME": "auth-local-code-model",
+                "LAI_GATEWAY_MODEL_API_KEY_FILE": str(key_file),
+            })
+            result = subprocess.run(
+                [sys.executable, "-m", "lai_gateway", "model-eval", "--record", "--runs-file", str(runs_file), "--json"],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+                check=False,
+                timeout=20,
+            )
+        self.assertEqual(result.returncode, 0)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["operation"], "model-eval")
+        self.assertEqual(payload["overall"], "ready")
+        self.assertEqual(payload["summary"]["checks"], 2)
+        self.assertNotIn(MODEL_API_KEY, result.stdout + result.stderr)
+        self.assertNotIn("Bearer", result.stdout + result.stderr)
+        self.assertNotIn("Return only this exact one-line", result.stdout + result.stderr)
 
     def test_model_task_record_writes_prompt_free_secret_free_jsonl(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, FakeOpenAIModelsServer() as server:

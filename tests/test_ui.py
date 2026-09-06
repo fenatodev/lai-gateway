@@ -128,6 +128,7 @@ class GatewayUITest(unittest.TestCase):
         self.assertIn("/v1/gateway/model-plan", js)
         self.assertIn("/v1/gateway/model-files", js)
         self.assertIn("/v1/gateway/model-task", js)
+        self.assertIn("/v1/gateway/model-eval", js)
         self.assertIn("/v1/gateway/model-runs", js)
         self.assertIn("setOpsStatus", js)
         self.assertIn("setModelStatus", js)
@@ -268,6 +269,64 @@ class GatewayUITest(unittest.TestCase):
         collect.assert_called_once_with(task="code-mini", timeout_seconds=5.0)
         self.assertNotIn("Bearer", body)
         self.assertNotIn(TOKEN, body)
+
+    def test_gateway_model_eval_endpoint_is_read_only_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with RunningGateway(config) as gateway:
+                with patch("lai_gateway.server.collect_model_eval") as collect:
+                    collect.return_value = {
+                        "operation": "model-eval",
+                        "overall": "ready",
+                        "starts_server": False,
+                        "modifies_files": False,
+                        "downloads_models": False,
+                        "security": {"prints_tokens": False, "stores_prompts": False},
+                    }
+                    status, headers, body = read_url(f"{gateway.url}/v1/gateway/model-eval?timeout_seconds=5")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        payload = json.loads(body)
+        self.assertEqual(payload["operation"], "model-eval")
+        self.assertFalse(payload["starts_server"])
+        self.assertFalse(payload["modifies_files"])
+        self.assertFalse(payload["downloads_models"])
+        collect.assert_called_once_with(timeout_seconds=5.0)
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
+
+    def test_private_model_eval_requires_gateway_auth(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            access_file = Path(tmp) / "access-token"
+            access = "gateway-access-secret-value-1234567890"
+            access_file.write_text(access, encoding="utf-8")
+            access_file.chmod(0o600)
+            pair_file = Path(tmp) / "pair-token.json"
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                bind="127.0.0.1",
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            with RunningGateway(config) as gateway:
+                with self.assertRaises(__import__("urllib.error").error.HTTPError) as unauth:
+                    read_url(f"{gateway.url}/v1/gateway/model-eval")
+                with patch("lai_gateway.server.collect_model_eval") as collect:
+                    collect.return_value = {"operation": "model-eval", "overall": "ready"}
+                    status, _headers, body = read_url(
+                        f"{gateway.url}/v1/gateway/model-eval",
+                        headers={"Authorization": f"Bearer {access}"},
+                    )
+        self.assertEqual(unauth.exception.code, 401)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["operation"], "model-eval")
+        self.assertNotIn(access, body)
 
     def test_gateway_model_runs_endpoint_is_read_only_and_secret_free(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

@@ -17,7 +17,7 @@ from .doctor import collect_doctor, render_doctor
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .lan import collect_lan_info, render_lan_info
-from .model import check_model_api_key_file, collect_model_files, collect_model_plan, collect_model_runs, collect_model_smoke, collect_model_status, collect_model_task, create_model_api_key_file, render_model_files, render_model_key, render_model_plan, render_model_runs, render_model_smoke, render_model_status, render_model_task
+from .model import check_model_api_key_file, collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_smoke, collect_model_status, collect_model_task, create_model_api_key_file, render_model_eval, render_model_files, render_model_key, render_model_plan, render_model_runs, render_model_smoke, render_model_status, render_model_task
 from .mobile import (
     collect_mobile_repair,
     collect_mobile_start,
@@ -154,6 +154,12 @@ def main(argv: list[str] | None = None) -> int:
     model_runs_parser.add_argument("--path", default=None, help="model runs JSONL file path")
     model_runs_parser.add_argument("--limit", type=int, default=20, help="maximum recent records to show")
     model_runs_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    model_eval_parser = sub.add_parser("model-eval", help="run fixed local model smoke and task probes as one suite")
+    model_eval_parser.add_argument("--task", action="append", choices=["code-mini"], default=None, help="fixed task to include; repeatable")
+    model_eval_parser.add_argument("--timeout-seconds", type=float, default=60.0, help="bounded local completion timeout per check")
+    model_eval_parser.add_argument("--record", action="store_true", help="append prompt-free metric records for each check")
+    model_eval_parser.add_argument("--runs-file", default=None, help="model runs JSONL file path")
+    model_eval_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     model_key_create_parser = sub.add_parser("model-key-create", help="create a local model API key file without printing the key by default")
     model_key_create_parser.add_argument("--path", default=None, help="model API key file path")
     model_key_create_parser.add_argument("--force", action="store_true", help="overwrite an existing model API key file")
@@ -403,6 +409,13 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
+        if args.command == "model-eval":
+            payload = collect_model_eval(tasks=tuple(args.task) if args.task else None, timeout_seconds=args.timeout_seconds, record=args.record, runs_file=Path(args.runs_file).expanduser() if args.runs_file else None)
+            if not args.json:
+                print(render_model_eval(payload))
+                return 0 if payload["overall"] == "ready" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] == "ready" else 1
         if args.command == "model-key-create":
             payload = create_model_api_key_file(Path(args.path).expanduser() if args.path else None, force=args.force, include_key=args.show_key)
             if not args.json:

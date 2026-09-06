@@ -197,3 +197,21 @@ lai-gateway model-runs
 The run log is opt-in and prompt-free. Records include timestamp, operation, fixed task name, model name, status, match result, elapsed milliseconds, response character count, and a bounded response preview. They do not store prompt text, API key values, key-file paths, or `Bearer` headers. The default file is `~/.local/share/lai-gateway/model-runs.jsonl` and is written with `0600` permissions.
 
 The UI exposes `GET /v1/gateway/model-runs` as a read-only history view. In private mode it requires gateway authentication. The UI does not enable hidden recording; recording remains explicit through CLI/launcher flags.
+
+
+## Fixed local model evaluation
+
+Run the fixed validation suite against the configured local OpenAI-compatible endpoint:
+
+```bash
+lai-gateway model-eval
+```
+
+The current suite runs `model-smoke` plus fixed model tasks such as `code-mini`. It does not accept arbitrary prompts. Use `--record` to append prompt-free metrics for each underlying check:
+
+```bash
+lai-gateway model-eval --record
+lai-gateway-model --eval --record
+```
+
+The UI exposes `GET /v1/gateway/model-eval` and a `Run model eval` button. It does not record by default. In private mode the endpoint requires gateway authentication.
