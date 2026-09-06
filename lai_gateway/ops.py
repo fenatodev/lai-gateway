@@ -103,9 +103,17 @@ def render_ops_status(payload: dict[str, Any]) -> str:
     if listener.get("target"):
         lines.append(f"mobile_target: {listener['target']}")
         lines.append(f"mobile_listener: {'active' if listener.get('active') else 'none'}")
-    scan_url = mobile.get("mobile_access", {}).get("recommended_url")
+    mobile_access = mobile.get("mobile_access", {})
+    scan_url = mobile_access.get("recommended_url")
+    recommended = next((item for item in mobile_access.get("links", []) if item.get("recommended")), None)
     if scan_url:
-        lines.append(f"scan_url: {scan_url}")
+        if recommended and recommended.get("mobile_proxy_command"):
+            lines.append(f"raw_tailscale_url: {scan_url}")
+            lines.append("tailscale_serve_proxy:")
+            lines.append(f"  {recommended['mobile_proxy_command']}")
+            lines.append(f"  point Tailscale Serve to {recommended['tailscale_serve_target_url']}")
+        else:
+            lines.append(f"scan_url: {scan_url}")
     token_file = telegram.get("token_file", {})
     lines.append(f"telegram_token: {token_file.get('status', 'unknown')}")
     lines.append(f"telegram_chat: {'ready' if telegram.get('chat_id_configured') else 'missing'}")

@@ -1,3 +1,7 @@
+## [0.1.28] - 2026-09-06
+
+- Add `lai-gateway-daily` to orchestrate the published daily local workflow: model/Harness readiness, private mobile gateway, loopback mobile proxy, and ops status without printing secrets.
+
 ## [0.1.27] - 2026-09-06
 
 ### Fixed
