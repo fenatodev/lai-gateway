@@ -1,3 +1,11 @@
+## [0.1.20] - 2026-09-06
+
+### Changed
+- Make `lai-gateway mobile-serve` fail before refreshing pair tokens or sending Telegram notifications when the selected mobile bind target already has a listener.
+
+### Security
+- Avoid printing a fresh pair token or sending a stale mobile access notification when startup cannot proceed because the target IP/port is already in use.
+
 ## [0.1.19] - 2026-09-06
 
 ### Added
