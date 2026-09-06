@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>lai-gateway</title>
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <p class="eyebrow">local-first control surface</p>
+      <h1>lai-gateway</h1>
+      <p>Loopback UI for <code>lai harness</code> status, sessions, and read-only runs.</p>
+    </header>
+
+    <section class="grid" aria-label="Gateway controls">
+      <article class="card">
+        <h2>Status</h2>
+        <div class="actions">
+          <button data-action="refresh-status">Refresh status</button>
+          <button data-action="refresh-readiness">Refresh readiness</button>
+        </div>
+        <pre id="status-output" aria-live="polite">Not loaded.</pre>
+      </article>
+
+      <article class="card">
+        <h2>Sessions</h2>
+        <div class="actions">
+          <button data-action="list-sessions">List sessions</button>
+          <button data-action="create-session">Create session</button>
+        </div>
+        <label>Session id
+          <input id="session-id" autocomplete="off" spellcheck="false" placeholder="cs-...">
+        </label>
+        <button data-action="get-session">Get selected session</button>
+        <pre id="sessions-output" aria-live="polite">Not loaded.</pre>
+      </article>
+
+      <article class="card wide">
+        <h2>Read-only run</h2>
+        <div class="form-row">
+          <label>Mode
+            <select id="run-mode">
+              <option value="plan">plan</option>
+              <option value="review">review</option>
+              <option value="diagnose">diagnose</option>
+              <option value="security">security</option>
+              <option value="release">release</option>
+            </select>
+          </label>
+          <label>Run id
+            <input id="run-id" autocomplete="off" spellcheck="false" placeholder="cr-...">
+          </label>
+        </div>
+        <label>Task
+          <textarea id="run-task" rows="5" maxlength="12000" placeholder="Ask for a read-only analysis."></textarea>
+        </label>
+        <div class="actions">
+          <button data-action="list-runs">List runs</button>
+          <button data-action="create-run">Create read-only run</button>
+          <button data-action="get-run">Get selected run</button>
+        </div>
+        <pre id="runs-output" aria-live="polite">Not loaded.</pre>
+      </article>
+    </section>
+  </main>
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>

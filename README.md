@@ -66,6 +66,17 @@ python3 -m lai_gateway runs create --mode review --session-id <session_id> --tas
 python3 -m lai_gateway runs get <control_run_id>
 ```
 
+
+## Local UI
+
+Start the harness and gateway, then open:
+
+```text
+http://127.0.0.1:8787/
+```
+
+The UI is intentionally local-only. It can refresh readiness/status, create and inspect sessions, create read-only runs, and inspect run results. It does not receive the harness control token, does not use external CDN assets, and does not use browser storage. Tiny mercy in a world full of tracking pixels.
+
 ## Gateway server MVP
 
 ```bash
@@ -95,7 +106,7 @@ The gateway currently refuses public bind addresses. Private-network/mobile expo
 
 ```bash
 make check
-python3 -m lai_gateway release-check --target 0.1.2 --json
+python3 -m lai_gateway release-check --target 0.1.3 --json
 ```
 
 Release rules are documented in [docs/RELEASE.md](docs/RELEASE.md).
