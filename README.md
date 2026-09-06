@@ -216,3 +216,11 @@ MIT. See [LICENSE](LICENSE).
 Use `lai-gateway model-status` to inspect local model runtime readiness without starting servers, downloading models, or exposing model secrets. See `docs/MODEL_OPS.md`.
 
 For the full daily startup path after the published Harness and Gateway releases, see [docs/DAILY_OPS.md](docs/DAILY_OPS.md).
+
+### Mobile Tailscale proxy
+
+```bash
+lai-gateway-mobile-proxy --target-host 172.29.193.62 --target-port 8787
+```
+
+Use this loopback proxy when Tailscale Serve needs to reach a WSL-bound mobile gateway through `http://127.0.0.1:18787`.

@@ -42,6 +42,8 @@ class MobileAccessTest(unittest.TestCase):
         tailscale = payload["links"][0]
         self.assertTrue(tailscale["requires_portproxy"])
         self.assertIn("netsh interface portproxy add", tailscale["portproxy_command"])
+        self.assertIn("lai-gateway-mobile-proxy", tailscale["mobile_proxy_command"])
+        self.assertEqual(tailscale["tailscale_serve_target_url"], "http://127.0.0.1:18787")
         self.assertFalse(payload["security"]["qr_contains_token"])
 
     def test_render_mobile_access_is_actionable_and_secret_free(self) -> None:
@@ -57,6 +59,8 @@ class MobileAccessTest(unittest.TestCase):
         self.assertIn("recommended_url: http://192.168.15.4:8787/", rendered)
         self.assertIn("windows_portproxy", rendered)
         self.assertIn("lai_bridge_apply", rendered)
+        self.assertIn("tailscale_serve_proxy", rendered)
+        self.assertIn("lai-gateway-mobile-proxy", rendered)
         self.assertIn("QR is generated locally", rendered)
         self.assertNotIn("Bearer", rendered)
         self.assertNotIn("token=", rendered)
@@ -73,6 +77,7 @@ class MobileAccessTest(unittest.TestCase):
         first = payload["links"][0]
         self.assertIn("connectaddress=172.29.193.62", first["portproxy_command"])
         self.assertIn("mobile-bridge", first["mobile_bridge_apply_command"])
+        self.assertIn("mobile-proxy", first["mobile_proxy_command"])
         self.assertTrue(any("Current gateway bind is loopback" in item for item in payload["warnings"]))
 
     def test_windows_lan_hosts_filter_virtual_wsl_and_tailscale_interfaces(self) -> None:

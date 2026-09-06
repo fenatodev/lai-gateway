@@ -45,7 +45,7 @@ def collect_mobile_access(
         if _is_loopback_bind(bind):
             warnings.append("Current gateway bind is loopback; run mobile-serve with the WSL candidate before the QR URL works from a phone.")
         if any(item["requires_portproxy"] for item in links):
-            warnings.append("Use the printed Windows portproxy command or Tailscale route before scanning the phone URL.")
+            warnings.append("Use the printed Windows portproxy command, or run mobile-proxy and point Tailscale Serve at its loopback URL.")
     if not links:
         warnings.append("no mobile access candidates detected")
     return {
@@ -94,6 +94,10 @@ def render_mobile_access(payload: dict[str, Any]) -> str:
             if item.get("mobile_bridge_apply_command"):
                 lines.append("    lai_bridge_apply:")
                 lines.append(f"      {item['mobile_bridge_apply_command']}")
+            if item.get("mobile_proxy_command"):
+                lines.append("    tailscale_serve_proxy:")
+                lines.append(f"      {item['mobile_proxy_command']}")
+                lines.append(f"      point Tailscale Serve to {item['tailscale_serve_target_url']}")
     else:
         lines.append("  none")
     if payload["warnings"]:
@@ -149,6 +153,10 @@ def _link(
         payload["mobile_bridge_remove_command"] = (
             f"lai-gateway mobile-bridge --listen-ip {ip} --connect-ip {connect_address} --port {port} --remove"
         )
+        payload["mobile_proxy_command"] = (
+            f"lai-gateway-mobile-proxy --target-host {connect_address} --target-port {port}"
+        )
+        payload["tailscale_serve_target_url"] = "http://127.0.0.1:18787"
     return payload
 
 
