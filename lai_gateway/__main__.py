@@ -29,6 +29,7 @@ from .mobile import (
     render_mobile_status,
 )
 from .ops import collect_ops_status, render_ops_status
+from .proxy import collect_mobile_proxy_status, dump_mobile_proxy_json, render_mobile_proxy_status, run_mobile_proxy, validate_mobile_proxy_config
 from .release import collect_release_check, render_release_check
 from .server import serve
 from .service import (
@@ -253,6 +254,14 @@ def main(argv: list[str] | None = None) -> int:
     bridge_parser.add_argument("--remove", action="store_true", help="remove Windows portproxy/firewall rules")
     bridge_parser.add_argument("--check", action="store_true", help="run read-only checks for portproxy, firewall, and TCP reachability")
     bridge_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    proxy_parser = sub.add_parser("mobile-proxy", help="serve a loopback-only TCP proxy for Tailscale Serve to reach the mobile gateway")
+    proxy_parser.add_argument("--listen-host", default="127.0.0.1", help="loopback host to listen on; defaults to 127.0.0.1")
+    proxy_parser.add_argument("--listen-port", type=int, default=18787, help="loopback port to listen on; defaults to 18787")
+    proxy_parser.add_argument("--target-host", required=True, help="private WSL/mobile gateway IP to forward to")
+    proxy_parser.add_argument("--target-port", type=int, default=8787, help="mobile gateway port to forward to")
+    proxy_parser.add_argument("--timeout-seconds", type=float, default=5.0, help="target connection timeout")
+    proxy_parser.add_argument("--check", action="store_true", help="check target reachability and listen port without starting the proxy")
+    proxy_parser.add_argument("--json", action="store_true", help="print machine-readable JSON for --check")
     token_parser = sub.add_parser("token", help="manage the separate gateway access token")
     token_sub = token_parser.add_subparsers(dest="token_command")
     token_create = token_sub.add_parser("create", help="create a gateway access token file")
@@ -555,6 +564,27 @@ def main(argv: list[str] | None = None) -> int:
                 return 0 if payload["overall"] in {"ready", "needs_prepare"} else 1
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0 if payload["overall"] in {"ready", "needs_prepare"} else 1
+        if args.command == "mobile-proxy":
+            if args.check:
+                payload = collect_mobile_proxy_status(
+                    listen_host=args.listen_host,
+                    listen_port=args.listen_port,
+                    target_host=args.target_host,
+                    target_port=args.target_port,
+                    connect_timeout=args.timeout_seconds,
+                )
+                print(dump_mobile_proxy_json(payload) if args.json else render_mobile_proxy_status(payload))
+                return 0 if payload["overall"] == "ready_to_start" else 1
+            config = validate_mobile_proxy_config(
+                listen_host=args.listen_host,
+                listen_port=args.listen_port,
+                target_host=args.target_host,
+                target_port=args.target_port,
+                connect_timeout=args.timeout_seconds,
+            )
+            run_mobile_proxy(config)
+            return 0
+
         if args.command == "mobile-bridge":
             payload = collect_mobile_bridge(
                 port=args.port or config.port,

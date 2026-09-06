@@ -265,6 +265,10 @@ def render_mobile_status(payload: dict[str, Any]) -> str:
         if recommended and recommended.get("mobile_bridge_apply_command"):
             lines.append("lai_bridge_apply:")
             lines.append(f"  {recommended['mobile_bridge_apply_command']}")
+        if recommended and recommended.get("mobile_proxy_command"):
+            lines.append("tailscale_serve_proxy:")
+            lines.append(f"  {recommended['mobile_proxy_command']}")
+            lines.append(f"  point Tailscale Serve to {recommended['tailscale_serve_target_url']}")
     if mobile_access.get("warnings"):
         lines.append("warnings:")
         lines.extend(f"  - {warning}" for warning in mobile_access["warnings"])
@@ -479,6 +483,10 @@ def render_mobile_serve_ready(payload: dict[str, Any]) -> str:
         if recommended and recommended.get("mobile_bridge_apply_command"):
             lines.append("  lai_bridge_apply:")
             lines.append(f"    {recommended['mobile_bridge_apply_command']}")
+        if recommended and recommended.get("mobile_proxy_command"):
+            lines.append("  tailscale_serve_proxy:")
+            lines.append(f"    {recommended['mobile_proxy_command']}")
+            lines.append(f"    point Tailscale Serve to {recommended['tailscale_serve_target_url']}")
     if mobile_access.get("warnings"):
         lines.append("mobile_warnings:")
         for warning in mobile_access["warnings"]:
@@ -620,8 +628,10 @@ def _mobile_status_next_steps(
     recommended = next((item for item in mobile_access.get("links", []) if item.get("recommended")), None)
     if recommended and recommended.get("mobile_bridge_apply_command"):
         steps.append(f"Apply phone bridge if needed: {recommended['mobile_bridge_apply_command']}")
+    if recommended and recommended.get("mobile_proxy_command"):
+        steps.append(f"For Tailscale Serve: run {recommended['mobile_proxy_command']} and point Serve to {recommended['tailscale_serve_target_url']}")
     if listener_active and access["ok"] and pair["ok"] and mobile_access.get("recommended_url"):
-        steps.append(f"Open on phone: {mobile_access['recommended_url']}")
+        steps.append(f"Open on phone via bridge or MagicDNS route for: {mobile_access['recommended_url']}")
     return steps
 
 

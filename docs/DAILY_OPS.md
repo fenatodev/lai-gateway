@@ -95,3 +95,11 @@ gateway_model_probe: needs_model_config or ready
 ```
 
 `gateway_model_probe` is a direct endpoint diagnostic. The normal product path uses the model behind the Harness, so `harness_model: ready` is the important daily signal.
+
+## Mobile Tailscale proxy
+
+```bash
+lai-gateway-mobile-proxy --target-host 172.29.193.62 --target-port 8787
+```
+
+Point Tailscale Serve at `http://127.0.0.1:18787` and open the MagicDNS URL on the phone.

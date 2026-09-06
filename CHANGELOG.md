@@ -1,3 +1,11 @@
+## [0.1.26] - 2026-09-06
+
+### Added
+- Add `lai-gateway mobile-proxy` for a loopback-only WSL proxy used by Tailscale Serve to reach the private mobile gateway without relying on a `/tmp` helper script.
+
+### Security
+- Keep the mobile proxy transport-only: it does not read, print, store, or validate gateway, pair, Telegram, Harness, or model tokens. Gateway auth remains enforced by the mobile gateway itself.
+
 ## [0.1.25] - 2026-09-06
 
 ### Changed

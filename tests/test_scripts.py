@@ -40,18 +40,22 @@ class ScriptTest(unittest.TestCase):
             ui = bin_dir / "lai-gateway-ui"
             mobile = bin_dir / "lai-gateway-mobile"
             model = bin_dir / "lai-gateway-model"
+            mobile_proxy = bin_dir / "lai-gateway-mobile-proxy"
             self.assertTrue(gateway.exists())
             self.assertTrue(ui.exists())
             self.assertTrue(mobile.exists())
             self.assertTrue(model.exists())
+            self.assertTrue(mobile_proxy.exists())
             self.assertIn(f"lai-gateway {__version__}", result.stdout)
             self.assertNotIn("TOKEN", gateway.read_text(encoding="utf-8").upper())
             self.assertNotIn("TOKEN", ui.read_text(encoding="utf-8").upper())
             self.assertNotIn("TOKEN", mobile.read_text(encoding="utf-8").upper())
             self.assertNotIn("TOKEN", model.read_text(encoding="utf-8").upper())
+            self.assertNotIn("TOKEN", mobile_proxy.read_text(encoding="utf-8").upper())
             self.assertIn("repo_dir=", ui.read_text(encoding="utf-8"))
             self.assertIn("repo_dir=", mobile.read_text(encoding="utf-8"))
             self.assertIn("repo_dir=", model.read_text(encoding="utf-8"))
+            self.assertIn("mobile-proxy", mobile_proxy.read_text(encoding="utf-8"))
             mobile_help = subprocess.run(
                 [str(mobile), "--help"],
                 text=True,
@@ -70,6 +74,15 @@ class ScriptTest(unittest.TestCase):
                 timeout=10,
             )
             self.assertIn("lai-gateway-model", model_help.stdout)
+            proxy_help = subprocess.run(
+                [str(mobile_proxy), "--help"],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=10,
+            )
+            self.assertIn("mobile-proxy", proxy_help.stdout)
             version = subprocess.run(
                 [str(gateway), "--version"],
                 text=True,
