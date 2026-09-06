@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
@@ -19,10 +20,109 @@ from .tokens import token_file_mode
 DEFAULT_TELEGRAM_TOKEN_FILE = "~/.config/lai-gateway/telegram-bot-token"
 _MAX_MESSAGE_CHARS = 4096
 _MAX_DISCOVER_LIMIT = 20
+_TELEGRAM_TOKEN_RE = re.compile(r"^\d{5,}:[A-Za-z0-9_-]{20,}$")
 
 
 def default_telegram_token_path() -> Path:
     return Path(DEFAULT_TELEGRAM_TOKEN_FILE).expanduser()
+
+
+def inspect_telegram_token_file(*, token_file: Path | None = None) -> dict[str, Any]:
+    """Return redacted diagnostics for the Telegram bot token file."""
+    path = (token_file or default_telegram_token_path()).expanduser()
+    return _token_diagnostics(path)
+
+
+def render_telegram_token_check(payload: dict[str, Any]) -> str:
+    lines = [
+        f"lai-gateway telegram token-check: {payload['status']}",
+        f"version: {payload['version']}",
+        f"path: {payload['path']}",
+        f"exists: {str(payload['exists']).lower()}",
+        f"mode: {payload.get('mode') or 'none'}",
+        f"raw_bytes: {payload['raw_bytes']}",
+        f"line_count: {payload['line_count']}",
+        f"whitespace_count: {payload['whitespace_count']}",
+        f"compact_length: {payload['compact_length']}",
+        f"token_shape_ok: {str(payload['token_shape_ok']).lower()}",
+        f"compact_token_shape_ok: {str(payload['compact_token_shape_ok']).lower()}",
+        f"can_repair_whitespace: {str(payload['can_repair_whitespace']).lower()}",
+        f"detail: {payload['detail']}",
+        "token_printed: false",
+    ]
+    if payload["can_repair_whitespace"]:
+        lines.append("repair: lai-gateway telegram token-repair-whitespace")
+    else:
+        lines.append("setup: lai-gateway telegram token-set")
+    return "\n".join(lines)
+
+
+def repair_telegram_token_whitespace(*, token_file: Path | None = None, dry_run: bool = False) -> dict[str, Any]:
+    """Remove accidental whitespace only when the compact value is a valid bot token shape."""
+    path = (token_file or default_telegram_token_path()).expanduser()
+    before = _token_diagnostics(path)
+    if not before["can_repair_whitespace"]:
+        raise ConfigError(f"telegram token whitespace repair is not safe: {before['detail']}")
+    raw = path.read_text(encoding="utf-8", errors="replace")
+    compact = "".join(raw.split())
+    if not dry_run:
+        _write_secret_file(path, compact + "\n", force=True)
+    after = _token_diagnostics(path) if not dry_run else before
+    return {
+        "product": "lai-gateway",
+        "version": __version__,
+        "operation": "telegram-token-repair-whitespace",
+        "ok": True,
+        "dry_run": dry_run,
+        "path": str(path),
+        "rewritten": not dry_run,
+        "before": _public_token_diagnostics(before),
+        "after": _public_token_diagnostics(after),
+        "token_printed": False,
+    }
+
+
+def render_telegram_token_repair(payload: dict[str, Any]) -> str:
+    return "\n".join([
+        "lai-gateway telegram token-repair-whitespace: ok",
+        f"version: {payload['version']}",
+        f"path: {payload['path']}",
+        f"dry_run: {str(payload['dry_run']).lower()}",
+        f"rewritten: {str(payload['rewritten']).lower()}",
+        f"status_after: {payload['after']['status']}",
+        "token_printed: false",
+    ])
+
+
+def write_telegram_token_file(*, token: str, token_file: Path | None = None, force: bool = False) -> dict[str, Any]:
+    path = (token_file or default_telegram_token_path()).expanduser()
+    cleaned = token.strip()
+    _validate_telegram_token(cleaned)
+    if path.exists() and not force:
+        raise ConfigError(f"telegram token file already exists: {path}; pass --force to overwrite")
+    _write_secret_file(path, cleaned + "\n", force=True)
+    info = _token_diagnostics(path)
+    return {
+        "product": "lai-gateway",
+        "version": __version__,
+        "operation": "telegram-token-set",
+        "ok": True,
+        "path": str(path),
+        "mode": info.get("mode"),
+        "token_length": info["compact_length"],
+        "token_printed": False,
+    }
+
+
+def render_telegram_token_set(payload: dict[str, Any]) -> str:
+    return "\n".join([
+        "lai-gateway telegram token-set: ok",
+        f"version: {payload['version']}",
+        f"path: {payload['path']}",
+        f"mode: {payload.get('mode')}",
+        f"token_length: {payload['token_length']}",
+        "token_printed: false",
+    ])
 
 
 def collect_telegram_preflight(
@@ -176,7 +276,13 @@ def render_telegram_discover(payload: dict[str, Any]) -> str:
         lines.append(f"  - chat_id: {chat['id']} ({label})")
     if not payload["chats"]:
         lines.append("  none")
-    lines.append("Use LAI_GATEWAY_TELEGRAM_CHAT_ID=<chat_id> after confirming the target chat.")
+    if payload["chats"]:
+        lines.append("export commands:")
+        for chat in payload["chats"]:
+            lines.append(f"  export LAI_GATEWAY_TELEGRAM_CHAT_ID='{chat['id']}'")
+            lines.append("  export LAI_GATEWAY_TELEGRAM_ENABLE_SEND=1")
+    else:
+        lines.append("Send a message to your bot, then run discover-chat again.")
     return "\n".join(lines)
 
 
@@ -315,6 +421,100 @@ def _open_json(request: Request, *, opener: Callable[..., Any], timeout: int, la
     return payload
 
 
+def _token_diagnostics(path: Path) -> dict[str, Any]:
+    exists = path.exists()
+    raw = b""
+    text = ""
+    mode = None
+    detail = "telegram token file not found"
+    if exists:
+        try:
+            raw = path.read_bytes()
+            text = raw.decode("utf-8", errors="replace")
+            mode = token_file_mode(path)
+        except OSError as exc:
+            detail = f"cannot read telegram token file: {path}: {exc}"
+    stripped = text.strip()
+    compact = "".join(text.split())
+    token_shape_ok = bool(_TELEGRAM_TOKEN_RE.fullmatch(stripped))
+    compact_token_shape_ok = bool(_TELEGRAM_TOKEN_RE.fullmatch(compact))
+    whitespace_count = sum(1 for ch in text if ch.isspace())
+    line_count = text.count("\n") + (1 if text and not text.endswith("\n") else 0)
+    permission_ok = True
+    if exists and mode is not None and os.name == "posix":
+        permission_ok = (int(mode, 8) & 0o077) == 0
+    if exists:
+        if not raw:
+            detail = "telegram token file is empty"
+        elif not permission_ok:
+            detail = "telegram token file permissions must be 0600"
+        elif token_shape_ok:
+            detail = "telegram token file is ready"
+        elif compact_token_shape_ok and whitespace_count:
+            detail = "telegram token contains accidental whitespace and can be repaired safely"
+        elif whitespace_count:
+            detail = "telegram token contains whitespace and compact value is not a valid bot token shape"
+        elif len(stripped) < 16:
+            detail = "telegram token is too short"
+        else:
+            detail = "telegram token does not match the expected bot token shape"
+    status = "ready" if exists and permission_ok and token_shape_ok else ("missing" if not exists else "invalid")
+    return {
+        "product": "lai-gateway",
+        "version": __version__,
+        "operation": "telegram-token-check",
+        "path": str(path),
+        "exists": exists,
+        "ok": status == "ready",
+        "status": status,
+        "detail": detail,
+        "mode": mode,
+        "raw_bytes": len(raw),
+        "line_count": line_count,
+        "whitespace_count": whitespace_count,
+        "compact_length": len(compact),
+        "token_shape_ok": token_shape_ok,
+        "compact_token_shape_ok": compact_token_shape_ok,
+        "can_repair_whitespace": bool(exists and permission_ok and compact_token_shape_ok and not token_shape_ok),
+        "token_printed": False,
+    }
+
+
+def _public_token_diagnostics(payload: dict[str, Any]) -> dict[str, Any]:
+    return {k: payload[k] for k in (
+        "path", "exists", "ok", "status", "detail", "mode", "raw_bytes", "line_count",
+        "whitespace_count", "compact_length", "token_shape_ok", "compact_token_shape_ok",
+        "can_repair_whitespace", "token_printed"
+    ) if k in payload}
+
+
+def _validate_telegram_token(token: str) -> None:
+    if not token:
+        raise ConfigError("telegram token is empty")
+    if any(ch.isspace() for ch in token):
+        raise ConfigError("telegram token must be a single token without whitespace")
+    if not _TELEGRAM_TOKEN_RE.fullmatch(token):
+        raise ConfigError("telegram token must look like digits:letters_digits_dash_or_underscore")
+
+
+def _write_secret_file(path: Path, value: str, *, force: bool) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if os.name == "posix":
+        os.chmod(path.parent, 0o700)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    if not force:
+        flags |= os.O_EXCL
+    fd = os.open(path, flags, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(value)
+    finally:
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+
+
 def _inspect_token(path: Path) -> dict[str, Any]:
     exists = path.exists()
     try:
@@ -333,10 +533,7 @@ def _read_token(path: Path) -> str:
         raise ConfigError(f"telegram token file not found: {path}") from exc
     except OSError as exc:
         raise ConfigError(f"cannot read telegram token file: {path}: {exc}") from exc
-    if not token or any(ch.isspace() for ch in token):
-        raise ConfigError("telegram token must be a single token without whitespace")
-    if len(token) < 16:
-        raise ConfigError("telegram token is too short")
+    _validate_telegram_token(token)
     return token
 
 

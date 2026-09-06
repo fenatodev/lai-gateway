@@ -89,6 +89,9 @@ python3 -m lai_gateway token check
 python3 -m lai_gateway pair create --ttl-seconds 600 --show
 python3 -m lai_gateway pair check
 python3 -m lai_gateway pair revoke
+python3 -m lai_gateway telegram token-check
+python3 -m lai_gateway telegram token-set
+python3 -m lai_gateway telegram token-repair-whitespace
 python3 -m lai_gateway telegram preflight
 python3 -m lai_gateway sessions list --limit 10
 python3 -m lai_gateway sessions create
@@ -157,8 +160,8 @@ Telegram support is outbound-only in this release. It does not expose a webhook 
 
 ```bash
 chmod 600 "$HOME/.config/lai-gateway/telegram-bot-token"
-LAI_GATEWAY_TELEGRAM_CHAT_ID=<chat-id> lai-gateway telegram preflight
-LAI_GATEWAY_TELEGRAM_ENABLE_SEND=1 LAI_GATEWAY_TELEGRAM_CHAT_ID=<chat-id> lai-gateway telegram send-message --text "lai-gateway ready"
+LAI_GATEWAY_TELEGRAM_CHAT_ID=CHAT_ID_FROM_DISCOVER lai-gateway telegram preflight
+LAI_GATEWAY_TELEGRAM_ENABLE_SEND=1 LAI_GATEWAY_TELEGRAM_CHAT_ID=CHAT_ID_FROM_DISCOVER lai-gateway telegram send-message --text "lai-gateway ready"
 ```
 
 The token value is never printed by `preflight` or `send-message`. Tiny outbreak of restraint.
@@ -198,5 +201,8 @@ python3 -m lai_gateway release-check --target 0.1.15 --json
 Release rules are documented in [docs/RELEASE.md](docs/RELEASE.md).
 
 ## License
+
+
+Telegram setup should use `lai-gateway telegram token-set` instead of editing the token file by hand. `telegram token-check` reports redacted diagnostics, and `telegram token-repair-whitespace` only rewrites the file when the compact token shape is valid. Avoid shell placeholders such as `<chat_id>` or `<chat-id>`; `telegram discover-chat` prints concrete export commands for discovered chats.
 
 MIT. See [LICENSE](LICENSE).
