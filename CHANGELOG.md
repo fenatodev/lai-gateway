@@ -1,3 +1,11 @@
+## [0.1.24] - 2026-09-06
+
+### Changed
+- Let `lai-gateway telegram notify-mobile` accept `--candidate-ip` so Telegram mobile notifications can use the same WSL/private target as `mobile-status`, `mobile-repair`, and `mobile-serve`.
+
+### Security
+- Keep Telegram mobile notifications token-free: the message includes only the mobile URL/bridge guidance and never includes pair, gateway, harness, Telegram, or model API secrets.
+
 ## [0.1.23] - 2026-09-06
 
 ### Added

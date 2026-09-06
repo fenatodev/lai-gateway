@@ -430,8 +430,18 @@ def render_telegram_discover(payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def build_mobile_access_telegram_text(*, port: int, bind: str = "127.0.0.1") -> str:
-    mobile = collect_mobile_access(port=port, bind=bind)
+def build_mobile_access_telegram_text(
+    *,
+    port: int,
+    bind: str = "127.0.0.1",
+    candidate_ip: str | None = None,
+) -> str:
+    effective_bind = candidate_ip or bind
+    mobile = collect_mobile_access(
+        port=port,
+        bind=effective_bind,
+        discovered_hosts=[candidate_ip] if candidate_ip else None,
+    )
     recommended = mobile.get("recommended_url") or "not detected"
     kind = mobile.get("recommended_kind") or "unknown"
     lines = [
@@ -439,12 +449,13 @@ def build_mobile_access_telegram_text(*, port: int, bind: str = "127.0.0.1") -> 
         f"version: {__version__}",
         f"recommended: {recommended}",
         f"kind: {kind}",
+        *( [f"bridge_target: {candidate_ip}"] if candidate_ip else [] ),
         "QR is available in the gateway UI and contains only the URL.",
     ]
     link = next((item for item in mobile.get("links", []) if item.get("recommended")), None)
-    if link and link.get("lai_bridge_apply"):
+    if link and link.get("mobile_bridge_apply_command"):
         lines.append("bridge:")
-        lines.append(link["lai_bridge_apply"])
+        lines.append(link["mobile_bridge_apply_command"])
     if mobile.get("warnings"):
         lines.append("warnings:")
         for warning in mobile["warnings"][:3]:
@@ -456,12 +467,13 @@ def notify_mobile_access(
     *,
     port: int,
     bind: str = "127.0.0.1",
+    candidate_ip: str | None = None,
     token_file: Path | None = None,
     chat_id: str | None = None,
     enable_send: bool | None = None,
     opener: Callable[..., Any] = urlopen,
 ) -> dict[str, Any]:
-    text = build_mobile_access_telegram_text(port=port, bind=bind)
+    text = build_mobile_access_telegram_text(port=port, bind=bind, candidate_ip=candidate_ip)
     payload = send_telegram_message(
         text=text,
         token_file=token_file,

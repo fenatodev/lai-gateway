@@ -319,6 +319,7 @@ def main(argv: list[str] | None = None) -> int:
     telegram_notify.add_argument("--chat-id", default=None, help="telegram chat id; defaults to LAI_GATEWAY_TELEGRAM_CHAT_ID")
     telegram_notify.add_argument("--port", type=int, default=None, help="gateway port for the mobile URL")
     telegram_notify.add_argument("--bind", default=None, help="gateway bind address used for WSL/Tailscale hints")
+    telegram_notify.add_argument("--candidate-ip", default=None, help="WSL/private gateway IP used as the mobile bridge target")
     telegram_notify.add_argument("--json", action="store_true", help="print machine-readable JSON")
     telegram_status = telegram_sub.add_parser("notify-status", help="send current gateway/harness status to Telegram when explicitly enabled")
     telegram_status.add_argument("--token-file", default=None, help="telegram bot token file; defaults to ~/.config/lai-gateway/telegram-bot-token")
@@ -740,6 +741,7 @@ def main(argv: list[str] | None = None) -> int:
                     chat_id=args.chat_id,
                     port=args.port or config.port,
                     bind=args.bind or config.bind,
+                    candidate_ip=args.candidate_ip,
                 )
                 if args.json:
                     print(json.dumps(payload, indent=2, sort_keys=True))
