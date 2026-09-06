@@ -1,3 +1,16 @@
+## [0.1.8] - 2026-09-06
+
+Harden private LAN setup for mobile access.
+
+- Add `lai-gateway token create` and `lai-gateway token check` for the separate gateway access token.
+- Create gateway access tokens with `0600` permissions and avoid printing token values by default.
+- Require `0600` gateway token files in private mode.
+- Add doctor reporting for gateway access token permissions.
+- Add in-memory rate limiting for repeated failed private API authentication attempts.
+- Document safer phone/LAN setup without exposing the harness control token to the browser.
+
+No public bind, harness token exposure to the browser, write-capable runs, shell authority, direct llama.cpp proxy, or automatic tunnel setup is exposed in this release.
+
 ## [0.1.7] - 2026-09-06
 
 Add an explicit private LAN binding preview with gateway-side authentication.

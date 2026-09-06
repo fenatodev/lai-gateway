@@ -71,10 +71,11 @@ def read_control_token(token_file: Path) -> str:
 
 
 def read_gateway_access_token(token_file: Path) -> str:
-    token = _read_single_token(token_file, label="gateway access token")
-    if len(token) < 16:
-        raise ConfigError("gateway access token must be at least 16 characters")
-    return token
+    # Import lazily to keep token helpers independent from config parsing.
+    from .tokens import check_gateway_access_token_file
+
+    check_gateway_access_token_file(token_file)
+    return _read_single_token(token_file, label="gateway access token")
 
 
 def _read_single_token(token_file: Path, *, label: str) -> str:
