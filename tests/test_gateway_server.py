@@ -10,6 +10,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from lai_gateway.config import GatewayConfig
+from lai_gateway.errors import ConfigError
 from lai_gateway.server import GatewayHTTPServer
 
 from .fake_harness import TOKEN, fake_harness, get_json
@@ -59,6 +60,21 @@ def post_json_error(url: str, payload: dict[str, object]) -> tuple[int, dict[str
     except HTTPError as exc:
         body = json.loads(exc.read().decode("utf-8"))
         return exc.code, body
+    raise AssertionError("expected HTTPError")
+
+
+def get_json_with_headers(url: str, headers: dict[str, str] | None = None) -> tuple[int, dict[str, object]]:
+    request = Request(url, headers=headers or {})
+    with urlopen(request, timeout=5) as response:
+        return response.status, json.loads(response.read().decode("utf-8"))
+
+
+def get_json_error(url: str, headers: dict[str, str] | None = None) -> tuple[int, dict[str, object]]:
+    request = Request(url, headers=headers or {})
+    try:
+        urlopen(request, timeout=5)
+    except HTTPError as exc:
+        return exc.code, json.loads(exc.read().decode("utf-8"))
     raise AssertionError("expected HTTPError")
 
 
@@ -125,6 +141,49 @@ class GatewayServerTest(unittest.TestCase):
                 )
                 self.assertEqual(status, HTTPStatus.BAD_REQUEST)
                 self.assertEqual(body["error"], "unsupported_run_fields")
+
+    def test_private_mode_requires_access_token_file_when_constructed_directly(self):
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                private_bind_enabled=True,
+                access_token_file=None,
+            )
+            with self.assertRaisesRegex(ConfigError, "access token"):
+                GatewayHTTPServer(("127.0.0.1", 0), config)
+
+    def test_private_mode_requires_gateway_auth_for_harness_api_only(self):
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            access_file = Path(tmp) / "gateway-access"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            access_file.write_text("gateway-access-token", encoding="utf-8")
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                private_bind_enabled=True,
+                access_token_file=access_file,
+            )
+            with RunningGateway(config) as gateway:
+                self.assertEqual(get_json(f"{gateway.url}/healthz")["ok"], True)
+                status, body = get_json_error(f"{gateway.url}/v1/harness/readiness")
+                self.assertEqual(status, HTTPStatus.UNAUTHORIZED)
+                self.assertEqual(body["error"], "gateway_auth_required")
+                status, body = get_json_error(
+                    f"{gateway.url}/v1/harness/readiness",
+                    {"Authorization": "Bearer wrong-token"},
+                )
+                self.assertEqual(status, HTTPStatus.FORBIDDEN)
+                self.assertEqual(body["error"], "gateway_auth_failed")
+                status, body = get_json_with_headers(
+                    f"{gateway.url}/v1/harness/readiness",
+                    {"Authorization": "Bearer gateway-access-token"},
+                )
+                self.assertEqual(status, HTTPStatus.OK)
+                self.assertEqual(body["overall"], "ready")
 
     def test_gateway_mvp_does_not_expose_raw_run_creation(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

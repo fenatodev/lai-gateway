@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 import json
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -8,7 +9,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from . import __version__
-from .config import GatewayConfig, validate_loopback_bind
+from .config import GatewayConfig, read_gateway_access_token, validate_gateway_bind
 from .errors import ConfigError, GatewayError, HarnessHTTPError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient, build_read_only_run_body
 
@@ -35,10 +36,17 @@ _CSP = (
 
 class GatewayHTTPServer(ThreadingHTTPServer):
     def __init__(self, server_address: tuple[str, int], config: GatewayConfig):
-        validate_loopback_bind(server_address[0])
+        validate_gateway_bind(server_address[0], private_bind_enabled=config.private_bind_enabled)
+        if config.private_bind_enabled:
+            if config.access_token_file is None:
+                raise ConfigError("private bind requires a gateway access token file")
+            access_token = read_gateway_access_token(config.access_token_file)
+        else:
+            access_token = None
         super().__init__(server_address, GatewayHandler)
         self.config = config
         self.client = HarnessClient(config)
+        self.access_token = access_token
 
 
 class GatewayHandler(BaseHTTPRequestHandler):
@@ -55,21 +63,31 @@ class GatewayHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.OK, {"ok": True, "product": "lai-gateway", "version": __version__})
             return
         if parsed.path == "/v1/harness/status":
+            if not self._authorize_gateway_api(parsed.path):
+                return
             self._proxy(lambda: self.server.client.status())
             return
         if parsed.path == "/v1/harness/readiness":
+            if not self._authorize_gateway_api(parsed.path):
+                return
             self._proxy(lambda: self.server.client.readiness())
             return
         if parsed.path == "/v1/harness/gateway-contract":
+            if not self._authorize_gateway_api(parsed.path):
+                return
             self._proxy(lambda: self.server.client.gateway_contract())
             return
         if parsed.path == "/v1/harness/sessions":
+            if not self._authorize_gateway_api(parsed.path):
+                return
             limit = self._limit_from_query(parsed.query)
             if limit is None:
                 return
             self._proxy(lambda: self.server.client.list_sessions(limit))
             return
         if parsed.path.startswith("/v1/harness/sessions/"):
+            if not self._authorize_gateway_api(parsed.path):
+                return
             session_id = parsed.path.removeprefix("/v1/harness/sessions/")
             if "/" in session_id or not session_id:
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
@@ -77,12 +95,16 @@ class GatewayHandler(BaseHTTPRequestHandler):
             self._proxy(lambda: self.server.client.get_session(session_id))
             return
         if parsed.path == "/v1/harness/runs":
+            if not self._authorize_gateway_api(parsed.path):
+                return
             limit = self._limit_from_query(parsed.query)
             if limit is None:
                 return
             self._proxy(lambda: self.server.client.list_runs(limit))
             return
         if parsed.path.startswith("/v1/harness/runs/"):
+            if not self._authorize_gateway_api(parsed.path):
+                return
             run_id = parsed.path.removeprefix("/v1/harness/runs/")
             if "/" in run_id or not run_id:
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
@@ -94,11 +116,15 @@ class GatewayHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         if parsed.path == "/v1/harness/sessions":
+            if not self._authorize_gateway_api(parsed.path):
+                return
             if not self._require_empty_body():
                 return
             self._proxy(lambda: self.server.client.create_session(), success=HTTPStatus.CREATED)
             return
         if parsed.path == "/v1/harness/runs":
+            if not self._authorize_gateway_api(parsed.path):
+                return
             body = self._read_run_body()
             if body is None:
                 return
@@ -130,6 +156,24 @@ class GatewayHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "static_asset_missing"})
             return True
         self._send_bytes(HTTPStatus.OK, data, content_type)
+        return True
+
+
+    def _authorize_gateway_api(self, path: str) -> bool:
+        if not path.startswith("/v1/harness/"):
+            return True
+        expected = self.server.access_token
+        if expected is None:
+            return True
+        raw = self.headers.get("Authorization", "")
+        prefix = "Bearer "
+        if not raw.startswith(prefix):
+            self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "gateway_auth_required"})
+            return False
+        supplied = raw[len(prefix) :]
+        if not hmac.compare_digest(supplied, expected):
+            self._send_json(HTTPStatus.FORBIDDEN, {"error": "gateway_auth_failed"})
+            return False
         return True
 
     def _proxy(self, call: Any, success: int | HTTPStatus = HTTPStatus.OK) -> None:
@@ -216,6 +260,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Security-Policy", _CSP)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Vary", "Authorization")
 
     def _send_json(self, status: int | HTTPStatus, payload: dict[str, Any]) -> None:
         data = json.dumps(payload, sort_keys=True).encode("utf-8")

@@ -55,6 +55,9 @@ class GatewayUITest(unittest.TestCase):
                 self.assertEqual(headers["referrer-policy"], "no-referrer")
                 self.assertIn('<script src="/assets/app.js" defer></script>', html)
                 self.assertIn('<link rel="stylesheet" href="/assets/app.css">', html)
+                self.assertIn('id="gateway-token"', html)
+                self.assertIn('data-action="use-gateway-token"', html)
+                self.assertIn('data-action="forget-gateway-token"', html)
                 self.assertIn('id="readiness-pill"', html)
                 self.assertIn('id="active-session-pill"', html)
                 self.assertIn('id="active-run-pill"', html)
@@ -88,6 +91,8 @@ class GatewayUITest(unittest.TestCase):
         self.assertIn("replaceChildren", js)
         self.assertIn("textContent", js)
         self.assertIn("READ_ONLY_MODES", js)
+        self.assertIn("gatewayAccessToken", js)
+        self.assertIn("Authorization", js)
         for forbidden in (TOKEN, "localStorage", "sessionStorage", "innerHTML", "http://", "https://"):
             self.assertNotIn(forbidden, js)
 

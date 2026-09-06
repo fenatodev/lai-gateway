@@ -70,6 +70,7 @@ class ScriptTest(unittest.TestCase):
                 assert proc.stdout is not None
                 self.assertEqual(proc.stdout.readline().strip(), "lai-gateway dev: ready")
                 self.assertEqual(proc.stdout.readline().strip(), f"harness: {harness.url}")
+                self.assertEqual(proc.stdout.readline().strip(), "access: loopback")
                 self.assertEqual(proc.stdout.readline().strip(), "ui: http://127.0.0.1:18787/")
                 self.assertEqual(
                     proc.stdout.readline().strip(),

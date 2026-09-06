@@ -1,3 +1,16 @@
+## [0.1.7] - 2026-09-06
+
+Add an explicit private LAN binding preview with gateway-side authentication.
+
+- Keep loopback as the default bind mode.
+- Allow concrete private IP binds only when `LAI_GATEWAY_PRIVATE_BIND=1` is set.
+- Reject wildcard, public, reserved, multicast, and hostname private binds.
+- Add a separate gateway access token file for private mode.
+- Require gateway bearer authentication for `/v1/harness/*` in private mode while keeping the harness control token server-side.
+- Add UI support for a gateway token held only in page memory, plus tests for 401/403/200 private API behavior.
+
+No public bind, harness token exposure to the browser, write-capable runs, shell authority, direct llama.cpp proxy, or automatic tunnel setup is exposed in this release.
+
 ## [0.1.6] - 2026-09-06
 
 Add a single-command checked local dev stack.

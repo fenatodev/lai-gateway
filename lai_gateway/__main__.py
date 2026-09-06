@@ -19,15 +19,17 @@ from .server import serve
 def _config_with_overrides(config: GatewayConfig, bind: str | None, port: int | None) -> GatewayConfig:
     if bind is None and port is None:
         return config
-    return GatewayConfig.from_env(
-        {
-            "LAI_GATEWAY_HARNESS_URL": config.harness_url,
-            "LAI_GATEWAY_TOKEN_FILE": str(config.token_file),
-            "LAI_GATEWAY_BIND": bind or config.bind,
-            "LAI_GATEWAY_PORT": str(port or config.port),
-            "LAI_GATEWAY_TIMEOUT_SECONDS": str(config.timeout_seconds),
-        }
-    )
+    values = {
+        "LAI_GATEWAY_HARNESS_URL": config.harness_url,
+        "LAI_GATEWAY_TOKEN_FILE": str(config.token_file),
+        "LAI_GATEWAY_BIND": bind or config.bind,
+        "LAI_GATEWAY_PORT": str(port or config.port),
+        "LAI_GATEWAY_TIMEOUT_SECONDS": str(config.timeout_seconds),
+        "LAI_GATEWAY_PRIVATE_BIND": "1" if config.private_bind_enabled else "0",
+    }
+    if config.access_token_file is not None:
+        values["LAI_GATEWAY_ACCESS_TOKEN_FILE"] = str(config.access_token_file)
+    return GatewayConfig.from_env(values)
 
 
 def _ui_url(config: GatewayConfig) -> str:
@@ -42,6 +44,7 @@ def _run_dev_stack(config: GatewayConfig, *, open_browser: bool) -> int:
     url = _ui_url(config)
     print(f"lai-gateway dev: {doctor['overall']}")
     print(f"harness: {config.harness_url}")
+    print(f"access: {config.access_mode}")
     print(f"ui: {url}")
     if open_browser:
         webbrowser.open(url, new=2)
@@ -62,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     open_ui_parser = sub.add_parser("open-ui", help="print or open the local gateway UI URL")
     open_ui_parser.add_argument("--print-only", action="store_true", help="only print the UI URL")
     dev_parser = sub.add_parser("dev", help="check harness and serve the local gateway UI")
-    dev_parser.add_argument("--bind", default=None, help="loopback bind address")
+    dev_parser.add_argument("--bind", default=None, help="gateway bind address allowed by config policy")
     dev_parser.add_argument("--port", type=int, default=None, help="gateway port")
     dev_parser.add_argument("--no-open", action="store_true", help="do not open the browser")
     sessions_parser = sub.add_parser("sessions", help="manage harness sessions without creating runs")
@@ -85,8 +88,8 @@ def main(argv: list[str] | None = None) -> int:
     release_parser = sub.add_parser("release-check", help="check local release readiness")
     release_parser.add_argument("--target", required=True, help="target semantic version, for example 0.1.0")
     release_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
-    serve_parser = sub.add_parser("serve", help="serve the loopback-only gateway MVP")
-    serve_parser.add_argument("--bind", default=None, help="loopback bind address")
+    serve_parser = sub.add_parser("serve", help="serve the gateway with configured bind policy")
+    serve_parser.add_argument("--bind", default=None, help="gateway bind address allowed by config policy")
     serve_parser.add_argument("--port", type=int, default=None, help="gateway port")
     args = parser.parse_args(argv)
 

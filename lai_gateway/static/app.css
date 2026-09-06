@@ -14,6 +14,7 @@ h1 { margin: 0; font-size: clamp(2rem, 8vw, 4rem); }
 h2 { margin-top: 0; }
 h3 { margin: 18px 0 8px; }
 code { background: rgb(255 255 255 / .08); padding: .08rem .32rem; border-radius: .35rem; }
+.muted { color: #aeb8ca; }
 .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .card { border: 1px solid rgb(255 255 255 / .14); background: rgb(17 19 24 / .78); border-radius: 18px; padding: 18px; box-shadow: 0 20px 70px rgb(0 0 0 / .25); }
 .wide { grid-column: 1 / -1; }
