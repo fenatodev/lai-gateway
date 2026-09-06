@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
 
-from lai_gateway.model import collect_model_files, collect_model_plan, collect_model_smoke, collect_model_status, collect_model_task, render_model_files, render_model_plan, render_model_smoke, render_model_status, render_model_task
+from lai_gateway.model import collect_model_files, collect_model_plan, collect_model_runs, collect_model_smoke, collect_model_status, collect_model_task, render_model_files, render_model_plan, render_model_runs, render_model_smoke, render_model_status, render_model_task
 
 
 SECRET = "sk-local-secret-value"
@@ -472,6 +472,94 @@ class ModelStatusTest(unittest.TestCase):
         self.assertFalse(payload["downloads_models"])
         self.assertNotIn("Bearer", result.stdout + result.stderr)
 
+
+
+    def test_model_task_record_writes_prompt_free_secret_free_jsonl(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, FakeOpenAIModelsServer() as server:
+            runs_file = Path(tmp) / "model-runs.jsonl"
+            key_file = Path(tmp) / "model-api-key"
+            key_file.write_text(MODEL_API_KEY + "\n", encoding="utf-8")
+            key_file.chmod(0o600)
+            payload = collect_model_task(
+                env={
+                    "LAI_GATEWAY_MODEL_BASE_URL": server.url + "/auth",
+                    "LAI_GATEWAY_MODEL_NAME": "auth-local-code-model",
+                    "LAI_GATEWAY_MODEL_API_KEY_FILE": str(key_file),
+                },
+                task="code-mini",
+                record=True,
+                runs_file=runs_file,
+            )
+            recorded = collect_model_runs(path=runs_file, limit=10)
+            mode = oct(runs_file.stat().st_mode & 0o777)
+            raw = runs_file.read_text(encoding="utf-8")
+        self.assertEqual(payload["overall"], "ready")
+        self.assertEqual(payload["record"]["status"], "written")
+        self.assertEqual(mode, "0o600")
+        self.assertEqual(recorded["operation"], "model-runs")
+        self.assertEqual(recorded["count"], 1)
+        self.assertEqual(recorded["summary"]["ready"], 1)
+        self.assertEqual(recorded["entries"][0]["operation"], "model-task")
+        self.assertEqual(recorded["entries"][0]["task"], "code-mini")
+        self.assertNotIn(MODEL_API_KEY, raw)
+        self.assertNotIn("Bearer", raw)
+        self.assertNotIn("Return only this exact one-line", raw)
+        self.assertNotIn(str(key_file), raw)
+
+    def test_cli_model_runs_reads_secret_free_metrics(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, FakeOpenAIModelsServer() as server:
+            runs_file = Path(tmp) / "model-runs.jsonl"
+            key_file = Path(tmp) / "model-api-key"
+            key_file.write_text(MODEL_API_KEY + "\n", encoding="utf-8")
+            key_file.chmod(0o600)
+            env = dict(os.environ)
+            env.update({
+                "LAI_GATEWAY_MODEL_BASE_URL": server.url + "/auth",
+                "LAI_GATEWAY_MODEL_NAME": "auth-local-code-model",
+                "LAI_GATEWAY_MODEL_API_KEY_FILE": str(key_file),
+            })
+            write_result = subprocess.run(
+                [sys.executable, "-m", "lai_gateway", "model-task", "--task", "code-mini", "--record", "--runs-file", str(runs_file), "--json"],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+                check=False,
+                timeout=10,
+            )
+            read_result = subprocess.run(
+                [sys.executable, "-m", "lai_gateway", "model-runs", "--path", str(runs_file), "--json"],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=10,
+            )
+        self.assertEqual(write_result.returncode, 0)
+        self.assertEqual(read_result.returncode, 0)
+        payload = json.loads(read_result.stdout)
+        combined = write_result.stdout + write_result.stderr + read_result.stdout + read_result.stderr
+        self.assertEqual(payload["operation"], "model-runs")
+        self.assertEqual(payload["count"], 1)
+        self.assertIn("model-task", payload["summary"]["operations"])
+        self.assertNotIn(MODEL_API_KEY, combined)
+        self.assertNotIn("Bearer", combined)
+        self.assertNotIn("Return only this exact one-line", combined)
+
+    def test_render_model_runs_is_secret_free(self) -> None:
+        payload = {
+            "operation": "model-runs",
+            "version": "0.0.0",
+            "overall": "ready",
+            "path": "/tmp/model-runs.jsonl",
+            "count": 1,
+            "summary": {"ready": 1, "failed": 0, "avg_elapsed_ms": 42.0},
+            "entries": [{"created_at": "2026-01-01T00:00:00Z", "operation": "model-task", "overall": "ready", "task": "code-mini", "elapsed_ms": 42.0}],
+        }
+        rendered = render_model_runs(payload)
+        self.assertIn("model-task", rendered)
+        self.assertNotIn("Bearer", rendered)
+        self.assertNotIn("secret", rendered.lower())
 
     def test_model_files_groups_split_and_recommends_code_model(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

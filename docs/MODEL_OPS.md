@@ -176,3 +176,24 @@ lai-gateway-model --create-key --smoke --task
 ```
 
 This starts the local runtime when needed, waits for `/v1/models`, runs `model-status --probe-openai`, runs `model-smoke`, and runs `model-task --task code-mini`. The key value stays in the key file and is not passed as a process argument.
+
+
+## Prompt-free run metrics
+
+Use `--record` to append local model metrics after fixed smoke or task probes:
+
+```bash
+lai-gateway model-smoke --record
+lai-gateway model-task --task code-mini --record
+lai-gateway-model --smoke --task --record
+```
+
+Read the local JSONL history without starting a server:
+
+```bash
+lai-gateway model-runs
+```
+
+The run log is opt-in and prompt-free. Records include timestamp, operation, fixed task name, model name, status, match result, elapsed milliseconds, response character count, and a bounded response preview. They do not store prompt text, API key values, key-file paths, or `Bearer` headers. The default file is `~/.local/share/lai-gateway/model-runs.jsonl` and is written with `0600` permissions.
+
+The UI exposes `GET /v1/gateway/model-runs` as a read-only history view. In private mode it requires gateway authentication. The UI does not enable hidden recording; recording remains explicit through CLI/launcher flags.

@@ -1,6 +1,7 @@
 ## [0.1.23] - 2026-09-06
 
 ### Added
+- Add prompt-free local model run metrics with `model-smoke --record`, `model-task --record`, `model-runs`, launcher `--record`, and `/v1/gateway/model-runs`.
 - Add `lai-gateway-model --task` to run the fixed local code task after model startup and readiness probing.
 - Add `lai-gateway model-task --task code-mini` and `/v1/gateway/model-task` for a fixed, bounded local code-generation task probe.
 - Add `lai-gateway-model --smoke` to run fixed-prompt completion validation immediately after local runtime startup.

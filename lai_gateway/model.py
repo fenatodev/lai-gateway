@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import stat
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -25,6 +26,7 @@ _MODEL_RUNTIME_COMMANDS = (
 _WINDOWS_RUNTIME_COMMANDS = ("ollama.exe", "llama-server.exe", "llama-cli.exe")
 _WINDOWS_LLAMA_CPP_DEFAULT_PORT = 18082
 _DEFAULT_MODEL_API_KEY_FILE = "~/.config/lai-gateway/model-api-key"
+_DEFAULT_MODEL_RUNS_FILE = "~/.local/share/lai-gateway/model-runs.jsonl"
 _DEFAULT_MODEL_API_KEY_BYTES = 32
 _GPU_COMMANDS = ("rocminfo", "rocm-smi", "clinfo", "nvidia-smi")
 _SECRET_ENV_PARTS = ("TOKEN", "KEY", "SECRET", "PASSWORD", "AUTH", "BEARER")
@@ -197,6 +199,8 @@ def collect_model_smoke(
     env: dict[str, str] | None = None,
     expected: str = "LAI_SMOKE_OK",
     timeout_seconds: float = 60.0,
+    record: bool = False,
+    runs_file: Path | None = None,
 ) -> dict[str, Any]:
     """Run a bounded fixed-prompt completion smoke test against a safe local model endpoint."""
     values = env if env is not None else os.environ
@@ -215,7 +219,7 @@ def collect_model_smoke(
     overall = "ready" if smoke.get("matched") else smoke.get("status", "blocked")
     if smoke.get("status") in {"blocked", "needs_config"}:
         overall = smoke["status"]
-    return {
+    payload = {
         "product": "lai-gateway",
         "version": __version__,
         "operation": "model-smoke",
@@ -236,6 +240,9 @@ def collect_model_smoke(
             "user_prompt_supported": False,
         },
     }
+    if record:
+        payload["record"] = append_model_run(payload, path=runs_file)
+    return payload
 
 
 def render_model_smoke(payload: dict[str, Any]) -> str:
@@ -258,6 +265,8 @@ def render_model_smoke(payload: dict[str, Any]) -> str:
     if smoke.get("detail"):
         lines.append(f"detail: {smoke['detail']}")
     lines.append(f"elapsed_ms: {payload['elapsed_ms']}")
+    if payload.get("record"):
+        lines.append(f"record: {payload['record'].get('status')} ({payload['record'].get('path')})")
     return "\n".join(lines)
 
 def collect_model_task(
@@ -265,6 +274,8 @@ def collect_model_task(
     env: dict[str, str] | None = None,
     task: str = "code-mini",
     timeout_seconds: float = 60.0,
+    record: bool = False,
+    runs_file: Path | None = None,
 ) -> dict[str, Any]:
     """Run a bounded fixed local model task without accepting arbitrary prompts."""
     values = env if env is not None else os.environ
@@ -289,7 +300,7 @@ def collect_model_task(
     overall = "ready" if result.get("matched") else result.get("status", "blocked")
     if result.get("status") in {"blocked", "needs_config"}:
         overall = result["status"]
-    return {
+    payload = {
         "product": "lai-gateway",
         "version": __version__,
         "operation": "model-task",
@@ -312,6 +323,9 @@ def collect_model_task(
             "user_prompt_supported": False,
         },
     }
+    if record:
+        payload["record"] = append_model_run(payload, path=runs_file)
+    return payload
 
 
 def render_model_task(payload: dict[str, Any]) -> str:
@@ -337,7 +351,141 @@ def render_model_task(payload: dict[str, Any]) -> str:
     if result.get("detail"):
         lines.append(f"detail: {result['detail']}")
     lines.append(f"elapsed_ms: {payload['elapsed_ms']}")
+    if payload.get("record"):
+        lines.append(f"record: {payload['record'].get('status')} ({payload['record'].get('path')})")
     return "\n".join(lines)
+
+
+def default_model_runs_path() -> Path:
+    return Path(os.environ.get("LAI_GATEWAY_MODEL_RUNS_FILE", _DEFAULT_MODEL_RUNS_FILE)).expanduser()
+
+
+def append_model_run(payload: dict[str, Any], *, path: Path | None = None) -> dict[str, Any]:
+    target = (path or default_model_runs_path()).expanduser()
+    target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    record = _model_run_record(payload)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
+    fd = os.open(str(target), flags, 0o600)
+    try:
+        with os.fdopen(fd, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
+    finally:
+        if not os.path.exists(target):
+            return {"status": "error", "path": str(target), "detail": "record file was not created"}
+    try:
+        os.chmod(target, 0o600)
+    except OSError:
+        pass
+    return {"status": "written", "path": str(target), "recorded_fields": sorted(record)}
+
+
+def collect_model_runs(*, path: Path | None = None, limit: int = 20) -> dict[str, Any]:
+    target = (path or default_model_runs_path()).expanduser()
+    entries = _read_model_run_records(target, limit=limit)
+    return {
+        "product": "lai-gateway",
+        "version": __version__,
+        "operation": "model-runs",
+        "overall": "ready" if target.exists() else "empty",
+        "path": str(target),
+        "limit": limit,
+        "entries": entries,
+        "count": len(entries),
+        "summary": _model_run_summary(entries),
+        "starts_server": False,
+        "modifies_files": False,
+        "downloads_models": False,
+        "security": {
+            "prints_tokens": False,
+            "stores_prompts": False,
+            "stores_full_responses": False,
+            "stores_response_preview": True,
+            "secret_values_recorded": False,
+        },
+    }
+
+
+def render_model_runs(payload: dict[str, Any]) -> str:
+    lines = [
+        f"lai-gateway model-runs: {payload['overall']}",
+        f"version: {payload['version']}",
+        f"path: {payload['path']}",
+        "starts_server: false",
+        "modifies_files: false",
+        "downloads_models: false",
+        f"count: {payload['count']}",
+    ]
+    summary = payload.get("summary", {})
+    if summary:
+        lines.append("summary:")
+        lines.append(f"  ready: {summary.get('ready', 0)}")
+        lines.append(f"  failed: {summary.get('failed', 0)}")
+        if summary.get("avg_elapsed_ms") is not None:
+            lines.append(f"  avg_elapsed_ms: {summary['avg_elapsed_ms']}")
+    if payload.get("entries"):
+        lines.append("entries:")
+        for item in payload["entries"]:
+            parts = [item.get("created_at", ""), item.get("operation", ""), item.get("overall", "")]
+            if item.get("task"):
+                parts.append(item["task"])
+            if item.get("elapsed_ms") is not None:
+                parts.append(f"{item['elapsed_ms']}ms")
+            lines.append("  - " + " | ".join(str(part) for part in parts if part))
+    return "\n".join(lines)
+
+
+def _model_run_record(payload: dict[str, Any]) -> dict[str, Any]:
+    result = payload.get("result") or payload.get("smoke") or {}
+    config = payload.get("model_config") or {}
+    record = {
+        "created_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "product": payload.get("product", "lai-gateway"),
+        "version": payload.get("version"),
+        "operation": payload.get("operation"),
+        "overall": payload.get("overall"),
+        "task": payload.get("task"),
+        "model": config.get("model"),
+        "base_url": _redact_url(config.get("base_url") or "") if config.get("base_url") else "",
+        "status": result.get("status"),
+        "matched": bool(result.get("matched")) if result.get("matched") is not None else None,
+        "auth_used": bool(result.get("auth_used")) if result.get("auth_used") is not None else None,
+        "elapsed_ms": payload.get("elapsed_ms"),
+        "response_chars": result.get("response_chars"),
+        "response_preview": (result.get("response_preview") or "")[:200],
+    }
+    return {k: v for k, v in record.items() if v is not None}
+
+
+def _read_model_run_records(path: Path, *, limit: int) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    with path.open(encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                value = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(value, dict):
+                rows.append(value)
+    return rows[-max(1, min(int(limit), 200)):]
+
+
+def _model_run_summary(entries: list[dict[str, Any]]) -> dict[str, Any]:
+    if not entries:
+        return {}
+    elapsed = [float(item["elapsed_ms"]) for item in entries if isinstance(item.get("elapsed_ms"), (int, float))]
+    ready = sum(1 for item in entries if item.get("overall") == "ready")
+    return {
+        "ready": ready,
+        "failed": len(entries) - ready,
+        "operations": sorted({str(item.get("operation")) for item in entries if item.get("operation")}),
+        "tasks": sorted({str(item.get("task")) for item in entries if item.get("task")}),
+        "avg_elapsed_ms": round(sum(elapsed) / len(elapsed), 1) if elapsed else None,
+    }
 
 
 def default_model_api_key_path() -> Path:

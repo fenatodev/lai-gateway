@@ -17,7 +17,7 @@ from .config import GatewayConfig, read_gateway_access_token, validate_gateway_b
 from .tokens import read_valid_gateway_pairing_token
 from .errors import ConfigError, GatewayError, HarnessHTTPError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient, build_read_only_run_body
-from .model import collect_model_files, collect_model_plan, collect_model_status, collect_model_task
+from .model import collect_model_files, collect_model_plan, collect_model_runs, collect_model_status, collect_model_task
 
 _REQUEST_BODY_MAX_BYTES = 64 * 1024
 _AUTH_FAILURE_LIMIT = 5
@@ -106,6 +106,15 @@ class GatewayHandler(BaseHTTPRequestHandler):
             if max_results is None:
                 return
             self._send_json(HTTPStatus.OK, collect_model_files(max_results=max_results, max_seconds=12.0))
+            return
+        if parsed.path == "/v1/gateway/model-runs":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            limit = self._positive_int_query(values.get("limit", ["20"])[0], default=20, maximum=100)
+            if limit is None:
+                return
+            self._send_json(HTTPStatus.OK, collect_model_runs(limit=limit))
             return
         if parsed.path == "/v1/gateway/ops-status":
             if not self._authorize_gateway_api(parsed.path):
@@ -217,7 +226,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
 
 
     def _authorize_gateway_api(self, path: str) -> bool:
-        if not (path.startswith("/v1/harness/") or path in {"/v1/gateway/ops-status", "/v1/gateway/model-status", "/v1/gateway/model-plan", "/v1/gateway/model-files", "/v1/gateway/model-task"}):
+        if not (path.startswith("/v1/harness/") or path in {"/v1/gateway/ops-status", "/v1/gateway/model-status", "/v1/gateway/model-plan", "/v1/gateway/model-files", "/v1/gateway/model-task", "/v1/gateway/model-runs"}):
             return True
         expected = self.server.access_token
         if expected is None:
