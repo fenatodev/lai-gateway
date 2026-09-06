@@ -11,13 +11,26 @@
     <header class="hero">
       <p class="eyebrow">local-first control surface</p>
       <h1>lai-gateway</h1>
-      <p>Loopback UI for <code>lai harness</code> status, sessions, and read-only runs.</p>
+      <p>Mobile-friendly UI for <code>lai harness</code> status, sessions, and read-only runs.</p>
       <div class="status-strip" aria-label="Runtime summary">
         <span id="readiness-pill" class="pill muted">readiness unknown</span>
         <span id="active-session-pill" class="pill muted">no active session</span>
         <span id="active-run-pill" class="pill muted">no active run</span>
       </div>
     </header>
+
+    <section class="card wide mobile-guide" aria-label="Mobile pairing checklist">
+      <div>
+        <p class="eyebrow">phone setup</p>
+        <h2>Mobile checklist</h2>
+        <p class="muted">Start with <code>lai-gateway mobile-serve --show-pair</code>, open the LAN URL on your phone, paste the temporary pair token, then run read-only tasks.</p>
+      </div>
+      <ol class="checklist">
+        <li id="check-access" class="check muted">Pair token not loaded yet.</li>
+        <li id="check-session" class="check muted">No active session selected.</li>
+        <li id="check-run" class="check muted">No read-only run selected.</li>
+      </ol>
+    </section>
 
     <section class="grid" aria-label="Gateway controls">
 
@@ -31,10 +44,10 @@
           </select>
         </label>
         <label>Gateway or pair token
-          <input id="gateway-token" type="password" autocomplete="off" spellcheck="false" placeholder="paste token from lai-gateway pair create --show">
+          <input id="gateway-token" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="paste token from lai-gateway pair create --show">
         </label>
         <label>Pair token expires at, optional
-          <input id="pair-expires-at" autocomplete="off" spellcheck="false" placeholder="2026-09-06T06:35:00Z">
+          <input id="pair-expires-at" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="2026-09-06T06:35:00Z">
         </label>
         <div class="actions">
           <button data-action="use-gateway-token">Use token</button>
@@ -62,9 +75,12 @@
           <button data-action="create-session">Create session</button>
         </div>
         <label>Session id
-          <input id="session-id" autocomplete="off" spellcheck="false" placeholder="cs-...">
+          <input id="session-id" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="cs-...">
         </label>
-        <button data-action="get-session">Get selected session</button>
+        <div class="actions">
+          <button data-action="get-session">Get selected session</button>
+          <button data-action="clear-session">Clear session</button>
+        </div>
         <pre id="sessions-output" aria-live="polite">Not loaded.</pre>
       </article>
 
@@ -81,17 +97,29 @@
             </select>
           </label>
           <label>Run id
-            <input id="run-id" autocomplete="off" spellcheck="false" placeholder="cr-...">
+            <input id="run-id" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="cr-...">
           </label>
         </div>
         <label>Task
           <textarea id="run-task" rows="5" maxlength="12000" placeholder="Ask for a read-only analysis."></textarea>
         </label>
+        <div class="task-meta">
+          <span id="task-counter" class="muted">0 / 12000</span>
+          <span class="muted">Read-only modes only. No implement/fix/refactor.</span>
+        </div>
+        <div class="quick-grid" aria-label="Quick read-only task presets">
+          <button data-preset="plan">Plan next step</button>
+          <button data-preset="review">Review current state</button>
+          <button data-preset="diagnose">Diagnose issue</button>
+          <button data-preset="security">Security check</button>
+          <button data-preset="release">Release check</button>
+        </div>
         <div class="actions">
           <button data-action="list-runs">List runs</button>
           <button data-action="create-run">Create read-only run</button>
           <button data-action="get-run">Get selected run</button>
           <button data-action="poll-run">Poll selected run</button>
+          <button data-action="stop-polling">Stop polling</button>
           <button data-action="copy-run-output">Copy output</button>
         </div>
         <pre id="runs-output" aria-live="polite">Not loaded.</pre>

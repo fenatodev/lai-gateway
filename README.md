@@ -122,7 +122,7 @@ Start the harness and gateway, then open:
 http://127.0.0.1:8787/
 ```
 
-The UI is intentionally local-only. It can refresh readiness/status, create and inspect sessions, create read-only runs, poll selected runs, keep a compact in-memory run history, and copy run output. Use `lai-gateway lan-info` to print private LAN URL candidates and safe startup commands without starting a server. Use `lai-gateway mobile-start --prepare` to create missing token files and refresh the short-lived pair token before opening the UI on a phone. Use `lai-gateway mobile-serve --candidate-ip <private-ip>` only when you intentionally want to prepare tokens and start the private LAN gateway in one foreground command. In private mode, paste either the permanent gateway token or a short-lived pair token into the Gateway access card. The optional pair expiration field shows an in-memory countdown, and Forget token clears token state from the page. It does not receive the harness control token, does not use external CDN assets, and does not use browser storage. Tiny mercy in a world full of tracking pixels.
+The UI is intentionally local-first and phone-friendly. It can refresh readiness/status, guide mobile pairing with an in-memory checklist, create and inspect sessions, create read-only runs, poll selected runs, stop polling, keep a compact in-memory run history, fill read-only task presets, count task characters, and copy run output. Use `lai-gateway lan-info` to print private LAN URL candidates and safe startup commands without starting a server. Use `lai-gateway mobile-start --prepare` to create missing token files and refresh the short-lived pair token before opening the UI on a phone. Use `lai-gateway mobile-serve --candidate-ip <private-ip>` only when you intentionally want to prepare tokens and start the private LAN gateway in one foreground command. The phone UI keeps token state only in memory and exposes a Forget token control. In private mode, paste either the permanent gateway token or a short-lived pair token into the Gateway access card. The optional pair expiration field shows an in-memory countdown, and Forget token clears token state from the page. It does not receive the harness control token, does not use external CDN assets, and does not use browser storage. Tiny mercy in a world full of tracking pixels.
 
 
 ## Private LAN preview
@@ -173,7 +173,7 @@ The gateway refuses wildcard and public bind addresses. Private-network/mobile e
 
 ```bash
 make check
-python3 -m lai_gateway release-check --target 0.1.13 --json
+python3 -m lai_gateway release-check --target 0.1.14 --json
 ```
 
 Release rules are documented in [docs/RELEASE.md](docs/RELEASE.md).

@@ -48,3 +48,62 @@ pre { overflow: auto; max-height: 420px; min-height: 120px; padding: 14px; borde
 .danger-text {
   color: #9f1d1d;
 }
+
+.mobile-guide {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(260px, .9fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.checklist {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.check {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / .06);
+  border: 1px solid rgb(255 255 255 / .1);
+}
+
+.check.ready { background: rgb(64 196 125 / .16); }
+.check.running { background: rgb(120 168 255 / .16); }
+.check.warn { background: rgb(255 198 87 / .18); }
+.check.danger { background: rgb(255 106 106 / .18); }
+
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: .86rem;
+}
+
+button { min-height: 42px; touch-action: manipulation; }
+textarea { resize: vertical; }
+
+@media (max-width: 780px) {
+  .mobile-guide { grid-template-columns: 1fr; }
+  .quick-grid { grid-template-columns: 1fr 1fr; }
+  .actions button { flex: 1 1 145px; }
+  .status-strip .pill { flex: 1 1 100%; justify-content: center; }
+  pre { max-height: 300px; font-size: .82rem; }
+}
+
+@media (max-width: 480px) {
+  .shell { width: min(100vw - 14px, 1120px); padding: 12px 0; }
+  .card { padding: 14px; border-radius: 14px; }
+  .quick-grid { grid-template-columns: 1fr; }
+  button, input, select, textarea { min-height: 46px; }
+}
