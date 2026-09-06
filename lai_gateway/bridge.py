@@ -33,12 +33,19 @@ def collect_mobile_bridge(
     target: str = "recommended",
     apply: bool = False,
     remove: bool = False,
+    check: bool = False,
     runner: Runner | None = None,
 ) -> dict[str, Any]:
     if apply and remove:
         raise ConfigError("mobile-bridge cannot apply and remove in the same run")
     _validate_port(port)
-    access = collect_mobile_access(bind="127.0.0.1", port=port)
+    if connect_ip is not None:
+        _validate_connect_ip(connect_ip)
+    access = collect_mobile_access(
+        bind=connect_ip or "127.0.0.1",
+        port=port,
+        discovered_hosts=[connect_ip] if connect_ip else None,
+    )
     plan = _resolve_plan(access, port=port, listen_ip=listen_ip, connect_ip=connect_ip, target=target)
     commands = _bridge_commands(plan)
     payload: dict[str, Any] = {
@@ -57,6 +64,7 @@ def collect_mobile_bridge(
         "url": f"http://{plan.listen_ip}:{plan.port}/",
         "commands": commands,
         "results": [],
+        "check": {"ran": False},
         "warnings": _warnings(access, plan),
         "security": {
             "tokens_involved": False,
@@ -69,6 +77,8 @@ def collect_mobile_bridge(
     }
     if apply or remove:
         payload["results"] = _execute_windows_bridge(commands["apply" if apply else "remove"], runner=runner)
+    if check:
+        payload["check"] = _check_windows_bridge(plan, runner=runner)
     return payload
 
 
@@ -88,6 +98,14 @@ def render_mobile_bridge(payload: dict[str, Any]) -> str:
     lines.extend(f"  {command}" for command in payload["commands"]["apply"])
     lines.append("remove:")
     lines.extend(f"  {command}" for command in payload["commands"]["remove"])
+    check = payload.get("check", {})
+    if check.get("ran"):
+        lines.append("")
+        lines.append(f"check: {check.get('overall', 'unknown')}")
+        for result in check.get("results", []):
+            lines.append(f"  - {result['name']}: {'ok' if result.get('ok') else 'fail'}")
+            if result.get("summary"):
+                lines.append(f"    {result['summary']}")
     if payload.get("warnings"):
         lines.append("")
         lines.append("warnings:")
@@ -166,6 +184,80 @@ def _bridge_commands(plan: BridgePlan) -> dict[str, list[str]]:
     )
     delete_firewall = f"Remove-NetFirewallRule -DisplayName \"{display_name}\" -ErrorAction SilentlyContinue"
     return {"apply": [add_proxy, add_firewall], "remove": [delete_proxy, delete_firewall]}
+
+
+def _check_windows_bridge(plan: BridgePlan, *, runner: Runner | None = None) -> dict[str, Any]:
+    if runner is None and shutil.which("powershell.exe") is None:
+        return {
+            "ran": True,
+            "overall": "unavailable",
+            "requires_admin": False,
+            "modifies_windows_network": False,
+            "results": [
+                {
+                    "name": "powershell",
+                    "ok": False,
+                    "returncode": None,
+                    "summary": "powershell.exe is not available for read-only bridge checks",
+                }
+            ],
+        }
+    run = runner or _run_powershell_command
+    specs = [
+        ("portproxy", "netsh interface portproxy show v4tov4", _portproxy_check),
+        ("firewall", _firewall_check_command(plan), _firewall_check),
+        ("wsl_target", _tcp_quiet_command(plan.connect_ip, plan.port), _truthy_powershell_check),
+        ("listen_target", _tcp_quiet_command(plan.listen_ip, plan.port), _truthy_powershell_check),
+    ]
+    results: list[dict[str, Any]] = []
+    for name, command, parser in specs:
+        completed = run(["powershell.exe", "-NoProfile", "-Command", command])
+        combined = f"{completed.stdout or ''}\n{completed.stderr or ''}".strip()
+        ok = completed.returncode == 0 and parser(plan, combined)
+        results.append({
+            "name": name,
+            "ok": ok,
+            "returncode": completed.returncode,
+            "summary": _summarize_output(combined),
+        })
+    overall = "ready" if all(item["ok"] for item in results) else "warn"
+    return {
+        "ran": True,
+        "overall": overall,
+        "requires_admin": False,
+        "modifies_windows_network": False,
+        "results": results,
+    }
+
+
+def _firewall_check_command(plan: BridgePlan) -> str:
+    display_name = f"lai-gateway {plan.port}"
+    return (
+        f'Get-NetFirewallRule -DisplayName "{display_name}" -ErrorAction SilentlyContinue | '
+        "ForEach-Object { "
+        "$f=Get-NetFirewallPortFilter -AssociatedNetFirewallRule $_; "
+        "$a=Get-NetFirewallAddressFilter -AssociatedNetFirewallRule $_; "
+        "[PSCustomObject]@{Enabled=$_.Enabled;Direction=$_.Direction;Action=$_.Action;"
+        "Protocol=$f.Protocol;LocalPort=$f.LocalPort;LocalAddress=$a.LocalAddress} } | ConvertTo-Json -Compress"
+    )
+
+
+def _tcp_quiet_command(host: str, port: int) -> str:
+    return f"Test-NetConnection -ComputerName {host} -Port {port} -InformationLevel Quiet"
+
+
+def _portproxy_check(plan: BridgePlan, raw: str) -> bool:
+    return plan.listen_ip in raw and plan.connect_ip in raw and str(plan.port) in raw
+
+
+def _firewall_check(plan: BridgePlan, raw: str) -> bool:
+    enabled = "True" in raw or '"Enabled":1' in raw or '"Enabled":"True"' in raw
+    allowed = "Allow" in raw or '"Action":2' in raw or '"Action":"Allow"' in raw
+    return plan.listen_ip in raw and str(plan.port) in raw and enabled and allowed
+
+
+def _truthy_powershell_check(plan: BridgePlan, raw: str) -> bool:
+    return raw.strip().lower().endswith("true")
 
 
 def _execute_windows_bridge(commands: list[str], *, runner: Runner | None = None) -> list[dict[str, Any]]:

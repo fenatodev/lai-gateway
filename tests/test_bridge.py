@@ -23,6 +23,7 @@ class MobileBridgeTest(unittest.TestCase):
         self.assertFalse(payload["modifies_windows_network"])
         self.assertIn("netsh interface portproxy add", rendered)
         self.assertIn("connectaddress=172.29.193.62", rendered)
+        self.assertNotIn("Current gateway bind is loopback", rendered)
         self.assertNotIn("Bearer", rendered)
         self.assertNotIn("pair_token", rendered)
         self.assertFalse(payload["security"]["tokens_involved"])
@@ -83,6 +84,57 @@ class MobileBridgeTest(unittest.TestCase):
             payload = collect_mobile_bridge(port=8787, target="recommended")
         self.assertEqual(payload["listen_ip"], "100.107.179.6")
         self.assertEqual(payload["connect_ip"], "172.29.193.62")
+
+
+    def test_check_uses_injected_runner_without_mutation(self) -> None:
+        calls: list[list[str]] = []
+
+        def runner(args: list[str]) -> subprocess.CompletedProcess[str]:
+            calls.append(args)
+            command = args[-1]
+            if "portproxy show" in command:
+                return subprocess.CompletedProcess(args=args, returncode=0, stdout="100.107.179.6   8787   172.29.193.62   8787", stderr="")
+            if "Get-NetFirewallRule" in command:
+                return subprocess.CompletedProcess(args=args, returncode=0, stdout='{"Enabled":"True","Action":"Allow","LocalPort":"8787","LocalAddress":"100.107.179.6"}', stderr="")
+            if "172.29.193.62" in command or "100.107.179.6" in command:
+                return subprocess.CompletedProcess(args=args, returncode=0, stdout="True", stderr="")
+            return subprocess.CompletedProcess(args=args, returncode=1, stdout="", stderr="unexpected")
+
+        payload = collect_mobile_bridge(
+            port=8787,
+            listen_ip="100.107.179.6",
+            connect_ip="172.29.193.62",
+            check=True,
+            runner=runner,
+        )
+        rendered = render_mobile_bridge(payload)
+        self.assertFalse(payload["modifies_windows_network"])
+        self.assertEqual(payload["check"]["overall"], "ready")
+        self.assertEqual(len(calls), 4)
+        self.assertIn("check: ready", rendered)
+        self.assertNotIn("Bearer", json.dumps(payload) + rendered)
+
+    def test_check_reports_warn_when_listen_target_fails(self) -> None:
+        def runner(args: list[str]) -> subprocess.CompletedProcess[str]:
+            command = args[-1]
+            if "portproxy show" in command:
+                return subprocess.CompletedProcess(args=args, returncode=0, stdout="100.107.179.6   8787   172.29.193.62   8787", stderr="")
+            if "Get-NetFirewallRule" in command:
+                return subprocess.CompletedProcess(args=args, returncode=0, stdout='{"Enabled":"True","Action":"Allow","LocalPort":"8787","LocalAddress":"100.107.179.6"}', stderr="")
+            if "172.29.193.62" in command:
+                return subprocess.CompletedProcess(args=args, returncode=0, stdout="True", stderr="")
+            return subprocess.CompletedProcess(args=args, returncode=0, stdout="False", stderr="")
+
+        payload = collect_mobile_bridge(
+            port=8787,
+            listen_ip="100.107.179.6",
+            connect_ip="172.29.193.62",
+            check=True,
+            runner=runner,
+        )
+        self.assertEqual(payload["check"]["overall"], "warn")
+        failures = [item["name"] for item in payload["check"]["results"] if not item["ok"]]
+        self.assertEqual(failures, ["listen_target"])
 
     def test_cli_mobile_bridge_json_is_secret_free(self) -> None:
         repo = Path(__file__).resolve().parents[1]

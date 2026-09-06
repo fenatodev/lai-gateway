@@ -45,6 +45,20 @@ lai-gateway-mobile --candidate-ip 172.29.193.62 --port 8787 --telegram-notify
 
 The launcher is idempotent. It checks the current state, repairs pair tokens when needed, and starts `mobile-serve` only when no listener is active.
 
+## Check the Windows/Tailscale bridge
+
+```bash
+lai-gateway mobile-bridge --listen-ip 100.107.179.6 --connect-ip 172.29.193.62 --port 8787 --check
+```
+
+Expected result when the phone route is fully reachable:
+
+```text
+check: ready
+```
+
+If `listen_target` fails but `wsl_target` passes, the gateway is alive in WSL and the problem is on the Windows/Tailscale listener side. Apply or repair the bridge from an elevated Windows shell.
+
 ## Pair the phone
 
 Generate a short-lived pair token only in your local terminal:
