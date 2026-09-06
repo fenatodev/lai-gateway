@@ -1,3 +1,15 @@
+## [0.1.12] - 2026-09-06
+
+Add guided mobile startup planning without automatically opening a private bind.
+
+- Add `lai-gateway mobile-start` to combine LAN discovery, token status, pair-token status, mobile URL, and the exact private gateway command.
+- Keep `mobile-start` read-only by default; `--prepare` is required before token files are created or refreshed.
+- Add explicit `--show-pair` for printing a temporary pair token, and reject it without `--prepare`.
+- Add `--candidate-ip` overrides for `lan-info` and `mobile-start` so users and tests can avoid fragile network autodetection.
+- Cover the guided mobile flow with deterministic tests that avoid leaking token values.
+
+No public bind, automatic server startup, harness token exposure to the browser, write-capable runs, shell authority, direct llama.cpp proxy, persistent browser storage, or automatic tunnel setup is exposed in this release.
+
 ## [0.1.11] - 2026-09-06
 
 Add safe LAN discovery instructions for mobile access.

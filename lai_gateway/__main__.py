@@ -14,6 +14,7 @@ from .doctor import collect_doctor, render_doctor
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .lan import collect_lan_info, render_lan_info
+from .mobile import collect_mobile_start, render_mobile_start
 from .release import collect_release_check, render_release_check
 from .server import serve
 from .tokens import (
@@ -83,7 +84,15 @@ def main(argv: list[str] | None = None) -> int:
     dev_parser.add_argument("--no-open", action="store_true", help="do not open the browser")
     lan_parser = sub.add_parser("lan-info", help="show safe private LAN access candidates without starting a server")
     lan_parser.add_argument("--port", type=int, default=None, help="gateway port for suggested mobile URLs")
+    lan_parser.add_argument("--candidate-ip", action="append", default=None, help="override detected candidates with a specific private IP; repeatable")
     lan_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    mobile_parser = sub.add_parser("mobile-start", help="prepare or print a safe private mobile access plan")
+    mobile_parser.add_argument("--port", type=int, default=None, help="gateway port for suggested mobile URLs")
+    mobile_parser.add_argument("--candidate-ip", action="append", default=None, help="override detected candidates with a specific private IP; repeatable")
+    mobile_parser.add_argument("--ttl-seconds", type=int, default=600, help="temporary pair token lifetime, 60..3600 seconds")
+    mobile_parser.add_argument("--prepare", action="store_true", help="create missing access token and refresh the pair token")
+    mobile_parser.add_argument("--show-pair", action="store_true", help="print the temporary pair token once; requires --prepare")
+    mobile_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     token_parser = sub.add_parser("token", help="manage the separate gateway access token")
     token_sub = token_parser.add_subparsers(dest="token_command")
     token_create = token_sub.add_parser("create", help="create a gateway access token file")
@@ -139,12 +148,29 @@ def main(argv: list[str] | None = None) -> int:
     try:
         config = GatewayConfig.from_env()
         if args.command == "lan-info":
-            payload = collect_lan_info(port=args.port or config.port)
+            payload = collect_lan_info(port=args.port or config.port, discovered_hosts=args.candidate_ip)
             if not args.json:
                 print(render_lan_info(payload))
                 return 0
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
+        if args.command == "mobile-start":
+            if args.show_pair and not args.prepare:
+                raise GatewayError("--show-pair requires --prepare")
+            payload = collect_mobile_start(
+                port=args.port or config.port,
+                ttl_seconds=args.ttl_seconds,
+                prepare=args.prepare,
+                show_pair=args.show_pair,
+                access_token_path=config.access_token_file,
+                pair_token_path=config.pair_token_file,
+                discovered_hosts=args.candidate_ip,
+            )
+            if not args.json:
+                print(render_mobile_start(payload))
+                return 0 if payload["overall"] in {"ready", "needs_prepare"} else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] in {"ready", "needs_prepare"} else 1
         if args.command == "serve":
             config = _config_with_overrides(config, args.bind, args.port)
             serve(config)
