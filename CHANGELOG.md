@@ -1,3 +1,8 @@
+## [0.1.27] - 2026-09-06
+
+### Fixed
+- Teach `mobile-proxy --check` to report `ready` when the loopback proxy is already running and serving HTTP, instead of treating the occupied listen port as blocked.
+
 ## [0.1.26] - 2026-09-06
 
 ### Added

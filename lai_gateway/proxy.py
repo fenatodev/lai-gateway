@@ -5,9 +5,10 @@ import json
 import select
 import socket
 import socketserver
-import sys
 from dataclasses import dataclass
 from typing import Any
+from urllib.error import URLError
+from urllib.request import urlopen
 
 from . import __version__
 from .errors import ConfigError
@@ -47,7 +48,13 @@ def collect_mobile_proxy_status(
     )
     target = _tcp_check(config.target_host, config.target_port, timeout=config.connect_timeout)
     listen_available = _bind_check(config.listen_host, config.listen_port)
-    overall = "ready_to_start" if target["ok"] and listen_available["ok"] else "blocked"
+    listen_http = _http_health_check(config.listen_host, config.listen_port, timeout=config.connect_timeout)
+    if target["ok"] and listen_http["ok"] and not listen_available["ok"]:
+        overall = "ready"
+    elif target["ok"] and listen_available["ok"]:
+        overall = "ready_to_start"
+    else:
+        overall = "blocked"
     return {
         "operation": "mobile-proxy",
         "version": __version__,
@@ -57,7 +64,7 @@ def collect_mobile_proxy_status(
         "prints_tokens": False,
         "listen": {"host": config.listen_host, "port": config.listen_port, "url": config.listen_url},
         "target": {"host": config.target_host, "port": config.target_port, "url": config.target_url},
-        "checks": {"target_tcp": target, "listen_available": listen_available},
+        "checks": {"target_tcp": target, "listen_available": listen_available, "listen_http": listen_http},
         "security": {
             "loopback_listen_only": _is_loopback(config.listen_host),
             "private_target_only": _is_private_or_loopback(config.target_host),
@@ -80,6 +87,7 @@ def render_mobile_proxy_status(payload: dict[str, Any]) -> str:
         f"target: {payload['target']['url']}",
         f"target_tcp: {'ok' if payload['checks']['target_tcp']['ok'] else 'fail'}",
         f"listen_available: {'ok' if payload['checks']['listen_available']['ok'] else 'fail'}",
+        f"listen_http: {'ok' if payload['checks']['listen_http']['ok'] else 'fail'}",
     ]
     if payload.get("next_steps"):
         lines.append("next_steps:")
@@ -171,6 +179,16 @@ def _bind_check(host: str, port: int) -> dict[str, Any]:
         return {"ok": False, "error": exc.__class__.__name__}
 
 
+def _http_health_check(host: str, port: int, *, timeout: float) -> dict[str, Any]:
+    url = f"http://{host}:{port}/healthz"
+    try:
+        with urlopen(url, timeout=timeout) as response:
+            response.read(4096)
+            return {"ok": 200 <= response.status < 500, "status": response.status, "error": None}
+    except (OSError, URLError) as exc:
+        return {"ok": False, "status": None, "error": exc.__class__.__name__}
+
+
 def _parse_ip(raw: str, *, label: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
     try:
         return ipaddress.ip_address(raw)
@@ -193,6 +211,8 @@ def _is_private_or_loopback(host: str) -> bool:
 
 
 def _proxy_next_steps(config: MobileProxyConfig, *, overall: str) -> list[str]:
+    if overall == "ready":
+        return [f"Proxy is already serving {config.listen_url}; keep Tailscale Serve pointed to http://{config.listen_host}:{config.listen_port}."]
     if overall == "ready_to_start":
         return [
             f"Start proxy: lai-gateway mobile-proxy --target-host {config.target_host} --target-port {config.target_port}",
