@@ -227,5 +227,84 @@ class TelegramTest(unittest.TestCase):
             self.assertNotIn(token, stdout)
 
 
+    def test_token_check_reports_repairability_without_printing_token(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            token_file = Path(tmp) / "telegram-token"
+            token = "123456789:abcdefghijklmnopqrstuvwxyz"
+            token_file.write_text("123456789:\nabcdefghijklmnopqrstuvwxyz\n", encoding="utf-8")
+            os.chmod(token_file, 0o600)
+            result = subprocess.run(
+                [sys.executable, "-m", "lai_gateway", "telegram", "token-check", "--token-file", str(token_file), "--json"],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=10,
+            )
+            payload = json.loads(result.stdout)
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(payload["operation"], "telegram-token-check")
+            self.assertTrue(payload["can_repair_whitespace"])
+            self.assertNotIn(token, result.stdout)
+            self.assertFalse(payload["token_printed"])
+
+    def test_token_repair_whitespace_rewrites_only_repairable_tokens(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            token_file = Path(tmp) / "telegram-token"
+            token = "123456789:abcdefghijklmnopqrstuvwxyz"
+            token_file.write_text("123456789:\nabcdefghijklmnopqrstuvwxyz\n", encoding="utf-8")
+            os.chmod(token_file, 0o600)
+            result = subprocess.run(
+                [sys.executable, "-m", "lai_gateway", "telegram", "token-repair-whitespace", "--token-file", str(token_file), "--json"],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=10,
+            )
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["rewritten"])
+            self.assertEqual(token_file.read_text(encoding="utf-8"), token + "\n")
+            self.assertEqual(oct(token_file.stat().st_mode & 0o777), "0o600")
+            self.assertNotIn(token, result.stdout)
+
+    def test_token_set_from_stdin_writes_0600_without_printing_token(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            token_file = Path(tmp) / "telegram-token"
+            token = "123456789:abcdefghijklmnopqrstuvwxyz"
+            result = subprocess.run(
+                [sys.executable, "-m", "lai_gateway", "telegram", "token-set", "--token-file", str(token_file), "--stdin", "--json"],
+                input=token + "\n",
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=10,
+            )
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertEqual(oct(token_file.stat().st_mode & 0o777), "0o600")
+            self.assertEqual(token_file.read_text(encoding="utf-8"), token + "\n")
+            self.assertNotIn(token, result.stdout)
+            self.assertNotIn(token, result.stderr)
+
+    def test_token_set_rejects_placeholder_or_whitespace(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            token_file = Path(tmp) / "telegram-token"
+            result = subprocess.run(
+                [sys.executable, "-m", "lai_gateway", "telegram", "token-set", "--token-file", str(token_file), "--stdin", "--json"],
+                input="<bot-token>\n",
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=10,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(token_file.exists())
+            self.assertIn("digits:letters_digits", result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

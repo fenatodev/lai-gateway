@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
 import sys
 import webbrowser
@@ -22,11 +23,17 @@ from .server import serve
 from .telegram import (
     collect_telegram_preflight,
     discover_telegram_chats,
+    inspect_telegram_token_file,
     notify_gateway_status,
     notify_mobile_access,
     render_telegram_discover,
     render_telegram_preflight,
+    render_telegram_token_check,
+    render_telegram_token_repair,
+    render_telegram_token_set,
+    repair_telegram_token_whitespace,
     send_telegram_message,
+    write_telegram_token_file,
 )
 from .tokens import (
     check_gateway_access_token_file,
@@ -151,6 +158,18 @@ def main(argv: list[str] | None = None) -> int:
     pair_revoke.add_argument("--json", action="store_true", help="print machine-readable JSON")
     telegram_parser = sub.add_parser("telegram", help="configure outbound Telegram notifications safely")
     telegram_sub = telegram_parser.add_subparsers(dest="telegram_command")
+    telegram_token_check = telegram_sub.add_parser("token-check", help="diagnose Telegram bot token file without printing it")
+    telegram_token_check.add_argument("--token-file", default=None, help="telegram bot token file; defaults to ~/.config/lai-gateway/telegram-bot-token")
+    telegram_token_check.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    telegram_token_repair = telegram_sub.add_parser("token-repair-whitespace", help="remove accidental whitespace when the compact token shape is valid")
+    telegram_token_repair.add_argument("--token-file", default=None, help="telegram bot token file; defaults to ~/.config/lai-gateway/telegram-bot-token")
+    telegram_token_repair.add_argument("--dry-run", action="store_true", help="validate repair without rewriting the file")
+    telegram_token_repair.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    telegram_token_set = telegram_sub.add_parser("token-set", help="write Telegram bot token with 0600 permissions")
+    telegram_token_set.add_argument("--token-file", default=None, help="telegram bot token file; defaults to ~/.config/lai-gateway/telegram-bot-token")
+    telegram_token_set.add_argument("--stdin", action="store_true", help="read token from stdin instead of a hidden prompt")
+    telegram_token_set.add_argument("--force", action="store_true", help="overwrite an existing token file")
+    telegram_token_set.add_argument("--json", action="store_true", help="print machine-readable JSON")
     telegram_preflight = telegram_sub.add_parser("preflight", help="check Telegram token/chat configuration without network calls")
     telegram_preflight.add_argument("--token-file", default=None, help="telegram bot token file; defaults to ~/.config/lai-gateway/telegram-bot-token")
     telegram_preflight.add_argument("--chat-id", default=None, help="telegram chat id; defaults to LAI_GATEWAY_TELEGRAM_CHAT_ID")
@@ -350,6 +369,28 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "telegram":
             token_path = Path(args.token_file).expanduser() if getattr(args, "token_file", None) else None
+            if args.telegram_command == "token-check":
+                payload = inspect_telegram_token_file(token_file=token_path)
+                if args.json:
+                    print(json.dumps(payload, indent=2, sort_keys=True))
+                else:
+                    print(render_telegram_token_check(payload))
+                return 0 if payload["ok"] else 1
+            if args.telegram_command == "token-repair-whitespace":
+                payload = repair_telegram_token_whitespace(token_file=token_path, dry_run=args.dry_run)
+                if args.json:
+                    print(json.dumps(payload, indent=2, sort_keys=True))
+                else:
+                    print(render_telegram_token_repair(payload))
+                return 0
+            if args.telegram_command == "token-set":
+                token_value = sys.stdin.read().strip() if args.stdin else getpass.getpass("Telegram bot token: ").strip()
+                payload = write_telegram_token_file(token=token_value, token_file=token_path, force=args.force)
+                if args.json:
+                    print(json.dumps(payload, indent=2, sort_keys=True))
+                else:
+                    print(render_telegram_token_set(payload))
+                return 0
             if args.telegram_command == "preflight":
                 payload = collect_telegram_preflight(token_file=token_path, chat_id=args.chat_id)
                 if args.json:

@@ -1,3 +1,16 @@
+## [0.1.18] - 2026-09-06
+
+### Added
+- Add `lai-gateway telegram token-check` with redacted diagnostics for malformed bot-token files.
+- Add `lai-gateway telegram token-repair-whitespace` to safely normalize accidental whitespace only when the compact token shape is valid.
+- Add `lai-gateway telegram token-set` to write the bot token with `0600` permissions from a hidden prompt or stdin.
+
+### Changed
+- Print concrete `export LAI_GATEWAY_TELEGRAM_CHAT_ID='...'` commands from `telegram discover-chat` instead of unsafe `<chat_id>` placeholders.
+
+### Security
+- Keep Telegram token setup secret-free: no token values are printed by check, repair, set, preflight, discovery, or notification commands.
+
 ## [0.1.17] - 2026-09-06
 
 ### Added
