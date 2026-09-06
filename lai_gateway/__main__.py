@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .access import collect_mobile_access, render_mobile_access
 from .config import GatewayConfig
 from .contract import summarize_contract
 from .doctor import collect_doctor, render_doctor
@@ -15,9 +16,9 @@ from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .lan import collect_lan_info, render_lan_info
 from .mobile import collect_mobile_start, prepare_mobile_serve_config, render_mobile_serve_ready, render_mobile_start
-from .mobile import collect_mobile_start, prepare_mobile_serve_config, render_mobile_serve_ready, render_mobile_start
 from .release import collect_release_check, render_release_check
 from .server import serve
+from .telegram import collect_telegram_preflight, render_telegram_preflight, send_telegram_message
 from .tokens import (
     check_gateway_access_token_file,
     check_gateway_pairing_token_file,
@@ -87,6 +88,10 @@ def main(argv: list[str] | None = None) -> int:
     lan_parser.add_argument("--port", type=int, default=None, help="gateway port for suggested mobile URLs")
     lan_parser.add_argument("--candidate-ip", action="append", default=None, help="override detected candidates with a specific private IP; repeatable")
     lan_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    mobile_access_parser = sub.add_parser("mobile-access", help="show phone URLs, WSL/Tailscale hints, and QR data")
+    mobile_access_parser.add_argument("--port", type=int, default=None, help="gateway port for mobile URLs")
+    mobile_access_parser.add_argument("--bind", default=None, help="gateway bind address used for WSL portproxy hints")
+    mobile_access_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     mobile_parser = sub.add_parser("mobile-start", help="prepare or print a safe private mobile access plan")
     mobile_parser.add_argument("--port", type=int, default=None, help="gateway port for suggested mobile URLs")
     mobile_parser.add_argument("--candidate-ip", action="append", default=None, help="override detected candidates with a specific private IP; repeatable")
@@ -124,6 +129,17 @@ def main(argv: list[str] | None = None) -> int:
     pair_revoke = pair_sub.add_parser("revoke", help="delete the current pairing token file")
     pair_revoke.add_argument("--path", default=None, help="pair file path; defaults to ~/.config/lai-gateway/pair-token.json")
     pair_revoke.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    telegram_parser = sub.add_parser("telegram", help="configure outbound Telegram notifications safely")
+    telegram_sub = telegram_parser.add_subparsers(dest="telegram_command")
+    telegram_preflight = telegram_sub.add_parser("preflight", help="check Telegram token/chat configuration without network calls")
+    telegram_preflight.add_argument("--token-file", default=None, help="telegram bot token file; defaults to ~/.config/lai-gateway/telegram-bot-token")
+    telegram_preflight.add_argument("--chat-id", default=None, help="telegram chat id; defaults to LAI_GATEWAY_TELEGRAM_CHAT_ID")
+    telegram_preflight.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    telegram_send = telegram_sub.add_parser("send-message", help="send one outbound Telegram message when explicitly enabled")
+    telegram_send.add_argument("--token-file", default=None, help="telegram bot token file; defaults to ~/.config/lai-gateway/telegram-bot-token")
+    telegram_send.add_argument("--chat-id", default=None, help="telegram chat id; defaults to LAI_GATEWAY_TELEGRAM_CHAT_ID")
+    telegram_send.add_argument("--text", required=True, help="message text to send")
+    telegram_send.add_argument("--json", action="store_true", help="print machine-readable JSON")
     sessions_parser = sub.add_parser("sessions", help="manage harness sessions without creating runs")
     sessions_sub = sessions_parser.add_subparsers(dest="sessions_command")
     sessions_list = sessions_sub.add_parser("list", help="list harness sessions")
@@ -161,6 +177,13 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
+        if args.command == "mobile-access":
+            payload = collect_mobile_access(port=args.port or config.port, bind=args.bind or config.bind)
+            if not args.json:
+                print(render_mobile_access(payload))
+                return 0 if payload["candidate_count"] else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["candidate_count"] else 1
         if args.command == "mobile-start":
             if args.show_pair and not args.prepare:
                 raise GatewayError("--show-pair requires --prepare")
@@ -266,6 +289,24 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"revoked: {payload['revoked']} {payload['path']}")
                 return 0
             pair_parser.print_help()
+            return 0
+        if args.command == "telegram":
+            token_path = Path(args.token_file).expanduser() if getattr(args, "token_file", None) else None
+            if args.telegram_command == "preflight":
+                payload = collect_telegram_preflight(token_file=token_path, chat_id=args.chat_id)
+                if args.json:
+                    print(json.dumps(payload, indent=2, sort_keys=True))
+                else:
+                    print(render_telegram_preflight(payload))
+                return 0 if payload["overall"] in {"ready", "needs_config"} else 1
+            if args.telegram_command == "send-message":
+                payload = send_telegram_message(token_file=token_path, chat_id=args.chat_id, text=args.text)
+                if args.json:
+                    print(json.dumps(payload, indent=2, sort_keys=True))
+                else:
+                    print(f"sent: {payload.get('message_id')}")
+                return 0
+            telegram_parser.print_help()
             return 0
         payload: dict[str, Any]
         client = HarnessClient(config)

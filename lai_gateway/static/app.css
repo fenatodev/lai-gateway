@@ -107,3 +107,10 @@ textarea { resize: vertical; }
   .quick-grid { grid-template-columns: 1fr; }
   button, input, select, textarea { min-height: 46px; }
 }
+
+.mobile-access-card { grid-column: 1 / -1; }
+.mobile-url-box { display: grid; gap: 8px; margin: 12px 0; }
+.qr { width: min(260px, 100%); aspect-ratio: 1; display: block; padding: 12px; border-radius: 18px; background: #fff; }
+@media (max-width: 480px) {
+  .qr { width: 100%; max-width: 320px; margin-inline: auto; }
+}

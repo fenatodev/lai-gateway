@@ -1,3 +1,16 @@
+## [0.1.15] - 2026-09-06
+
+Add WSL/Tailscale-aware mobile access discovery, local QR rendering, and safe Telegram outbound scaffolding.
+
+- Add `lai-gateway mobile-access` and `GET /v1/gateway/mobile-access` to report phone URLs, WSL hints, Windows/Tailscale candidates, portproxy commands, and a local SVG QR code.
+- Add a Mobile Access card to the UI with QR rendering, copy-mobile-url support, and no token-bearing QR payloads.
+- Prefer Tailscale URLs when available, while still marking WSL/Windows portproxy requirements explicitly.
+- Add dependency-free QR SVG generation for short local/mobile URLs.
+- Add `lai-gateway telegram preflight` and `lai-gateway telegram send-message` with token files kept out of output, outbound-only behavior, and an explicit send-enable flag.
+- Cover QR/mobile-access/Telegram behavior with focused tests and preserve no-storage/no-external-asset UI constraints.
+
+No Telegram webhook, public bind, wildcard bind, harness token exposure to the browser, write-capable runs, shell authority, direct llama.cpp proxy, persistent browser storage, or automatic tunnel setup is exposed in this release.
+
 ## [0.1.14] - 2026-09-06
 
 Polish the local UI for phone-sized screens without increasing gateway authority.

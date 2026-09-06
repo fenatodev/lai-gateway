@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .access import collect_mobile_access
 from .config import DEFAULT_HARNESS_URL, DEFAULT_PORT, DEFAULT_TOKEN_FILE, GatewayConfig
 from .errors import ConfigError
 from .lan import _safe_lan_ip, collect_lan_info
@@ -150,6 +151,7 @@ def prepare_mobile_serve_config(
             if key in env:
                 values[key] = env[key]
     config = GatewayConfig.from_env(values)
+    mobile_access = collect_mobile_access(port=port, bind=config.bind, discovered_hosts=[chosen["ip"]])
     payload = dict(payload)
     payload["operation"] = "mobile-serve"
     payload["starts_server"] = True
@@ -161,6 +163,8 @@ def prepare_mobile_serve_config(
         "url": chosen["url"],
         "access_mode": config.access_mode,
     }
+    payload["mobile_access"] = mobile_access
+    payload["scan_url"] = mobile_access.get("recommended_url") or chosen["url"]
     payload["security"] = dict(payload["security"], requires_private_bind=True, wildcard_bind_allowed=False, public_bind_allowed=False)
     return payload, config
 
@@ -171,9 +175,25 @@ def render_mobile_serve_ready(payload: dict[str, Any]) -> str:
         f"version: {payload['version']}",
         f"access: {payload['serve']['access_mode']}",
         f"ui: {payload['serve']['url']}",
+        f"scan_url: {payload.get('scan_url') or payload['serve']['url']}",
         "starts_server: true",
         "modifies_files: true",
     ]
+    mobile_access = payload.get("mobile_access", {})
+    if payload.get("scan_url"):
+        lines.append("phone:")
+        lines.append(f"  scan_url: {payload['scan_url']}")
+        recommended = next((item for item in mobile_access.get("links", []) if item.get("recommended")), None)
+        if recommended and recommended.get("portproxy_command"):
+            lines.append("  windows_portproxy:")
+            lines.append(f"    {recommended['portproxy_command']}")
+        if recommended and recommended.get("firewall_command"):
+            lines.append("  windows_firewall:")
+            lines.append(f"    {recommended['firewall_command']}")
+    if mobile_access.get("warnings"):
+        lines.append("mobile_warnings:")
+        for warning in mobile_access["warnings"]:
+            lines.append(f"  - {warning}")
     if payload["actions"]:
         lines.append("actions:")
         for action in payload["actions"]:
