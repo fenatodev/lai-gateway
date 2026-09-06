@@ -7,6 +7,13 @@ let gatewayAccessToken = "";
 let gatewayTokenKind = "none";
 let pairExpiresAt = null;
 let pairCountdownTimer = null;
+const TASK_PRESETS = {
+  plan: "Plan the next safe, high-impact step from the current project state.",
+  review: "Review the current state and identify issues, risks, and quick wins.",
+  diagnose: "Diagnose the current problem and suggest read-only verification steps.",
+  security: "Perform a security-focused review of the current state and boundaries.",
+  release: "Check release readiness and identify blockers before publication.",
+};
 
 function pretty(payload) {
   return JSON.stringify(payload, null, 2);
@@ -18,6 +25,27 @@ function byId(id) {
 
 function show(targetId, payload) {
   byId(targetId).textContent = typeof payload === "string" ? payload : pretty(payload);
+}
+
+function setCheck(id, text, state = "muted") {
+  const item = byId(id);
+  if (!item) return;
+  item.textContent = text;
+  item.className = `check ${state}`;
+}
+
+function updateTaskCounter() {
+  const task = byId("run-task");
+  const counter = byId("task-counter");
+  if (!task || !counter) return;
+  counter.textContent = `${task.value.length} / ${task.maxLength || 12000}`;
+}
+
+function applyPreset(mode) {
+  if (!TASK_PRESETS[mode]) return;
+  byId("run-mode").value = mode;
+  byId("run-task").value = TASK_PRESETS[mode];
+  updateTaskCounter();
 }
 
 function setPill(id, text, state = "muted") {
@@ -55,19 +83,24 @@ async function requestJson(path, options = {}) {
 function updateGatewayAuthState(status, ok) {
   if (!gatewayAccessToken) {
     byId("gateway-access-state").textContent = "No gateway token loaded in page memory.";
+    setCheck("check-access", "Pair token not loaded yet.", "muted");
     return;
   }
   if (ok) {
     const label = gatewayTokenKind === "pair" ? "Pair token authenticated." : "Gateway token authenticated.";
     byId("gateway-access-state").textContent = `${label} Token remains only in page memory.`;
+    setCheck("check-access", `${gatewayTokenKind === "pair" ? "Pair" : "Gateway"} token authenticated in memory.`, "ready");
     return;
   }
   if (status === 401) {
     byId("gateway-access-state").textContent = "Private API requires a gateway or pair token.";
+    setCheck("check-access", "Private API still needs a token.", "warn");
   } else if (status === 403) {
     byId("gateway-access-state").textContent = "Loaded token was rejected by the gateway.";
+    setCheck("check-access", "Loaded token rejected.", "danger");
   } else if (status === 429) {
     byId("gateway-access-state").textContent = "Too many failed token attempts. Wait before retrying.";
+    setCheck("check-access", "Token attempts rate limited.", "danger");
   }
 }
 
@@ -118,6 +151,7 @@ function setSessionFromPayload(payload) {
   if (session && session.session_id) {
     byId("session-id").value = session.session_id;
     setPill("active-session-pill", `session ${session.session_id}`, "ready");
+    setCheck("check-session", `Session selected: ${session.session_id}`, "ready");
   }
 }
 
@@ -163,6 +197,7 @@ function setRunFromPayload(payload) {
     lastRunPayload = payload;
     const state = TERMINAL_STATUSES.has(run.status) ? (run.status === "succeeded" ? "ready" : "danger") : "running";
     setPill("active-run-pill", summarizeRun(run), state);
+    setCheck("check-run", summarizeRun(run), state);
     recordRun(run);
   }
 }
@@ -196,6 +231,12 @@ function stopRunPolling() {
   }
 }
 
+function clearSession() {
+  byId("session-id").value = "";
+  setPill("active-session-pill", "no active session", "muted");
+  setCheck("check-session", "No active session selected.", "muted");
+}
+
 async function copyRunOutput() {
   const run = lastRunPayload && lastRunPayload.run;
   const text = run && typeof run.stdout === "string" ? run.stdout : byId("runs-output").textContent;
@@ -215,6 +256,7 @@ async function runAction(action) {
       pairExpiresAt = gatewayTokenKind === "pair" ? parsePairExpiresAt(byId("pair-expires-at").value) : null;
       byId("gateway-token").value = "";
       byId("gateway-access-state").textContent = gatewayAccessToken ? `${gatewayTokenKind === "pair" ? "Pair" : "Gateway"} token loaded in page memory.` : "No gateway token loaded in page memory.";
+      setCheck("check-access", gatewayAccessToken ? `${gatewayTokenKind === "pair" ? "Pair" : "Gateway"} token loaded in memory.` : "Pair token not loaded yet.", gatewayAccessToken ? "running" : "muted");
       startPairCountdown();
     } else if (action === "forget-gateway-token") {
       gatewayAccessToken = "";
@@ -224,6 +266,7 @@ async function runAction(action) {
       byId("gateway-token").value = "";
       byId("pair-expires-at").value = "";
       byId("gateway-access-state").textContent = "No gateway token loaded in page memory.";
+      setCheck("check-access", "Pair token not loaded yet.", "muted");
       renderPairCountdown();
     } else if (action === "refresh-token-countdown") {
       pairExpiresAt = parsePairExpiresAt(byId("pair-expires-at").value);
@@ -250,6 +293,9 @@ async function runAction(action) {
       const payload = await requestJson(`/v1/harness/sessions/${encodeURIComponent(sessionId)}`);
       setSessionFromPayload(payload);
       show("sessions-output", payload);
+    } else if (action === "clear-session") {
+      clearSession();
+      show("sessions-output", "Session selection cleared. Existing harness sessions were not changed.");
     } else if (action === "list-runs") {
       const payload = await requestJson("/v1/harness/runs?limit=10");
       setRunFromPayload(payload);
@@ -275,6 +321,9 @@ async function runAction(action) {
     } else if (action === "poll-run") {
       await pollSelectedRun();
       startRunPolling();
+    } else if (action === "stop-polling") {
+      stopRunPolling();
+      setPill("active-run-pill", "polling stopped", "muted");
     } else if (action === "copy-run-output") {
       await copyRunOutput();
     }
@@ -286,11 +335,18 @@ async function runAction(action) {
 }
 
 document.addEventListener("click", (event) => {
-  const button = event.target.closest("button[data-action]");
-  if (!button) return;
-  runAction(button.dataset.action);
+  const actionButton = event.target.closest("button[data-action]");
+  if (actionButton) {
+    runAction(actionButton.dataset.action);
+    return;
+  }
+  const presetButton = event.target.closest("button[data-preset]");
+  if (presetButton) applyPreset(presetButton.dataset.preset);
 });
 
 document.addEventListener("DOMContentLoaded", () => {
+  updateTaskCounter();
+  const taskBox = byId("run-task");
+  if (taskBox) taskBox.addEventListener("input", updateTaskCounter);
   runAction("refresh-readiness");
 });

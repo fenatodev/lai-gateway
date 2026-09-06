@@ -1,3 +1,15 @@
+## [0.1.14] - 2026-09-06
+
+Polish the local UI for phone-sized screens without increasing gateway authority.
+
+- Add a mobile pairing checklist that tracks token, session, and run readiness in page memory.
+- Add read-only task presets, a task character counter, stop-polling control, and clear-session control.
+- Improve touch targets, small-screen layout, and mobile card density for the LAN phone flow.
+- Keep the UI storage-free, CDN-free, and free of harness control token exposure.
+- Add tests for the mobile UI checklist, presets, touch layout, and security regressions.
+
+No public bind, wildcard bind, harness token exposure to the browser, write-capable runs, shell authority, direct llama.cpp proxy, persistent browser storage, or automatic tunnel setup is exposed in this release.
+
 ## [0.1.13] - 2026-09-06
 
 Add explicit mobile serving for the private LAN workflow.
