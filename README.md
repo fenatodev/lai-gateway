@@ -79,7 +79,10 @@ The gateway currently refuses public bind addresses. Private-network/mobile expo
 
 ```bash
 make check
+python3 -m lai_gateway release-check --target 0.1.0 --json
 ```
+
+Release rules are documented in [docs/RELEASE.md](docs/RELEASE.md).
 
 ## License
 
