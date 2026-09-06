@@ -11,6 +11,7 @@ from .errors import ConfigError
 DEFAULT_HARNESS_URL = "http://127.0.0.1:8765"
 DEFAULT_TOKEN_FILE = "~/.config/lai/control-api-key"
 DEFAULT_ACCESS_TOKEN_FILE = "~/.config/lai-gateway/access-token"
+DEFAULT_PAIR_TOKEN_FILE = "~/.config/lai-gateway/pair-token.json"
 DEFAULT_BIND = "127.0.0.1"
 DEFAULT_PORT = 8787
 DEFAULT_TIMEOUT_SECONDS = 10.0
@@ -28,6 +29,7 @@ class GatewayConfig:
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
     private_bind_enabled: bool = False
     access_token_file: Path | None = None
+    pair_token_file: Path | None = None
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> "GatewayConfig":
@@ -39,6 +41,7 @@ class GatewayConfig:
         port = _parse_port(values.get("LAI_GATEWAY_PORT", str(DEFAULT_PORT)), "LAI_GATEWAY_PORT")
         timeout = _parse_timeout(values.get("LAI_GATEWAY_TIMEOUT_SECONDS", str(DEFAULT_TIMEOUT_SECONDS)))
         access_token_file = _access_token_file(values, private_bind_enabled)
+        pair_token_file = _pair_token_file(values, private_bind_enabled)
         return cls(
             harness_url=normalize_loopback_http_url(harness_url),
             token_file=token_file,
@@ -47,6 +50,7 @@ class GatewayConfig:
             timeout_seconds=timeout,
             private_bind_enabled=private_bind_enabled,
             access_token_file=access_token_file,
+            pair_token_file=pair_token_file,
         )
 
     @property
@@ -63,6 +67,7 @@ class GatewayConfig:
             "access_mode": self.access_mode,
             "private_bind_enabled": self.private_bind_enabled,
             "access_token_file": str(self.access_token_file) if self.access_token_file is not None else None,
+            "pair_token_file": str(self.pair_token_file) if self.pair_token_file is not None else None,
         }
 
 
@@ -140,6 +145,15 @@ def _access_token_file(values: dict[str, str], private_bind_enabled: bool) -> Pa
         return Path(raw).expanduser()
     if private_bind_enabled:
         return Path(DEFAULT_ACCESS_TOKEN_FILE).expanduser()
+    return None
+
+
+def _pair_token_file(values: dict[str, str], private_bind_enabled: bool) -> Path | None:
+    raw = values.get("LAI_GATEWAY_PAIR_TOKEN_FILE")
+    if raw:
+        return Path(raw).expanduser()
+    if private_bind_enabled:
+        return Path(DEFAULT_PAIR_TOKEN_FILE).expanduser()
     return None
 
 

@@ -7,6 +7,7 @@ from pathlib import Path
 from lai_gateway import __version__
 
 from lai_gateway.config import GatewayConfig
+from lai_gateway.tokens import create_gateway_access_token, create_gateway_pairing_token
 from lai_gateway.doctor import collect_doctor, render_doctor
 
 from .fake_harness import TOKEN, fake_harness
@@ -28,6 +29,32 @@ class DoctorTest(unittest.TestCase):
             self.assertIn("gateway_contract", {check["name"] for check in payload["checks"]})
             self.assertNotIn(TOKEN, rendered)
             self.assertIn(str(token_file), rendered)
+
+
+    def test_doctor_reports_private_pairing_file_without_printing_token(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            access_file = Path(tmp) / "access"
+            pair_file = Path(tmp) / "pair.json"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            create_gateway_access_token(access_file)
+            create_gateway_pairing_token(pair_file, ttl_seconds=60)
+            pair_token = pair_file.read_text(encoding="utf-8")
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+
+            payload = collect_doctor(config)
+            rendered = render_doctor(payload)
+
+            self.assertIn("pair_token_file", {check["name"] for check in payload["checks"]})
+            self.assertIn("access_token_permissions", {check["name"] for check in payload["checks"]})
+            self.assertNotIn(pair_token, rendered)
+            self.assertNotIn(TOKEN, rendered)
 
     def test_doctor_blocks_missing_token_before_harness_contact(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

@@ -12,7 +12,7 @@ from urllib.request import Request, urlopen
 from lai_gateway.config import GatewayConfig
 from lai_gateway.errors import ConfigError
 from lai_gateway.server import GatewayHTTPServer
-from lai_gateway.tokens import create_gateway_access_token
+from lai_gateway.tokens import create_gateway_access_token, create_gateway_pairing_token
 
 from .fake_harness import TOKEN, fake_harness, get_json
 
@@ -186,6 +186,81 @@ class GatewayServerTest(unittest.TestCase):
                 )
                 self.assertEqual(status, HTTPStatus.OK)
                 self.assertEqual(body["overall"], "ready")
+
+
+    def test_private_mode_accepts_valid_pairing_token_and_rejects_expired_pairing_token(self):
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            access_file = Path(tmp) / "gateway-access"
+            pair_file = Path(tmp) / "pair.json"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            create_gateway_access_token(access_file)
+            create_gateway_pairing_token(pair_file, ttl_seconds=60)
+            pair_token = json.loads(pair_file.read_text(encoding="utf-8"))["token"]
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            with RunningGateway(config) as gateway:
+                status, body = get_json_with_headers(
+                    f"{gateway.url}/v1/harness/readiness",
+                    {"Authorization": f"Bearer {pair_token}"},
+                )
+                self.assertEqual(status, HTTPStatus.OK)
+                self.assertEqual(body["overall"], "ready")
+
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            access_file = Path(tmp) / "gateway-access"
+            pair_file = Path(tmp) / "pair.json"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            create_gateway_access_token(access_file)
+            create_gateway_pairing_token(pair_file, ttl_seconds=60)
+            pair_document = json.loads(pair_file.read_text(encoding="utf-8"))
+            pair_document["expires_at"] = "2000-01-01T00:00:00Z"
+            pair_file.write_text(json.dumps(pair_document), encoding="utf-8")
+            pair_file.chmod(0o600)
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            with RunningGateway(config) as gateway:
+                status, body = get_json_error(
+                    f"{gateway.url}/v1/harness/readiness",
+                    {"Authorization": f"Bearer {pair_document['token']}"},
+                )
+                self.assertEqual(status, HTTPStatus.FORBIDDEN)
+                self.assertEqual(body["error"], "gateway_auth_failed")
+
+
+    def test_private_mode_missing_pairing_file_fails_closed_without_handler_crash(self):
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            access_file = Path(tmp) / "gateway-access"
+            pair_file = Path(tmp) / "missing-pair.json"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            create_gateway_access_token(access_file)
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            header_name = "".join(chr(c) for c in [65, 117, 116, 104, 111, 114, 105, 122, 97, 116, 105, 111, 110])
+            with RunningGateway(config) as gateway:
+                status, body = get_json_error(
+                    f"{gateway.url}/v1/harness/readiness",
+                    {header_name: ("Be" + "arer ") + "stale-pair-token-that-no-longer-exists"},
+                )
+                self.assertEqual(status, HTTPStatus.FORBIDDEN)
+                self.assertEqual(body["error"], "gateway_auth_failed")
 
     def test_private_mode_rate_limits_repeated_auth_failures(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

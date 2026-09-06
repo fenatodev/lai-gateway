@@ -38,6 +38,7 @@ LAI_GATEWAY_BIND=127.0.0.1
 LAI_GATEWAY_PORT=8787
 LAI_GATEWAY_PRIVATE_BIND=0
 LAI_GATEWAY_ACCESS_TOKEN_FILE=$HOME/.config/lai-gateway/access-token
+LAI_GATEWAY_PAIR_TOKEN_FILE=$HOME/.config/lai-gateway/pair-token.json
 ```
 
 Create the separate gateway access token before using private LAN mode:
@@ -45,9 +46,11 @@ Create the separate gateway access token before using private LAN mode:
 ```bash
 lai-gateway token create
 lai-gateway token check
+lai-gateway pair create --ttl-seconds 600 --show
+lai-gateway pair check
 ```
 
-The token file is created with `0600` permissions and the token is not printed by default. Use `lai-gateway token create --show` only when you intentionally need to copy the token once for phone pairing. For LAN access, set `LAI_GATEWAY_PRIVATE_BIND=1`, bind to a concrete private IP address, and create a separate gateway access token file. Do not use `0.0.0.0`; the gateway rejects wildcard and public binds. The browser UI may hold the gateway access token in page memory, but it still never receives the LAI harness control token. Repeated failed API auth attempts are rate-limited in memory.
+The token file is created with `0600` permissions and the token is not printed by default. Prefer `lai-gateway pair create --show` for phone pairing; it creates a short-lived pairing token instead of exposing the permanent gateway token. For LAN access, set `LAI_GATEWAY_PRIVATE_BIND=1`, bind to a concrete private IP address, and create a separate gateway access token file. Do not use `0.0.0.0`; the gateway rejects wildcard and public binds. The browser UI may hold the gateway access token in page memory, but it still never receives the LAI harness control token. Repeated failed API auth attempts are rate-limited in memory. Pairing tokens are stored separately, expire automatically, and can be revoked with `lai-gateway pair revoke`.
 
 Never commit a real token. Humanity has made many mistakes; do not add this one.
 
@@ -72,6 +75,9 @@ python3 -m lai_gateway doctor
 python3 -m lai_gateway open-ui --print-only
 python3 -m lai_gateway token create
 python3 -m lai_gateway token check
+python3 -m lai_gateway pair create --ttl-seconds 600 --show
+python3 -m lai_gateway pair check
+python3 -m lai_gateway pair revoke
 python3 -m lai_gateway sessions list --limit 10
 python3 -m lai_gateway sessions create
 python3 -m lai_gateway sessions get <session_id>
@@ -121,14 +127,17 @@ Loopback remains the default. To expose the gateway on a private LAN, use an exp
 ```bash
 lai-gateway token create
 lai-gateway token check
+lai-gateway pair create --ttl-seconds 600 --show
+lai-gateway pair check
 
 LAI_GATEWAY_PRIVATE_BIND=1 \
 LAI_GATEWAY_BIND=192.168.1.20 \
 LAI_GATEWAY_ACCESS_TOKEN_FILE="$HOME/.config/lai-gateway/access-token" \
+LAI_GATEWAY_PAIR_TOKEN_FILE="$HOME/.config/lai-gateway/pair-token.json" \
 lai-gateway dev --no-open
 ```
 
-When private mode is enabled, `/v1/harness/*` requires `Authorization: Bearer <gateway-access-token>`. Static UI files and `/healthz` remain secret-free. The UI keeps the gateway token only in page memory. The harness control token stays server-side. Token files must be `0600`, and repeated failed API auth attempts return `429 gateway_auth_rate_limited`. Humanity gets one less obvious way to leak credentials.
+When private mode is enabled, `/v1/harness/*` requires a gateway access token or a valid short-lived pairing token. Static UI files and `/healthz` remain secret-free. The UI keeps the gateway token only in page memory. The harness control token stays server-side. Token files must be `0600`, pairing tokens expire, and repeated failed API auth attempts return `429 gateway_auth_rate_limited`. Humanity gets one less obvious way to leak credentials.
 
 ## Gateway server MVP
 
@@ -159,7 +168,7 @@ The gateway refuses wildcard and public bind addresses. Private-network/mobile e
 
 ```bash
 make check
-python3 -m lai_gateway release-check --target 0.1.8 --json
+python3 -m lai_gateway release-check --target 0.1.9 --json
 ```
 
 Release rules are documented in [docs/RELEASE.md](docs/RELEASE.md).

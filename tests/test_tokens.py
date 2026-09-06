@@ -65,3 +65,78 @@ class TokenTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+from datetime import UTC, datetime, timedelta
+
+from lai_gateway.tokens import (
+    check_gateway_pairing_token_file,
+    create_gateway_pairing_token,
+    read_valid_gateway_pairing_token,
+    revoke_gateway_pairing_token,
+)
+
+
+class PairTokenTest(unittest.TestCase):
+    def test_pairing_token_file_expires_and_is_secret_free_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "pair.json"
+            now = datetime(2026, 1, 1, tzinfo=UTC)
+            payload = create_gateway_pairing_token(path, ttl_seconds=60, ui_url="http://127.0.0.1:8787/", now=now)
+            self.assertEqual(payload["mode"], "0600")
+            self.assertEqual(payload["ttl_seconds"], 60)
+            self.assertFalse(payload["printed_token"])
+            self.assertEqual(payload["ui_url"], "http://127.0.0.1:8787/")
+            self.assertNotIn("token", payload)
+            checked = check_gateway_pairing_token_file(path, now=now + timedelta(seconds=30))
+            self.assertTrue(checked["ok"])
+            self.assertGreater(checked["seconds_remaining"], 0)
+            with self.assertRaisesRegex(Exception, "expired"):
+                check_gateway_pairing_token_file(path, now=now + timedelta(seconds=61))
+
+    def test_pairing_token_can_be_read_and_revoked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "pair.json"
+            now = datetime(2026, 1, 1, tzinfo=UTC)
+            create_gateway_pairing_token(path, ttl_seconds=60, now=now)
+            token = read_valid_gateway_pairing_token(path, now=now)
+            self.assertGreaterEqual(len(token), 32)
+            self.assertNotIn(token, str(check_gateway_pairing_token_file(path, now=now)))
+            self.assertTrue(revoke_gateway_pairing_token(path)["revoked"])
+            self.assertFalse(revoke_gateway_pairing_token(path)["revoked"])
+
+    def test_pair_cli_create_check_revoke_is_secret_free_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "pair.json"
+            created = subprocess.run(
+                [sys.executable, "-m", "lai_gateway", "pair", "create", "--path", str(path), "--ttl-seconds", "60", "--json"],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=10,
+            )
+            payload = json.loads(created.stdout)
+            self.assertEqual(payload["mode"], "0600")
+            self.assertFalse(payload["printed_token"])
+            self.assertNotIn('"token":', created.stdout)
+            real_token = json.loads(path.read_text(encoding="utf-8"))["token"]
+            self.assertNotIn(real_token, created.stdout)
+            checked = subprocess.run(
+                [sys.executable, "-m", "lai_gateway", "pair", "check", "--path", str(path), "--json"],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=10,
+            )
+            self.assertTrue(json.loads(checked.stdout)["ok"])
+            self.assertNotIn(real_token, checked.stdout)
+            revoked = subprocess.run(
+                [sys.executable, "-m", "lai_gateway", "pair", "revoke", "--path", str(path), "--json"],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=10,
+            )
+            self.assertTrue(json.loads(revoked.stdout)["revoked"])
