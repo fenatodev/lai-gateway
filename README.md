@@ -9,7 +9,7 @@ It is intentionally a separate project. The harness owns local coding authority 
 The current gateway provides:
 
 - a dependency-free Python client for the harness control plane;
-- validation of the `lai harness v0.4.2` gateway contract;
+- validation of the `lai harness v0.4.3` gateway contract;
 - a local CLI for `config`, `contract`, `status`, `readiness`, `doctor`, `open-ui`, `sessions`, and `runs`;
 - an HTTP gateway exposing harness status, readiness, contract, session, and read-only run routes, loopback by default with opt-in private LAN binding;
 - read-only run creation for `diagnose`, `plan`, `release`, `review`, and `security`.
@@ -19,7 +19,7 @@ It does **not** expose write-capable run modes such as `implement`, `fix`, `refa
 ## Requirements
 
 - Python 3.11+
-- `lai harness` installed at `0.4.2+`
+- `lai harness` installed at `0.4.3+`
 - `lai serve` running on loopback from the target harness repository directory
 - a local LAI control token file
 

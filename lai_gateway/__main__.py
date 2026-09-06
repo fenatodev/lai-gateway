@@ -17,7 +17,7 @@ from .doctor import collect_doctor, render_doctor
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .lan import collect_lan_info, render_lan_info
-from .model import collect_model_plan, collect_model_status, render_model_plan, render_model_status
+from .model import check_model_api_key_file, collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_smoke, collect_model_status, collect_model_task, create_model_api_key_file, render_model_eval, render_model_files, render_model_key, render_model_plan, render_model_runs, render_model_smoke, render_model_status, render_model_task
 from .mobile import (
     collect_mobile_repair,
     collect_mobile_start,
@@ -129,10 +129,45 @@ def main(argv: list[str] | None = None) -> int:
     model_parser.add_argument("--probe-openai", action="store_true", help="probe the configured local OpenAI-compatible /v1/models endpoint")
     model_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     model_plan_parser = sub.add_parser("model-plan", help="print a safe non-mutating plan for a local model runtime")
-    model_plan_parser.add_argument("--backend", choices=["auto", "ollama", "llama-cpp", "docker", "windows-openai"], default="auto", help="runtime path to plan")
+    model_plan_parser.add_argument("--backend", choices=["auto", "ollama", "llama-cpp", "docker", "windows-openai", "windows-llama-cpp", "windows-ollama"], default="auto", help="runtime path to plan")
     model_plan_parser.add_argument("--model-name", default=None, help="local model name to place in exported configuration")
     model_plan_parser.add_argument("--base-url", default=None, help="local OpenAI-compatible base URL to place in exported configuration")
     model_plan_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    model_files_parser = sub.add_parser("model-files", help="find local GGUF model files without downloads or server startup")
+    model_files_parser.add_argument("--path", action="append", default=None, help="directory to scan for GGUF files; repeatable")
+    model_files_parser.add_argument("--max-results", type=int, default=20, help="maximum grouped models to print")
+    model_files_parser.add_argument("--max-seconds", type=float, default=20.0, help="bounded scan timeout in seconds")
+    model_files_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    model_smoke_parser = sub.add_parser("model-smoke", help="run a fixed-prompt local model completion smoke test")
+    model_smoke_parser.add_argument("--expected", default="LAI_SMOKE_OK", help="expected fixed marker for the smoke response")
+    model_smoke_parser.add_argument("--timeout-seconds", type=float, default=60.0, help="bounded local completion timeout")
+    model_smoke_parser.add_argument("--record", action="store_true", help="append a prompt-free metric record to the local model runs file")
+    model_smoke_parser.add_argument("--runs-file", default=None, help="model runs JSONL file path")
+    model_smoke_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    model_task_parser = sub.add_parser("model-task", help="run a fixed local model task without accepting arbitrary prompts")
+    model_task_parser.add_argument("--task", choices=["code-mini", "json-mini"], default="code-mini", help="fixed task to run")
+    model_task_parser.add_argument("--timeout-seconds", type=float, default=60.0, help="bounded local completion timeout")
+    model_task_parser.add_argument("--record", action="store_true", help="append a prompt-free metric record to the local model runs file")
+    model_task_parser.add_argument("--runs-file", default=None, help="model runs JSONL file path")
+    model_task_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    model_runs_parser = sub.add_parser("model-runs", help="show prompt-free local model run metrics")
+    model_runs_parser.add_argument("--path", default=None, help="model runs JSONL file path")
+    model_runs_parser.add_argument("--limit", type=int, default=20, help="maximum recent records to show")
+    model_runs_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    model_eval_parser = sub.add_parser("model-eval", help="run fixed local model smoke and task probes as one suite")
+    model_eval_parser.add_argument("--task", action="append", choices=["code-mini", "json-mini"], default=None, help="fixed task to include; repeatable")
+    model_eval_parser.add_argument("--timeout-seconds", type=float, default=60.0, help="bounded local completion timeout per check")
+    model_eval_parser.add_argument("--record", action="store_true", help="append prompt-free metric records for each check")
+    model_eval_parser.add_argument("--runs-file", default=None, help="model runs JSONL file path")
+    model_eval_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    model_key_create_parser = sub.add_parser("model-key-create", help="create a local model API key file without printing the key by default")
+    model_key_create_parser.add_argument("--path", default=None, help="model API key file path")
+    model_key_create_parser.add_argument("--force", action="store_true", help="overwrite an existing model API key file")
+    model_key_create_parser.add_argument("--show-key", action="store_true", help="print the generated key once; avoid using this in shared logs")
+    model_key_create_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    model_key_check_parser = sub.add_parser("model-key-check", help="check a local model API key file without printing the key")
+    model_key_check_parser.add_argument("--path", default=None, help="model API key file path")
+    model_key_check_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     service_plan_parser = sub.add_parser("service-plan", help="plan a token-free systemd user service for mobile serving")
     service_plan_parser.add_argument("--candidate-ip", required=True, help="private LAN IP for mobile serving")
     service_plan_parser.add_argument("--port", type=int, default=None, help="gateway/mobile port")
@@ -346,6 +381,55 @@ def main(argv: list[str] | None = None) -> int:
                 return 0 if payload["overall"] != "blocked" else 1
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0 if payload["overall"] != "blocked" else 1
+        if args.command == "model-files":
+            payload = collect_model_files(paths=args.path, max_results=args.max_results, max_seconds=args.max_seconds)
+            if not args.json:
+                print(render_model_files(payload))
+                return 0
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.command == "model-smoke":
+            payload = collect_model_smoke(expected=args.expected, timeout_seconds=args.timeout_seconds, record=args.record, runs_file=Path(args.runs_file).expanduser() if args.runs_file else None)
+            if not args.json:
+                print(render_model_smoke(payload))
+                return 0 if payload["overall"] == "ready" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] == "ready" else 1
+        if args.command == "model-task":
+            payload = collect_model_task(task=args.task, timeout_seconds=args.timeout_seconds, record=args.record, runs_file=Path(args.runs_file).expanduser() if args.runs_file else None)
+            if not args.json:
+                print(render_model_task(payload))
+                return 0 if payload["overall"] == "ready" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] == "ready" else 1
+        if args.command == "model-runs":
+            payload = collect_model_runs(path=Path(args.path).expanduser() if args.path else None, limit=args.limit)
+            if not args.json:
+                print(render_model_runs(payload))
+                return 0
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.command == "model-eval":
+            payload = collect_model_eval(tasks=tuple(args.task) if args.task else None, timeout_seconds=args.timeout_seconds, record=args.record, runs_file=Path(args.runs_file).expanduser() if args.runs_file else None)
+            if not args.json:
+                print(render_model_eval(payload))
+                return 0 if payload["overall"] == "ready" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] == "ready" else 1
+        if args.command == "model-key-create":
+            payload = create_model_api_key_file(Path(args.path).expanduser() if args.path else None, force=args.force, include_key=args.show_key)
+            if not args.json:
+                print(render_model_key(payload))
+                return 0
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.command == "model-key-check":
+            payload = check_model_api_key_file(Path(args.path).expanduser() if args.path else None)
+            if not args.json:
+                print(render_model_key(payload))
+                return 0
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
         if args.command == "service-plan":
             payload = collect_service_plan(
                 config=config,

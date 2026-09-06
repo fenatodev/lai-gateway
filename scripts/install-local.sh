@@ -33,5 +33,12 @@ exec "\$repo_dir/scripts/launch-mobile.sh" "\$@"
 EOF
 chmod 755 "$bin_dir/lai-gateway-mobile"
 
+cat > "$bin_dir/lai-gateway-model" <<EOF
+#!/usr/bin/env sh
+repo_dir='$repo_dir'
+exec "\$repo_dir/scripts/launch-model.sh" "\$@"
+EOF
+chmod 755 "$bin_dir/lai-gateway-model"
+
 printf 'installed lai-gateway wrappers in %s\n' "$bin_dir"
 "$bin_dir/lai-gateway" --version

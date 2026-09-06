@@ -332,6 +332,22 @@ async function runAction(action) {
       const payload = await requestJson("/v1/gateway/model-plan");
       setPill("model-pill", `model plan ${payload.overall || "unknown"}`, payload.overall === "ready_to_prepare" ? "ready" : "warn");
       show("model-output", payload);
+    } else if (action === "refresh-model-files") {
+      const payload = await requestJson("/v1/gateway/model-files?max_results=10");
+      setPill("model-pill", `model files ${payload.models_found || 0}`, payload.recommended ? "ready" : "warn");
+      show("model-output", payload);
+    } else if (action === "run-model-task") {
+      const payload = await requestJson("/v1/gateway/model-task?task=code-mini&timeout_seconds=60");
+      setPill("model-pill", `model task ${payload.overall || "unknown"}`, payload.overall === "ready" ? "ready" : "warn");
+      show("model-output", payload);
+    } else if (action === "run-model-eval") {
+      const payload = await requestJson("/v1/gateway/model-eval?timeout_seconds=60");
+      setPill("model-pill", `model eval ${payload.overall || "unknown"}`, payload.overall === "ready" ? "ready" : "warn");
+      show("model-output", payload);
+    } else if (action === "refresh-model-runs") {
+      const payload = await requestJson("/v1/gateway/model-runs?limit=20");
+      setPill("model-pill", `model runs ${payload.count || 0}`, payload.count ? "ready" : "warn");
+      show("model-output", payload);
     } else if (action === "refresh-status") {
       show("status-output", await requestJson("/v1/harness/status"));
     } else if (action === "refresh-readiness") {

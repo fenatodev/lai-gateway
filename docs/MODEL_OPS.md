@@ -55,3 +55,173 @@ lai-gateway model-status --probe-openai
 ```
 
 The probe remains local/private only. Public hosts, embedded credentials, HTTPS, query strings, fragments, and URLs without an explicit port are blocked before any network call.
+
+## WSL with Windows llama.cpp
+
+When `lai-gateway` runs inside WSL, `model-status` also checks Windows runtime tools exposed through the inherited Windows PATH, such as `llama-server.exe` and `llama-cli.exe`.
+
+If Windows llama.cpp is detected, `model-plan --backend auto` prefers the `windows-llama-cpp` plan before Docker. This avoids ignoring an already-installed Windows runtime and prevents unnecessary container work.
+
+The plan remains non-mutating: it does not download models, start `llama-server.exe`, change firewall rules, or expose a model proxy through the mobile gateway.
+
+Use the generated `find_windows_host_from_wsl` command to identify the host address, start the Windows model server manually with a local GGUF model, then configure `LAI_GATEWAY_MODEL_BASE_URL` and verify with `model-status --probe-openai`.
+
+
+## Local GGUF inventory
+
+Use `model-files` before downloading anything:
+
+```bash
+lai-gateway model-files --max-results 10
+```
+
+It performs a bounded local scan only, groups split GGUF files, ignores accessory-only files such as `mmproj`, and recommends the best local candidate for the <=8 GiB code-model path.
+
+On WSL with Windows llama.cpp available, the recommended command keeps the raw model behind `llama-server.exe` and still requires the normal `model-status --probe-openai` verification before any harness integration.
+
+
+## Proven Windows llama.cpp route from WSL
+
+For this machine, Windows llama.cpp was reachable from WSL when bound to the Windows vEthernet gateway, not Windows loopback and not the WSL DNS proxy:
+
+```bash
+ip route | awk '/default via/ {print $3; exit}'
+```
+
+Use the generated `model-files` recommendation. The validated shape is:
+
+```bash
+lai-gateway model-key-create --path '/mnt/c/Users/fenat/.config/lai-gateway/model-api-key' --force
+llama-server.exe --host <wsl-default-gateway> --port 18082 --model '<recommended-windows-gguf-path>' --ctx-size 4096 --threads 8 --n-gpu-layers 0 --api-key-file 'C:\Users\fenat\.config\lai-gateway\model-api-key' --cors-origins localhost --no-cors-credentials
+export LAI_GATEWAY_MODEL_BASE_URL='http://<wsl-default-gateway>:18082'
+export LAI_GATEWAY_MODEL_NAME='<recommended-model-name>'
+export LAI_GATEWAY_MODEL_API_KEY_FILE='/mnt/c/Users/fenat/.config/lai-gateway/model-api-key'
+lai-gateway model-status --probe-openai
+```
+
+A real smoke test loaded the local Qwen2.5-Coder 7B Q4_K_M split GGUF and returned `LAI_OK` through the OpenAI-compatible chat endpoint.
+
+
+## Daily launcher
+
+Use `lai-gateway-model` to start the recommended Windows llama.cpp runtime from WSL without copying long GGUF paths manually.
+
+```bash
+lai-gateway-model --create-key --smoke
+```
+
+For a dry run that prints the selected host, model, key-file path, and base URL without starting the runtime:
+
+```bash
+lai-gateway-model --plan-only
+```
+
+The launcher:
+
+- uses `lai-gateway model-files` to pick the recommended local GGUF;
+- creates or verifies a local model API key file without printing the key;
+- starts `llama-server.exe` with `--api-key-file`, `--cors-origins localhost`, and `--no-cors-credentials`;
+- binds to the WSL-reachable Windows gateway IP when available;
+- waits for `/v1/models`, then runs `lai-gateway model-status --probe-openai`;
+- with `--smoke`, runs `lai-gateway model-smoke` after readiness.
+
+Never pass the model API key through a shell `curl -H` command. That exposes the secret in process arguments.
+
+
+## Completion smoke test
+
+After the local model endpoint is reachable, run a bounded fixed-prompt completion test:
+
+```bash
+lai-gateway model-smoke
+```
+
+`model-smoke` sends only a fixed health-check prompt asking the model to return `LAI_SMOKE_OK`. It does not accept arbitrary user prompts, does not download models, does not start servers, and does not print API keys.
+
+Use it after:
+
+```bash
+export LAI_GATEWAY_MODEL_BASE_URL='http://172.29.192.1:18082'
+export LAI_GATEWAY_MODEL_NAME='qwen2.5-coder-7b-instruct-q4_k_m'
+export LAI_GATEWAY_MODEL_API_KEY_FILE='/mnt/c/Users/fenat/.config/lai-gateway/model-api-key'
+lai-gateway model-status --probe-openai
+lai-gateway model-smoke
+```
+
+Expected result:
+
+```text
+lai-gateway model-smoke: ready
+matched: true
+response_preview: LAI_SMOKE_OK
+```
+
+## Fixed model task
+
+After `model-status --probe-openai` and `model-smoke` are ready, run the fixed code task:
+
+```bash
+lai-gateway model-task --task code-mini
+```
+
+The task asks for a tiny Python function and validates structural markers in the response. It is intentionally not a general prompt interface.
+
+The local UI exposes the same fixed task through `/v1/gateway/model-task`; in private mode it requires the gateway bearer or pair token.
+
+## One-command startup validation
+
+Use the launcher to start the recommended Windows llama.cpp runtime and run both fixed validations:
+
+```bash
+lai-gateway-model --create-key --smoke --task
+```
+
+This starts the local runtime when needed, waits for `/v1/models`, runs `model-status --probe-openai`, runs `model-smoke`, and runs `model-task --task code-mini`. The default context size is 4096 because a real read-only harness `plan` request exceeded 2048 tokens. The key value stays in the key file and is not passed as a process argument.
+
+
+## Prompt-free run metrics
+
+Use `--record` to append local model metrics after fixed smoke or task probes:
+
+```bash
+lai-gateway model-smoke --record
+lai-gateway model-task --task code-mini --record
+lai-gateway-model --smoke --task --record
+```
+
+Read the local JSONL history without starting a server:
+
+```bash
+lai-gateway model-runs
+```
+
+The run log is opt-in and prompt-free. Records include timestamp, operation, fixed task name, model name, status, match result, elapsed milliseconds, response character count, and a bounded response preview. They do not store prompt text, API key values, key-file paths, or `Bearer` headers. The default file is `~/.local/share/lai-gateway/model-runs.jsonl` and is written with `0600` permissions.
+
+The UI exposes `GET /v1/gateway/model-runs` as a read-only history view. In private mode it requires gateway authentication. The UI does not enable hidden recording; recording remains explicit through CLI/launcher flags.
+
+
+## Fixed local model evaluation
+
+Run the fixed validation suite against the configured local OpenAI-compatible endpoint:
+
+```bash
+lai-gateway model-eval
+```
+
+The current suite runs `model-smoke` plus fixed model tasks such as `code-mini` and `json-mini`. It does not accept arbitrary prompts. Use `--record` to append prompt-free metrics for each underlying check:
+
+```bash
+lai-gateway model-eval --record
+lai-gateway-model --eval --record
+```
+
+The UI exposes `GET /v1/gateway/model-eval` and a `Run model eval` button. It does not record by default. In private mode the endpoint requires gateway authentication.
+
+
+`ops-status` also reads the prompt-free model run history without running the model. When no model metrics exist, it suggests:
+
+```bash
+lai-gateway-model --eval --record
+```
+
+This keeps the operations snapshot useful without turning status checks into hidden model executions.

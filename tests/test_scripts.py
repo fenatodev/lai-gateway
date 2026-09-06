@@ -32,15 +32,19 @@ class ScriptTest(unittest.TestCase):
             gateway = bin_dir / "lai-gateway"
             ui = bin_dir / "lai-gateway-ui"
             mobile = bin_dir / "lai-gateway-mobile"
+            model = bin_dir / "lai-gateway-model"
             self.assertTrue(gateway.exists())
             self.assertTrue(ui.exists())
             self.assertTrue(mobile.exists())
+            self.assertTrue(model.exists())
             self.assertIn(f"lai-gateway {__version__}", result.stdout)
             self.assertNotIn("TOKEN", gateway.read_text(encoding="utf-8").upper())
             self.assertNotIn("TOKEN", ui.read_text(encoding="utf-8").upper())
             self.assertNotIn("TOKEN", mobile.read_text(encoding="utf-8").upper())
+            self.assertNotIn("TOKEN", model.read_text(encoding="utf-8").upper())
             self.assertIn("repo_dir=", ui.read_text(encoding="utf-8"))
             self.assertIn("repo_dir=", mobile.read_text(encoding="utf-8"))
+            self.assertIn("repo_dir=", model.read_text(encoding="utf-8"))
             mobile_help = subprocess.run(
                 [str(mobile), "--help"],
                 text=True,
@@ -50,6 +54,15 @@ class ScriptTest(unittest.TestCase):
                 timeout=10,
             )
             self.assertIn("lai-gateway-mobile", mobile_help.stdout)
+            model_help = subprocess.run(
+                [str(model), "--help"],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=10,
+            )
+            self.assertIn("lai-gateway-model", model_help.stdout)
             version = subprocess.run(
                 [str(gateway), "--version"],
                 text=True,
@@ -159,6 +172,61 @@ class ScriptTest(unittest.TestCase):
             self.assertIn("overall: blocked", result.stderr)
             self.assertIn("harness_status", result.stderr)
             self.assertNotIn(TOKEN, result.stderr)
+
+
+    def test_launch_model_help_and_key_guard_are_secret_free(self) -> None:
+        repo = Path(__file__).parents[1]
+        help_result = subprocess.run(
+            ["bash", "scripts/launch-model.sh", "--help"],
+            cwd=repo,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+            timeout=10,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            missing_path = Path(tmp) / "missing-key"
+            common_args = ["--host", "172.29.192.1", "--model-path", r"C:\Users\tester\models\code.gguf", "--model-name", "test-code-model"]
+            plan = subprocess.run(
+                ["bash", "scripts/launch-model.sh", *common_args, "--plan-only"],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=20,
+            )
+            missing = subprocess.run(
+                ["bash", "scripts/launch-model.sh", *common_args, "--key-file", str(missing_path), "--probe-only"],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=20,
+            )
+        self.assertIn("lai-gateway-model", help_result.stdout)
+        self.assertIn("--smoke", help_result.stdout)
+        self.assertIn("--record", help_result.stdout)
+        self.assertIn("--eval", help_result.stdout)
+        self.assertIn("--task", help_result.stdout)
+        self.assertNotIn("Bearer", help_result.stdout + help_result.stderr + plan.stdout + plan.stderr + missing.stdout + missing.stderr)
+        self.assertEqual(plan.returncode, 0)
+        self.assertIn("lai-gateway-model: plan", plan.stdout)
+        self.assertIn("--ctx-size 4096", plan.stdout)
+        self.assertIn("key_file: /mnt/c/Users/tester/.config/lai-gateway/model-api-key", plan.stdout)
+        self.assertEqual(missing.returncode, 1)
+        self.assertIn("model API key file is not ready", missing.stderr)
+
+
+    def test_launch_model_does_not_put_bearer_key_in_shell_curl_arguments(self) -> None:
+        repo = Path(__file__).parents[1]
+        script = (repo / "scripts" / "launch-model.sh").read_text(encoding="utf-8")
+        self.assertNotIn("curl -fsS -H", script)
+        self.assertNotIn("Authorization: Bearer $(cat", script)
+        self.assertIn("probe_models_endpoint", script)
+        self.assertIn("model-smoke", script)
 
 
 if __name__ == "__main__":
