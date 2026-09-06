@@ -152,6 +152,49 @@ class ModelStatusTest(unittest.TestCase):
         self.assertIn("model-status --probe-openai", text)
         self.assertNotIn("Bearer", text)
 
+
+    def test_model_status_detects_windows_llama_cpp_from_wsl(self) -> None:
+        def fake_which(name: str) -> str | None:
+            if name == "llama-server.exe":
+                return "/mnt/c/Users/fenat/AppData/Local/Microsoft/WinGet/Packages/ggml.llamacpp/llama-server.exe"
+            return "/usr/bin/docker" if name == "docker" else None
+
+        with (
+            patch("lai_gateway.model.shutil.which", side_effect=fake_which),
+            patch("lai_gateway.model._is_wsl", return_value=True),
+            patch("lai_gateway.model.Path.exists", return_value=False),
+        ):
+            payload = collect_model_status(env={})
+        rendered = render_model_status(payload)
+        self.assertEqual(payload["overall"], "needs_model_config")
+        self.assertTrue(payload["windows_commands"]["llama-server.exe"]["available"])
+        self.assertIn("windows_runtime_tools: llama-server.exe", rendered)
+        self.assertIn("Windows llama.cpp tools", payload["recommendation"])
+        self.assertFalse(payload["starts_server"])
+        self.assertFalse(payload["downloads_models"])
+
+    def test_model_plan_auto_prefers_windows_llama_cpp_before_docker(self) -> None:
+        def fake_which(name: str) -> str | None:
+            if name == "llama-cli.exe":
+                return "/mnt/c/Users/fenat/AppData/Local/Microsoft/WinGet/Packages/ggml.llamacpp/llama-cli.exe"
+            return "/usr/bin/docker" if name == "docker" else None
+
+        with (
+            patch("lai_gateway.model.shutil.which", side_effect=fake_which),
+            patch("lai_gateway.model._is_wsl", return_value=True),
+            patch("lai_gateway.model.Path.exists", return_value=False),
+        ):
+            payload = collect_model_plan(env={}, backend="auto", model_name="qwen-code-local")
+        rendered = render_model_plan(payload)
+        text = json.dumps(payload, sort_keys=True) + rendered
+        self.assertEqual(payload["backend"], "windows-llama-cpp")
+        self.assertIn("llama-server.exe", text)
+        self.assertIn("<windows-host-ip>", text)
+        self.assertFalse(payload["starts_server"])
+        self.assertFalse(payload["modifies_files"])
+        self.assertFalse(payload["downloads_models"])
+        self.assertNotIn("Bearer", text)
+
     def test_cli_model_plan_json_is_secret_free(self) -> None:
         result = subprocess.run(
             [sys.executable, "-m", "lai_gateway", "model-plan", "--backend", "llama-cpp", "--model-name", "local-code", "--json"],

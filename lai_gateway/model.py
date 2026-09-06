@@ -18,6 +18,7 @@ _MODEL_RUNTIME_COMMANDS = (
     "docker",
     "podman",
 )
+_WINDOWS_RUNTIME_COMMANDS = ("ollama.exe", "llama-server.exe", "llama-cli.exe")
 _GPU_COMMANDS = ("rocminfo", "rocm-smi", "clinfo", "nvidia-smi")
 _SECRET_ENV_PARTS = ("TOKEN", "KEY", "SECRET", "PASSWORD", "AUTH", "BEARER")
 
@@ -29,11 +30,12 @@ def collect_model_status(*, env: dict[str, str] | None = None, probe_openai: boo
     """
     values = env if env is not None else os.environ
     commands = {name: _command_payload(name) for name in (*_MODEL_RUNTIME_COMMANDS, *_GPU_COMMANDS, "python3")}
+    windows_commands = _windows_runtime_payloads(values)
     hardware = _hardware_snapshot()
     raw_base_url = values.get("LAI_GATEWAY_MODEL_BASE_URL", "").strip()
     config = _model_env_config(values)
     openai_probe = _probe_openai_compatible(raw_base_url) if probe_openai and raw_base_url else None
-    overall = _overall(commands=commands, config=config, openai_probe=openai_probe)
+    overall = _overall(commands=commands, windows_commands=windows_commands, config=config, openai_probe=openai_probe)
     return {
         "product": "lai-gateway",
         "version": __version__,
@@ -44,11 +46,12 @@ def collect_model_status(*, env: dict[str, str] | None = None, probe_openai: boo
         "downloads_models": False,
         "network_calls": {"local_openai_probe": bool(openai_probe and openai_probe.get("network_call"))},
         "commands": commands,
+        "windows_commands": windows_commands,
         "hardware": hardware,
         "model_config": config,
         "openai_probe": openai_probe,
-        "recommendation": _recommendation(commands=commands, config=config, hardware=hardware, openai_probe=openai_probe),
-        "next_steps": _next_steps(commands=commands, config=config, openai_probe=openai_probe),
+        "recommendation": _recommendation(commands=commands, windows_commands=windows_commands, config=config, hardware=hardware, openai_probe=openai_probe),
+        "next_steps": _next_steps(commands=commands, windows_commands=windows_commands, config=config, openai_probe=openai_probe),
         "security": {
             "prints_tokens": False,
             "starts_server": False,
@@ -73,8 +76,12 @@ def render_model_status(payload: dict[str, Any]) -> str:
     lines.append(f"model_name_configured: {str(bool(config.get('model'))).lower()}")
     runtimes = payload["commands"]
     available = [name for name in _MODEL_RUNTIME_COMMANDS if runtimes.get(name, {}).get("available")]
+    windows_runtimes = payload.get("windows_commands", {})
+    windows_available = [name for name in _WINDOWS_RUNTIME_COMMANDS if windows_runtimes.get(name, {}).get("available")]
     gpu_tools = [name for name in _GPU_COMMANDS if runtimes.get(name, {}).get("available")]
     lines.append(f"runtime_tools: {', '.join(available) if available else 'none'}")
+    if windows_runtimes:
+        lines.append(f"windows_runtime_tools: {', '.join(windows_available) if windows_available else 'none'}")
     lines.append(f"gpu_tools: {', '.join(gpu_tools) if gpu_tools else 'none'}")
     hw = payload["hardware"]
     if hw.get("cpu_model"):
@@ -156,6 +163,40 @@ def render_model_plan(payload: dict[str, Any]) -> str:
 def _command_payload(name: str) -> dict[str, Any]:
     path = shutil.which(name)
     return {"available": bool(path), "path": path or None}
+
+
+def _windows_runtime_payloads(values: dict[str, str]) -> dict[str, Any]:
+    if not _is_wsl():
+        return {}
+    return {name: _windows_command_payload(name, values=values) for name in _WINDOWS_RUNTIME_COMMANDS}
+
+
+def _windows_command_payload(name: str, *, values: dict[str, str]) -> dict[str, Any]:
+    path = shutil.which(name)
+    if path:
+        return {"available": True, "path": path, "source": "path"}
+    for entry in values.get("PATH", "").split(os.pathsep):
+        if not entry.startswith("/mnt/"):
+            continue
+        candidate = Path(entry) / name
+        try:
+            if candidate.exists():
+                return {"available": True, "path": str(candidate), "source": "windows_path"}
+        except OSError:
+            continue
+    return {"available": False, "path": None, "source": None}
+
+
+def _has_native_inference_runtime(commands: dict[str, Any]) -> bool:
+    return any(commands.get(name, {}).get("available") for name in ("ollama", "llama-server", "llama-cli", "llamafile"))
+
+
+def _has_windows_inference_runtime(windows_commands: dict[str, Any]) -> bool:
+    return any(windows_commands.get(name, {}).get("available") for name in _WINDOWS_RUNTIME_COMMANDS)
+
+
+def _has_windows_llama_cpp(windows_commands: dict[str, Any]) -> bool:
+    return any(windows_commands.get(name, {}).get("available") for name in ("llama-server.exe", "llama-cli.exe"))
 
 
 def _hardware_snapshot() -> dict[str, Any]:
@@ -254,21 +295,21 @@ def _is_local_probe_host(host: str) -> bool:
     return bool(address.is_loopback or address.is_private)
 
 
-def _overall(*, commands: dict[str, Any], config: dict[str, Any], openai_probe: dict[str, Any] | None) -> str:
+def _overall(*, commands: dict[str, Any], windows_commands: dict[str, Any], config: dict[str, Any], openai_probe: dict[str, Any] | None) -> str:
     if openai_probe and openai_probe.get("status") == "ready":
         return "ready"
     if openai_probe and openai_probe.get("status") == "blocked":
         return "blocked"
     if config.get("configured"):
         return "warn"
-    if any(commands[name]["available"] for name in ("ollama", "llama-server", "llama-cli", "llamafile")):
+    if _has_native_inference_runtime(commands) or _has_windows_inference_runtime(windows_commands):
         return "needs_model_config"
     if any(commands[name]["available"] for name in ("docker", "podman")):
         return "needs_runtime"
     return "blocked"
 
 
-def _recommendation(*, commands: dict[str, Any], config: dict[str, Any], hardware: dict[str, Any], openai_probe: dict[str, Any] | None) -> str:
+def _recommendation(*, commands: dict[str, Any], windows_commands: dict[str, Any], config: dict[str, Any], hardware: dict[str, Any], openai_probe: dict[str, Any] | None) -> str:
     if openai_probe and openai_probe.get("status") == "ready":
         return "local OpenAI-compatible model endpoint is reachable"
     if openai_probe and openai_probe.get("status") == "blocked":
@@ -277,6 +318,10 @@ def _recommendation(*, commands: dict[str, Any], config: dict[str, Any], hardwar
         return "model configuration exists, but no live endpoint was confirmed"
     if commands.get("ollama", {}).get("available"):
         return "configure LAI_GATEWAY_MODEL_BASE_URL for the local Ollama/OpenAI-compatible endpoint"
+    if _has_windows_llama_cpp(windows_commands):
+        return "Windows llama.cpp tools were detected from WSL; start llama-server on Windows, then configure LAI_GATEWAY_MODEL_BASE_URL"
+    if windows_commands.get("ollama.exe", {}).get("available"):
+        return "Windows Ollama was detected from WSL; expose its local OpenAI-compatible endpoint before probing"
     if commands.get("docker", {}).get("available"):
         if hardware.get("wsl") and not hardware.get("dev_dxg_present"):
             return "Docker is available, but no GPU bridge or inference runtime was detected in WSL; use CPU, Docker, or a Windows-hosted local endpoint"
@@ -286,14 +331,16 @@ def _recommendation(*, commands: dict[str, Any], config: dict[str, Any], hardwar
     return "install one local inference runtime before testing a <=8GB code model"
 
 
-def _next_steps(*, commands: dict[str, Any], config: dict[str, Any], openai_probe: dict[str, Any] | None) -> list[str]:
+def _next_steps(*, commands: dict[str, Any], windows_commands: dict[str, Any], config: dict[str, Any], openai_probe: dict[str, Any] | None) -> list[str]:
     if openai_probe and openai_probe.get("status") == "ready":
         return ["Run a small read-only harness task against the configured local model backend."]
     if openai_probe and openai_probe.get("status") == "blocked":
         return ["Set LAI_GATEWAY_MODEL_BASE_URL to an http:// loopback or private LAN endpoint with an explicit port before probing."]
     steps: list[str] = []
-    if not any(commands[name]["available"] for name in ("ollama", "llama-server", "llama-cli", "llamafile")):
+    if not _has_native_inference_runtime(commands) and not _has_windows_inference_runtime(windows_commands):
         steps.append("Install or expose one inference runtime such as Ollama, llama.cpp, or an OpenAI-compatible local server; Docker alone is only a container path.")
+    elif _has_windows_llama_cpp(windows_commands):
+        steps.append("Start the detected Windows llama.cpp server with an explicit host/port and a local GGUF model before probing from WSL.")
     if not config.get("base_url"):
         steps.append("Set LAI_GATEWAY_MODEL_BASE_URL to a local OpenAI-compatible endpoint before probing.")
     if not config.get("model"):
@@ -303,7 +350,7 @@ def _next_steps(*, commands: dict[str, Any], config: dict[str, Any], openai_prob
 
 
 
-_MODEL_PLAN_BACKENDS = {"auto", "ollama", "llama-cpp", "docker", "windows-openai"}
+_MODEL_PLAN_BACKENDS = {"auto", "ollama", "llama-cpp", "docker", "windows-openai", "windows-llama-cpp", "windows-ollama"}
 
 
 def _choose_model_backend(*, backend: str, status: dict[str, Any]) -> str:
@@ -316,6 +363,11 @@ def _choose_model_backend(*, backend: str, status: dict[str, Any]) -> str:
         return "ollama"
     if commands.get("llama-server", {}).get("available") or commands.get("llama-cli", {}).get("available"):
         return "llama-cpp"
+    windows_commands = status.get("windows_commands", {})
+    if _has_windows_llama_cpp(windows_commands):
+        return "windows-llama-cpp"
+    if windows_commands.get("ollama.exe", {}).get("available"):
+        return "windows-ollama"
     if commands.get("docker", {}).get("available"):
         return "docker"
     if status.get("hardware", {}).get("wsl"):
@@ -336,6 +388,10 @@ def _default_base_url_for_backend(backend: str) -> str:
         return "http://127.0.0.1:8080"
     if backend == "windows-openai":
         return "http://<windows-host-ip>:11434"
+    if backend == "windows-llama-cpp":
+        return "http://<windows-host-ip>:8080"
+    if backend == "windows-ollama":
+        return "http://<windows-host-ip>:11434"
     return "http://127.0.0.1:11434"
 
 
@@ -348,6 +404,10 @@ def _model_plan_steps(*, backend: str, model_name: str, base_url: str) -> list[d
         first = "Run an OpenAI-compatible local inference container bound to 127.0.0.1 only."
     elif backend == "windows-openai":
         first = "Run the model backend on Windows, then expose only a trusted local/private endpoint to WSL."
+    elif backend == "windows-llama-cpp":
+        first = "Use the detected Windows llama.cpp tools to start llama-server with a local GGUF model and a WSL-reachable host/port."
+    elif backend == "windows-ollama":
+        first = "Start Windows Ollama and expose only its trusted local/private OpenAI-compatible endpoint to WSL."
     else:
         first = "Pick one local inference runtime before configuring lai-gateway."
     return [
@@ -374,6 +434,12 @@ def _model_plan_commands(*, backend: str, model_name: str, base_url: str) -> dic
         commands["runtime_shape"] = "docker run --rm -p 127.0.0.1:8080:8080 <openai-compatible-local-image>"
     elif backend == "windows-openai":
         commands["find_windows_host_from_wsl"] = "awk '/nameserver/ {print $2; exit}' /etc/resolv.conf"
+    elif backend == "windows-llama-cpp":
+        commands["find_windows_host_from_wsl"] = "awk '/nameserver/ {print $2; exit}' /etc/resolv.conf"
+        commands["start_runtime_example"] = "llama-server.exe --host <windows-host-ip> --port 8080 --model C:\\path\\to\\model.gguf"
+    elif backend == "windows-ollama":
+        commands["find_windows_host_from_wsl"] = "awk '/nameserver/ {print $2; exit}' /etc/resolv.conf"
+        commands["runtime_check"] = "curl -fsS http://<windows-host-ip>:11434/v1/models"
     return commands
 
 
@@ -389,6 +455,11 @@ def _model_plan_warnings(*, backend: str, status: dict[str, Any]) -> list[str]:
         warnings.append("Ollama was selected but ollama is not installed in this environment yet.")
     if backend == "llama-cpp" and not (commands.get("llama-server", {}).get("available") or commands.get("llama-cli", {}).get("available")):
         warnings.append("llama.cpp was selected but llama-server/llama-cli is not installed in this environment yet.")
+    windows_commands = status.get("windows_commands", {})
+    if backend == "windows-llama-cpp" and not _has_windows_llama_cpp(windows_commands):
+        warnings.append("Windows llama.cpp was selected but llama-server.exe/llama-cli.exe was not detected from WSL.")
+    if backend in {"windows-openai", "windows-llama-cpp", "windows-ollama"}:
+        warnings.append("Windows-hosted model endpoints must remain local/private and may require Windows firewall or host-IP configuration for WSL access.")
     warnings.append("This plan intentionally does not download models, install packages, or start servers.")
     return warnings
 

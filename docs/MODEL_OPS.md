@@ -55,3 +55,13 @@ lai-gateway model-status --probe-openai
 ```
 
 The probe remains local/private only. Public hosts, embedded credentials, HTTPS, query strings, fragments, and URLs without an explicit port are blocked before any network call.
+
+## WSL with Windows llama.cpp
+
+When `lai-gateway` runs inside WSL, `model-status` also checks Windows runtime tools exposed through the inherited Windows PATH, such as `llama-server.exe` and `llama-cli.exe`.
+
+If Windows llama.cpp is detected, `model-plan --backend auto` prefers the `windows-llama-cpp` plan before Docker. This avoids ignoring an already-installed Windows runtime and prevents unnecessary container work.
+
+The plan remains non-mutating: it does not download models, start `llama-server.exe`, change firewall rules, or expose a model proxy through the mobile gateway.
+
+Use the generated `find_windows_host_from_wsl` command to identify the host address, start the Windows model server manually with a local GGUF model, then configure `LAI_GATEWAY_MODEL_BASE_URL` and verify with `model-status --probe-openai`.
