@@ -16,6 +16,7 @@
 - Add `/v1/gateway/model-files` and a Model panel action to inspect local model files from the UI.
 
 ### Changed
+- Align the documented harness baseline with `lai harness v0.4.3`, which hardens Windows/WSL llama.cpp startup and key-file probing.
 - Detect Windows `llama-server.exe` and `llama-cli.exe` from WSL and prefer the proven Windows llama.cpp route before Docker.
 - Use the WSL default gateway and port `18082` for Windows llama.cpp planning instead of a generic placeholder.
 - Teach `model-status --probe-openai` to read `LAI_GATEWAY_MODEL_API_KEY_FILE` and send Authorization only to validated local/private endpoints.
