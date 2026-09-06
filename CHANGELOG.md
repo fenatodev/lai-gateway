@@ -1,3 +1,27 @@
+## [0.1.22] - 2026-09-06
+
+### Added
+- Add `lai-gateway ops-status` for one read-only gateway, mobile, Telegram, and model operations snapshot.
+- Add `lai-gateway mobile-repair` to refresh pair tokens and plan/apply bridge repair without starting a server by default.
+- Add `lai-gateway service-plan`, `service-install`, and `service-remove` for token-free systemd user service planning and unit management.
+- Add `lai-gateway-mobile` as an idempotent fallback launcher when systemd user services are unavailable.
+- Add `lai-gateway model-status` and `/v1/gateway/model-status` to inspect local model runtime readiness without downloads or server startup.
+- Add `lai-gateway model-plan` and `/v1/gateway/model-plan` to generate safe, non-mutating local model runtime preparation plans.
+- Add UI Operations and Model panels for local dashboard visibility.
+- Add `docs/MOBILE_OPS.md` and `docs/MODEL_OPS.md` runbooks.
+
+### Changed
+- Include model readiness in `ops-status`.
+- Make installed `lai-gateway-ui` and `lai-gateway-mobile` wrappers pin the repository directory correctly.
+- Compact mobile repair/status JSON by omitting bulky QR SVG fields where they are not needed.
+- Detect unavailable `systemd --user` bus separately from the presence of the `systemctl` binary.
+
+### Security
+- Keep ops, model, service, and repair diagnostics token-free and read-only by default.
+- Require gateway authentication for `ops-status`, `model-status`, and `model-plan` endpoints in private LAN mode.
+- Block `model-status --probe-openai` from probing public, credentialed, query-bearing, fragment-bearing, HTTPS, or portless endpoints.
+- Continue to avoid public bind, shell authority, write-capable runs, direct llama.cpp proxy exposure, model API key exposure, automatic model downloads, or automatic tunnel setup.
+
 ## [0.1.21] - 2026-09-06
 
 ### Added

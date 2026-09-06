@@ -11,9 +11,11 @@ from unittest.mock import patch
 
 from lai_gateway.errors import ConfigError
 from lai_gateway.mobile import (
+    collect_mobile_repair,
     collect_mobile_start,
     collect_mobile_status,
     prepare_mobile_serve_config,
+    render_mobile_repair,
     render_mobile_start,
     render_mobile_status,
 )
@@ -247,6 +249,8 @@ class MobileStartTest(unittest.TestCase):
             self.assertNotIn(access_secret, rendered)
             self.assertNotIn(pair_secret, rendered)
             self.assertNotIn("Bearer", rendered)
+            self.assertNotIn("qr_svg", payload["mobile_access"])
+            self.assertFalse(payload["mobile_access"].get("qr_svg_included"))
 
     def test_mobile_status_reports_missing_pair_without_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -307,7 +311,147 @@ class MobileStartTest(unittest.TestCase):
             self.assertFalse(payload["modifies_files"])
             self.assertFalse(access.exists())
             self.assertFalse(pair.exists())
+            self.assertNotIn("qr_svg", payload["mobile_access"])
 
+
+    def test_mobile_repair_default_is_read_only_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            access = Path(tmp) / "access-token"
+            pair = Path(tmp) / "pair-token.json"
+            with patch("lai_gateway.mobile._tcp_connects", return_value=True):
+                payload = collect_mobile_repair(
+                    candidate_ip="192.168.7.56",
+                    port=18810,
+                    access_token_path=access,
+                    pair_token_path=pair,
+                )
+            rendered = render_mobile_repair(payload)
+
+            self.assertEqual(payload["operation"], "mobile-repair")
+            self.assertEqual(payload["overall"], "needs_prepare")
+            self.assertFalse(payload["starts_server"])
+            self.assertFalse(payload["modifies_files"])
+            self.assertFalse(payload["modifies_windows_network"])
+            self.assertFalse(access.exists())
+            self.assertFalse(pair.exists())
+            self.assertNotIn("Bearer", rendered)
+            self.assertFalse(payload["security"]["prints_tokens"])
+            self.assertNotIn("qr_svg", payload["status_after"]["mobile_access"])
+
+    def test_mobile_repair_prepare_refreshes_pair_without_printing_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            access = Path(tmp) / "access-token"
+            pair = Path(tmp) / "pair-token.json"
+            with patch("lai_gateway.mobile._tcp_connects", return_value=True):
+                payload = collect_mobile_repair(
+                    candidate_ip="192.168.7.57",
+                    port=18811,
+                    prepare=True,
+                    access_token_path=access,
+                    pair_token_path=pair,
+                )
+            rendered = render_mobile_repair(payload)
+            access_secret = access.read_text(encoding="utf-8").strip()
+            pair_secret = json.loads(pair.read_text(encoding="utf-8"))["token"]
+
+            self.assertEqual(payload["overall"], "ready")
+            self.assertTrue(payload["modifies_files"])
+            self.assertTrue(access.exists())
+            self.assertTrue(pair.exists())
+            self.assertNotIn(access_secret, rendered)
+            self.assertNotIn(pair_secret, rendered)
+            self.assertNotIn(pair_secret, json.dumps(payload, sort_keys=True))
+
+    def test_mobile_repair_show_pair_is_explicit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            pair = Path(tmp) / "pair-token.json"
+            with patch("lai_gateway.mobile._tcp_connects", return_value=True):
+                payload = collect_mobile_repair(
+                    candidate_ip="192.168.7.58",
+                    port=18812,
+                    prepare=True,
+                    show_pair=True,
+                    access_token_path=Path(tmp) / "access-token",
+                    pair_token_path=pair,
+                )
+            pair_secret = json.loads(pair.read_text(encoding="utf-8"))["token"]
+            self.assertTrue(payload["security"]["prints_tokens"])
+            self.assertIn(pair_secret, render_mobile_repair(payload))
+
+    def test_mobile_repair_can_plan_bridge_without_applying(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("lai_gateway.mobile._tcp_connects", return_value=True):
+                payload = collect_mobile_repair(
+                    candidate_ip="192.168.7.59",
+                    port=18813,
+                    bridge_listen_ip="100.107.179.6",
+                    access_token_path=Path(tmp) / "access-token",
+                    pair_token_path=Path(tmp) / "pair-token.json",
+                )
+            rendered = render_mobile_repair(payload)
+            self.assertTrue(payload["bridge_needed"])
+            self.assertFalse(payload["modifies_windows_network"])
+            self.assertIn("netsh interface portproxy add", rendered)
+
+    def test_mobile_repair_apply_bridge_uses_injected_runner(self) -> None:
+        calls: list[list[str]] = []
+
+        def runner(args: list[str]) -> subprocess.CompletedProcess[str]:
+            calls.append(args)
+            return subprocess.CompletedProcess(args=args, returncode=0, stdout="ok", stderr="")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("lai_gateway.mobile._tcp_connects", return_value=True):
+                payload = collect_mobile_repair(
+                    candidate_ip="192.168.7.60",
+                    port=18814,
+                    bridge_listen_ip="100.107.179.6",
+                    apply_bridge=True,
+                    access_token_path=Path(tmp) / "access-token",
+                    pair_token_path=Path(tmp) / "pair-token.json",
+                    bridge_runner=runner,
+                )
+
+        self.assertEqual(payload["overall"], "needs_prepare")
+        self.assertTrue(payload["modifies_windows_network"])
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all(item["ok"] for item in payload["bridge"]["results"]))
+
+    def test_cli_mobile_repair_prepare_uses_env_paths_and_is_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            access = Path(tmp) / "access-token"
+            pair = Path(tmp) / "pair-token.json"
+            env = dict(os.environ)
+            env["LAI_GATEWAY_ACCESS_TOKEN_FILE"] = str(access)
+            env["LAI_GATEWAY_PAIR_TOKEN_FILE"] = str(pair)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "lai_gateway",
+                    "mobile-repair",
+                    "--candidate-ip",
+                    "192.168.7.61",
+                    "--port",
+                    "18815",
+                    "--prepare",
+                    "--json",
+                ],
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=10,
+            )
+            payload = json.loads(result.stdout)
+            pair_secret = json.loads(pair.read_text(encoding="utf-8"))["token"]
+
+            self.assertEqual(payload["operation"], "mobile-repair")
+            self.assertTrue(payload["modifies_files"])
+            self.assertFalse(payload["modifies_windows_network"])
+            self.assertNotIn(pair_secret, result.stdout)
+            self.assertNotIn("Bearer", result.stdout + result.stderr)
 
     def test_cli_mobile_start_show_pair_requires_prepare(self) -> None:
         result = subprocess.run(

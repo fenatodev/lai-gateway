@@ -17,16 +17,28 @@ from .doctor import collect_doctor, render_doctor
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .lan import collect_lan_info, render_lan_info
+from .model import collect_model_plan, collect_model_status, render_model_plan, render_model_status
 from .mobile import (
+    collect_mobile_repair,
     collect_mobile_start,
     collect_mobile_status,
     prepare_mobile_serve_config,
     render_mobile_serve_ready,
+    render_mobile_repair,
     render_mobile_start,
     render_mobile_status,
 )
+from .ops import collect_ops_status, render_ops_status
 from .release import collect_release_check, render_release_check
 from .server import serve
+from .service import (
+    collect_service_plan,
+    install_service_unit,
+    remove_service_unit,
+    render_service_install,
+    render_service_plan,
+    render_service_remove,
+)
 from .telegram import (
     collect_telegram_preflight,
     discover_telegram_chats,
@@ -107,6 +119,47 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("readiness", help="fetch harness readiness through the gateway client")
     doctor_parser = sub.add_parser("doctor", help="check gateway configuration and harness connectivity")
     doctor_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    ops_parser = sub.add_parser("ops-status", help="show one read-only gateway/mobile/Telegram operations snapshot")
+    ops_parser.add_argument("--candidate-ip", default=None, help="private LAN IP to probe for mobile readiness")
+    ops_parser.add_argument("--port", type=int, default=None, help="gateway/mobile port to inspect")
+    ops_parser.add_argument("--telegram-token-file", default=None, help="telegram bot token file for preflight")
+    ops_parser.add_argument("--telegram-chat-id", default=None, help="telegram chat id for preflight")
+    ops_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    model_parser = sub.add_parser("model-status", help="inspect local model runtime readiness without starting or downloading models")
+    model_parser.add_argument("--probe-openai", action="store_true", help="probe the configured local OpenAI-compatible /v1/models endpoint")
+    model_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    model_plan_parser = sub.add_parser("model-plan", help="print a safe non-mutating plan for a local model runtime")
+    model_plan_parser.add_argument("--backend", choices=["auto", "ollama", "llama-cpp", "docker", "windows-openai"], default="auto", help="runtime path to plan")
+    model_plan_parser.add_argument("--model-name", default=None, help="local model name to place in exported configuration")
+    model_plan_parser.add_argument("--base-url", default=None, help="local OpenAI-compatible base URL to place in exported configuration")
+    model_plan_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    service_plan_parser = sub.add_parser("service-plan", help="plan a token-free systemd user service for mobile serving")
+    service_plan_parser.add_argument("--candidate-ip", required=True, help="private LAN IP for mobile serving")
+    service_plan_parser.add_argument("--port", type=int, default=None, help="gateway/mobile port")
+    service_plan_parser.add_argument("--service-name", default="lai-gateway-mobile.service", help="systemd user service name")
+    service_plan_parser.add_argument("--unit-path", default=None, help="unit file path; defaults to ~/.config/systemd/user/lai-gateway-mobile.service")
+    service_plan_parser.add_argument("--python-bin", default=None, help="python executable for ExecStart; defaults to current Python")
+    service_plan_parser.add_argument("--repo-dir", default=None, help="working directory/PYTHONPATH for source installs; defaults to cwd")
+    service_plan_parser.add_argument("--telegram-notify", action="store_true", help="include startup Telegram notification in ExecStart")
+    service_plan_parser.add_argument("--telegram-token-file", default=None, help="telegram token file path for the service command")
+    service_plan_parser.add_argument("--telegram-chat-id", default=None, help="telegram chat id for the service command")
+    service_plan_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    service_install_parser = sub.add_parser("service-install", help="write the planned systemd user service without enabling or starting it")
+    service_install_parser.add_argument("--candidate-ip", required=True, help="private LAN IP for mobile serving")
+    service_install_parser.add_argument("--port", type=int, default=None, help="gateway/mobile port")
+    service_install_parser.add_argument("--service-name", default="lai-gateway-mobile.service", help="systemd user service name")
+    service_install_parser.add_argument("--unit-path", default=None, help="unit file path; defaults to ~/.config/systemd/user/lai-gateway-mobile.service")
+    service_install_parser.add_argument("--python-bin", default=None, help="python executable for ExecStart; defaults to current Python")
+    service_install_parser.add_argument("--repo-dir", default=None, help="working directory/PYTHONPATH for source installs; defaults to cwd")
+    service_install_parser.add_argument("--telegram-notify", action="store_true", help="include startup Telegram notification in ExecStart")
+    service_install_parser.add_argument("--telegram-token-file", default=None, help="telegram token file path for the service command")
+    service_install_parser.add_argument("--telegram-chat-id", default=None, help="telegram chat id for the service command")
+    service_install_parser.add_argument("--force", action="store_true", help="overwrite an existing unit file")
+    service_install_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    service_remove_parser = sub.add_parser("service-remove", help="remove the systemd user service unit file only")
+    service_remove_parser.add_argument("--service-name", default="lai-gateway-mobile.service", help="systemd user service name")
+    service_remove_parser.add_argument("--unit-path", default=None, help="unit file path; defaults to ~/.config/systemd/user/lai-gateway-mobile.service")
+    service_remove_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     open_ui_parser = sub.add_parser("open-ui", help="print or open the local gateway UI URL")
     open_ui_parser.add_argument("--print-only", action="store_true", help="only print the UI URL")
     dev_parser = sub.add_parser("dev", help="check harness and serve the local gateway UI")
@@ -126,6 +179,20 @@ def main(argv: list[str] | None = None) -> int:
     mobile_status_parser.add_argument("--bind", default=None, help="gateway bind address to probe")
     mobile_status_parser.add_argument("--candidate-ip", default=None, help="private LAN IP to probe for an active mobile gateway")
     mobile_status_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    mobile_repair_parser = sub.add_parser("mobile-repair", help="repair mobile token and bridge readiness without starting a server")
+    mobile_repair_parser.add_argument("--port", type=int, default=None, help="gateway port for mobile access")
+    mobile_repair_parser.add_argument("--bind", default=None, help="gateway bind address to probe")
+    mobile_repair_parser.add_argument("--candidate-ip", default=None, help="private LAN IP to repair")
+    mobile_repair_parser.add_argument("--ttl-seconds", type=int, default=600, help="temporary pair token lifetime, 60..3600 seconds")
+    mobile_repair_parser.add_argument("--prepare", action="store_true", help="create/refresh mobile token files")
+    mobile_repair_parser.add_argument("--show-pair", action="store_true", help="print the temporary pair token once; requires --prepare")
+    mobile_repair_parser.add_argument("--bridge-listen-ip", default=None, help="Windows/Tailscale IPv4 address that the phone will open")
+    mobile_repair_parser.add_argument("--bridge-connect-ip", default=None, help="WSL IPv4 address where lai-gateway is bound")
+    mobile_repair_parser.add_argument("--apply-bridge", action="store_true", help="apply Windows portproxy/firewall rules")
+    mobile_repair_parser.add_argument("--telegram-notify", action="store_true", help="send the repaired mobile access URL to Telegram when explicitly enabled")
+    mobile_repair_parser.add_argument("--telegram-token-file", default=None, help="telegram bot token file for --telegram-notify")
+    mobile_repair_parser.add_argument("--telegram-chat-id", default=None, help="telegram chat id for --telegram-notify")
+    mobile_repair_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     mobile_parser = sub.add_parser("mobile-start", help="prepare or print a safe private mobile access plan")
     mobile_parser.add_argument("--port", type=int, default=None, help="gateway port for suggested mobile URLs")
     mobile_parser.add_argument("--candidate-ip", action="append", default=None, help="override detected candidates with a specific private IP; repeatable")
@@ -252,6 +319,80 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     try:
         config = GatewayConfig.from_env()
+        if args.command == "ops-status":
+            payload = collect_ops_status(
+                config=config,
+                mobile_candidate_ip=args.candidate_ip,
+                mobile_port=args.port,
+                telegram_token_file=Path(args.telegram_token_file).expanduser() if args.telegram_token_file else None,
+                telegram_chat_id=args.telegram_chat_id,
+            )
+            if not args.json:
+                print(render_ops_status(payload))
+                return 0 if payload["overall"] != "blocked" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] != "blocked" else 1
+        if args.command == "model-status":
+            payload = collect_model_status(probe_openai=args.probe_openai)
+            if not args.json:
+                print(render_model_status(payload))
+                return 0 if payload["overall"] != "blocked" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] != "blocked" else 1
+        if args.command == "model-plan":
+            payload = collect_model_plan(backend=args.backend, model_name=args.model_name, base_url=args.base_url)
+            if not args.json:
+                print(render_model_plan(payload))
+                return 0 if payload["overall"] != "blocked" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] != "blocked" else 1
+        if args.command == "service-plan":
+            payload = collect_service_plan(
+                config=config,
+                candidate_ip=args.candidate_ip,
+                port=args.port or config.port,
+                service_name=args.service_name,
+                unit_path=Path(args.unit_path).expanduser() if args.unit_path else None,
+                python_bin=args.python_bin,
+                repo_dir=Path(args.repo_dir).expanduser() if args.repo_dir else None,
+                telegram_notify=args.telegram_notify,
+                telegram_token_file=Path(args.telegram_token_file).expanduser() if args.telegram_token_file else None,
+                telegram_chat_id=args.telegram_chat_id,
+            )
+            if args.json:
+                print(json.dumps(payload, indent=2, sort_keys=True))
+            else:
+                print(render_service_plan(payload))
+            return 0
+        if args.command == "service-install":
+            payload = install_service_unit(
+                config=config,
+                candidate_ip=args.candidate_ip,
+                port=args.port or config.port,
+                service_name=args.service_name,
+                unit_path=Path(args.unit_path).expanduser() if args.unit_path else None,
+                python_bin=args.python_bin,
+                repo_dir=Path(args.repo_dir).expanduser() if args.repo_dir else None,
+                telegram_notify=args.telegram_notify,
+                telegram_token_file=Path(args.telegram_token_file).expanduser() if args.telegram_token_file else None,
+                telegram_chat_id=args.telegram_chat_id,
+                force=args.force,
+            )
+            if args.json:
+                print(json.dumps(payload, indent=2, sort_keys=True))
+            else:
+                print(render_service_install(payload))
+            return 0
+        if args.command == "service-remove":
+            payload = remove_service_unit(
+                service_name=args.service_name,
+                unit_path=Path(args.unit_path).expanduser() if args.unit_path else None,
+            )
+            if args.json:
+                print(json.dumps(payload, indent=2, sort_keys=True))
+            else:
+                print(render_service_remove(payload))
+            return 0
         if args.command == "lan-info":
             payload = collect_lan_info(port=args.port or config.port, discovered_hosts=args.candidate_ip)
             if not args.json:
@@ -279,6 +420,38 @@ def main(argv: list[str] | None = None) -> int:
                 return 0 if payload["overall"] != "blocked" else 1
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0 if payload["overall"] != "blocked" else 1
+        if args.command == "mobile-repair":
+            if args.show_pair and not args.prepare:
+                raise GatewayError("--show-pair requires --prepare")
+            payload = collect_mobile_repair(
+                port=args.port or config.port,
+                bind=args.bind or config.bind,
+                candidate_ip=args.candidate_ip,
+                ttl_seconds=args.ttl_seconds,
+                prepare=args.prepare,
+                show_pair=args.show_pair,
+                apply_bridge=args.apply_bridge,
+                bridge_listen_ip=args.bridge_listen_ip,
+                bridge_connect_ip=args.bridge_connect_ip,
+                access_token_path=config.access_token_file,
+                pair_token_path=config.pair_token_file,
+            )
+            if args.telegram_notify:
+                after = payload["status_after"]
+                notify_payload = notify_mobile_access(
+                    port=args.port or config.port,
+                    bind=after.get("listener", {}).get("ip") or args.bind or config.bind,
+                    token_file=Path(args.telegram_token_file).expanduser() if args.telegram_token_file else None,
+                    chat_id=args.telegram_chat_id,
+                )
+                payload["telegram_notify"] = {"sent": True, "message_id": notify_payload.get("message_id")}
+                if not args.json:
+                    print(f"telegram_notify: sent {notify_payload.get('message_id')}")
+            if not args.json:
+                print(render_mobile_repair(payload))
+                return 0 if payload["overall"] not in {"blocked", "bridge_failed"} else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] not in {"blocked", "bridge_failed"} else 1
         if args.command == "mobile-start":
             if args.show_pair and not args.prepare:
                 raise GatewayError("--show-pair requires --prepare")

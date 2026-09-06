@@ -31,11 +31,25 @@ class ScriptTest(unittest.TestCase):
             )
             gateway = bin_dir / "lai-gateway"
             ui = bin_dir / "lai-gateway-ui"
+            mobile = bin_dir / "lai-gateway-mobile"
             self.assertTrue(gateway.exists())
             self.assertTrue(ui.exists())
+            self.assertTrue(mobile.exists())
             self.assertIn(f"lai-gateway {__version__}", result.stdout)
             self.assertNotIn("TOKEN", gateway.read_text(encoding="utf-8").upper())
             self.assertNotIn("TOKEN", ui.read_text(encoding="utf-8").upper())
+            self.assertNotIn("TOKEN", mobile.read_text(encoding="utf-8").upper())
+            self.assertIn("repo_dir=", ui.read_text(encoding="utf-8"))
+            self.assertIn("repo_dir=", mobile.read_text(encoding="utf-8"))
+            mobile_help = subprocess.run(
+                [str(mobile), "--help"],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=10,
+            )
+            self.assertIn("lai-gateway-mobile", mobile_help.stdout)
             version = subprocess.run(
                 [str(gateway), "--version"],
                 text=True,
@@ -45,6 +59,34 @@ class ScriptTest(unittest.TestCase):
                 timeout=10,
             )
             self.assertEqual(version.stdout.strip(), f"lai-gateway {__version__}")
+
+
+    def test_launch_mobile_help_and_missing_candidate_are_secret_free(self) -> None:
+        repo = Path(__file__).parents[1]
+        help_result = subprocess.run(
+            ["bash", "scripts/launch-mobile.sh", "--help"],
+            cwd=repo,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+            timeout=10,
+        )
+        missing = subprocess.run(
+            ["bash", "scripts/launch-mobile.sh"],
+            cwd=repo,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=10,
+        )
+
+        self.assertIn("lai-gateway-mobile", help_result.stdout)
+        self.assertEqual(missing.returncode, 2)
+        self.assertIn("--candidate-ip is required", missing.stderr)
+        self.assertNotIn("Bearer", help_result.stdout + help_result.stderr + missing.stdout + missing.stderr)
+
 
     def test_launch_local_checks_harness_then_serves_without_opening_browser(self) -> None:
         repo = Path(__file__).parents[1]

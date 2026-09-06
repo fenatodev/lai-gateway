@@ -14,6 +14,7 @@
       <p>Mobile-friendly UI for <code>lai harness</code> status, sessions, and read-only runs.</p>
       <div class="status-strip" aria-label="Runtime summary">
         <span id="readiness-pill" class="pill muted">readiness unknown</span>
+        <span id="ops-pill" class="pill muted">ops unknown</span>
         <span id="active-session-pill" class="pill muted">no active session</span>
         <span id="active-run-pill" class="pill muted">no active run</span>
       </div>
@@ -29,6 +30,7 @@
         <li id="check-access" class="check muted">Pair token not loaded yet.</li>
         <li id="check-session" class="check muted">No active session selected.</li>
         <li id="check-run" class="check muted">No read-only run selected.</li>
+        <li id="check-model" class="check muted">Model status not loaded.</li>
       </ol>
     </section>
 
@@ -74,6 +76,15 @@
         <p class="hint"><code>lai-gateway pair create --ttl-seconds 600 --show</code> creates a temporary token for phone pairing.</p>
       </article>
 
+      <article class="card wide">
+        <h2>Operations</h2>
+        <p class="muted">One read-only snapshot for harness, gateway, mobile listener, pairing, and Telegram readiness.</p>
+        <div class="actions">
+          <button data-action="refresh-ops-status">Refresh ops snapshot</button>
+        </div>
+        <pre id="ops-output" aria-live="polite">Not loaded.</pre>
+      </article>
+
       <article class="card">
         <h2>Status</h2>
         <div class="actions">
@@ -81,6 +92,16 @@
           <button data-action="refresh-readiness">Refresh readiness</button>
         </div>
         <pre id="status-output" aria-live="polite">Not loaded.</pre>
+      </article>
+
+      <article class="card">
+        <h2>Model</h2>
+        <p class="muted">Read-only local model readiness. It does not download models, start servers, or send prompts.</p>
+        <div class="actions">
+          <button data-action="refresh-model-status">Refresh model status</button>
+          <button data-action="refresh-model-plan">Show model plan</button>
+        </div>
+        <pre id="model-output" aria-live="polite">Not loaded.</pre>
       </article>
 
       <article class="card">

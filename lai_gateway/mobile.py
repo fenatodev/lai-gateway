@@ -7,6 +7,7 @@ import socket
 
 from . import __version__
 from .access import collect_mobile_access
+from .bridge import collect_mobile_bridge
 from .config import DEFAULT_HARNESS_URL, DEFAULT_PORT, DEFAULT_TOKEN_FILE, GatewayConfig
 from .errors import ConfigError
 from .lan import _safe_lan_ip, collect_lan_info
@@ -197,10 +198,12 @@ def collect_mobile_status(
     listener_active = _tcp_connects(target_ip, port) if target_ip else False
     access = _inspect_access_token(access_path)
     pair = _inspect_pair_token(pair_path)
-    mobile_access = collect_mobile_access(
-        port=port,
-        bind=target_ip or bind,
-        discovered_hosts=[target_ip] if target_ip else None,
+    mobile_access = _compact_mobile_access(
+        collect_mobile_access(
+            port=port,
+            bind=target_ip or bind,
+            discovered_hosts=[target_ip] if target_ip else None,
+        )
     )
     overall = _mobile_status_overall(target_ip=target_ip, listener_active=listener_active, access=access, pair=pair)
     payload: dict[str, Any] = {
@@ -265,6 +268,175 @@ def render_mobile_status(payload: dict[str, Any]) -> str:
     if mobile_access.get("warnings"):
         lines.append("warnings:")
         lines.extend(f"  - {warning}" for warning in mobile_access["warnings"])
+    if payload["next_steps"]:
+        lines.append("next_steps:")
+        lines.extend(f"  {step}" for step in payload["next_steps"])
+    return "\n".join(lines)
+
+
+def collect_mobile_repair(
+    *,
+    port: int = DEFAULT_PORT,
+    bind: str = "127.0.0.1",
+    candidate_ip: str | None = None,
+    ttl_seconds: int = 600,
+    prepare: bool = False,
+    show_pair: bool = False,
+    apply_bridge: bool = False,
+    bridge_listen_ip: str | None = None,
+    bridge_connect_ip: str | None = None,
+    access_token_path: Path | None = None,
+    pair_token_path: Path | None = None,
+    bridge_runner: Any | None = None,
+) -> dict[str, Any]:
+    """Repair mobile operational readiness in one bounded, explicit flow.
+
+    The default mode is read-only. File changes require prepare=True, Windows
+    network changes require apply_bridge=True, and pair tokens are printed only
+    when show_pair=True.
+    """
+    status_before = collect_mobile_status(
+        port=port,
+        bind=bind,
+        candidate_ip=candidate_ip,
+        access_token_path=access_token_path,
+        pair_token_path=pair_token_path,
+    )
+    target_ip = status_before["listener"].get("ip")
+    actions: list[dict[str, Any]] = []
+    start_payload: dict[str, Any] | None = None
+
+    if prepare:
+        if target_ip is None:
+            raise ConfigError("mobile-repair requires a private target before --prepare can create tokens")
+        start_payload = collect_mobile_start(
+            port=port,
+            ttl_seconds=ttl_seconds,
+            prepare=True,
+            show_pair=show_pair,
+            access_token_path=access_token_path,
+            pair_token_path=pair_token_path,
+            discovered_hosts=[target_ip],
+        )
+        for action in start_payload.get("actions", []):
+            actions.append({"operation": "mobile-start", **action})
+
+    status_after = collect_mobile_status(
+        port=port,
+        bind=bind,
+        candidate_ip=target_ip or candidate_ip,
+        access_token_path=access_token_path,
+        pair_token_path=pair_token_path,
+    )
+    target_ip = status_after["listener"].get("ip")
+    bridge_plan = _repair_bridge_target(
+        status_after,
+        bridge_listen_ip=bridge_listen_ip,
+        bridge_connect_ip=bridge_connect_ip,
+    )
+    bridge_payload: dict[str, Any] | None = None
+    bridge_needed = bridge_plan is not None
+    if bridge_plan is not None:
+        bridge_payload = collect_mobile_bridge(
+            port=port,
+            listen_ip=bridge_plan["listen_ip"],
+            connect_ip=bridge_plan["connect_ip"],
+            apply=apply_bridge,
+            runner=bridge_runner,
+        )
+        if apply_bridge:
+            for result in bridge_payload.get("results", []):
+                actions.append({"operation": "mobile-bridge", **result})
+
+    bridge_ok = _repair_bridge_ok(bridge_payload, apply_bridge=apply_bridge)
+    overall = _mobile_repair_overall(status_after, bridge_ok=bridge_ok)
+    payload: dict[str, Any] = {
+        "product": "lai-gateway",
+        "version": __version__,
+        "operation": "mobile-repair",
+        "overall": overall,
+        "port": port,
+        "bind": bind,
+        "prepare": prepare,
+        "show_pair": show_pair,
+        "apply_bridge": apply_bridge,
+        "starts_server": False,
+        "modifies_files": prepare,
+        "modifies_windows_network": bool(apply_bridge and bridge_needed),
+        "status_before": status_before,
+        "status_after": status_after,
+        "mobile_start": start_payload,
+        "bridge_needed": bridge_needed,
+        "bridge": bridge_payload,
+        "actions": actions,
+        "next_steps": _mobile_repair_next_steps(
+            status_after=status_after,
+            bridge=bridge_payload,
+            bridge_needed=bridge_needed,
+            apply_bridge=apply_bridge,
+        ),
+        "security": {
+            "starts_server": False,
+            "file_mutation_requires_prepare": True,
+            "windows_network_mutation_requires_apply_bridge": True,
+            "prints_tokens": bool(show_pair),
+            "harness_control_token_browser_exposure": False,
+        },
+    }
+    return payload
+
+
+def render_mobile_repair(payload: dict[str, Any]) -> str:
+    after = payload["status_after"]
+    listener = after["listener"]
+    lines = [
+        f"lai-gateway mobile-repair: {payload['overall']}",
+        f"version: {payload['version']}",
+        f"target: {listener['target'] or 'none'}",
+        f"listener: {'active' if listener['active'] else 'none'}",
+        f"prepare: {str(payload['prepare']).lower()}",
+        f"apply_bridge: {str(payload['apply_bridge']).lower()}",
+        "starts_server: false",
+        f"modifies_files: {str(payload['modifies_files']).lower()}",
+        f"modifies_windows_network: {str(payload['modifies_windows_network']).lower()}",
+        f"before: {payload['status_before']['overall']}",
+        f"after: {after['overall']}",
+        f"access_token: {after['access_token']['status']} ({after['access_token']['path']})",
+        f"pair_token: {after['pair_token']['status']} ({after['pair_token']['path']})",
+    ]
+    if after["pair_token"].get("expires_at"):
+        lines.append(f"pair_expires_at: {after['pair_token']['expires_at']}")
+        lines.append(f"pair_seconds_remaining: {after['pair_token']['seconds_remaining']}")
+    scan_url = after.get("mobile_access", {}).get("recommended_url")
+    if scan_url:
+        lines.append(f"scan_url: {scan_url}")
+    if payload.get("bridge"):
+        bridge = payload["bridge"]
+        lines.append(f"bridge: {'applied' if payload['apply_bridge'] else 'planned'}")
+        lines.append(f"bridge_url: {bridge['url']}")
+        if bridge.get("commands") and not payload["apply_bridge"]:
+            lines.append("bridge_apply:")
+            lines.extend(f"  {command}" for command in bridge["commands"]["apply"])
+        if bridge.get("results"):
+            lines.append("bridge_results:")
+            for result in bridge["results"]:
+                lines.append(f"  - {result['name']}: rc={result['returncode']}")
+                if result.get("summary"):
+                    lines.append(f"    {result['summary']}")
+    elif not payload.get("bridge_needed"):
+        lines.append("bridge: not_needed")
+    if payload["actions"]:
+        lines.append("actions:")
+        for action in payload["actions"]:
+            lines.append(f"  - {action.get('operation', 'action')}: {action.get('name', action.get('summary', 'ok'))}")
+            if action.get("expires_at"):
+                lines.append(f"    expires_at: {action['expires_at']}")
+            if action.get("pair_token"):
+                lines.append(f"    pair_token: {action['pair_token']}")
+    warnings = after.get("mobile_access", {}).get("warnings", [])
+    if warnings:
+        lines.append("warnings:")
+        lines.extend(f"  - {warning}" for warning in warnings)
     if payload["next_steps"]:
         lines.append("next_steps:")
         lines.extend(f"  {step}" for step in payload["next_steps"])
@@ -450,6 +622,87 @@ def _mobile_status_next_steps(
         steps.append(f"Apply phone bridge if needed: {recommended['mobile_bridge_apply_command']}")
     if listener_active and access["ok"] and pair["ok"] and mobile_access.get("recommended_url"):
         steps.append(f"Open on phone: {mobile_access['recommended_url']}")
+    return steps
+
+
+def _compact_mobile_access(payload: dict[str, Any]) -> dict[str, Any]:
+    """Drop bulky QR SVG data from nested operational diagnostics."""
+    compact = dict(payload)
+    if compact.get("qr_svg") is not None:
+        compact["qr_svg_included"] = False
+        compact.pop("qr_svg", None)
+    return compact
+
+
+def _repair_bridge_target(
+    status: dict[str, Any],
+    *,
+    bridge_listen_ip: str | None,
+    bridge_connect_ip: str | None,
+) -> dict[str, str] | None:
+    target_ip = status.get("listener", {}).get("ip")
+    if bridge_listen_ip:
+        connect_ip = bridge_connect_ip or target_ip
+        if connect_ip is None:
+            raise ConfigError("mobile-repair requires --bridge-connect-ip when no mobile target is selected")
+        return {"listen_ip": bridge_listen_ip, "connect_ip": connect_ip}
+    recommended = next((item for item in status.get("mobile_access", {}).get("links", []) if item.get("recommended")), None)
+    if not recommended or not recommended.get("requires_portproxy"):
+        return None
+    listen_ip = str(recommended.get("ip") or "")
+    connect_ip = bridge_connect_ip or _connect_ip_from_bridge_link(recommended) or target_ip
+    if not listen_ip or connect_ip is None:
+        return None
+    return {"listen_ip": listen_ip, "connect_ip": connect_ip}
+
+
+def _connect_ip_from_bridge_link(link: dict[str, Any]) -> str | None:
+    command = link.get("portproxy_command")
+    if not isinstance(command, str):
+        return None
+    marker = "connectaddress="
+    if marker not in command:
+        return None
+    return command.split(marker, 1)[1].split()[0]
+
+
+def _repair_bridge_ok(bridge: dict[str, Any] | None, *, apply_bridge: bool) -> bool:
+    if bridge is None or not apply_bridge:
+        return True
+    return bool(bridge.get("results")) and all(item.get("ok") for item in bridge.get("results", []))
+
+
+def _mobile_repair_overall(status_after: dict[str, Any], *, bridge_ok: bool) -> str:
+    if not bridge_ok:
+        return "bridge_failed"
+    return str(status_after.get("overall", "blocked"))
+
+
+def _mobile_repair_next_steps(
+    *,
+    status_after: dict[str, Any],
+    bridge: dict[str, Any] | None,
+    bridge_needed: bool,
+    apply_bridge: bool,
+) -> list[str]:
+    steps: list[str] = []
+    target_ip = status_after.get("listener", {}).get("ip")
+    port = status_after.get("port")
+    if status_after.get("overall") in {"needs_prepare", "needs_pair"} and target_ip:
+        steps.append(f"Refresh mobile pair token: lai-gateway mobile-repair --candidate-ip {target_ip} --port {port} --prepare --show-pair")
+    if status_after.get("overall") == "needs_server" and target_ip:
+        steps.append(f"Start private gateway: lai-gateway mobile-serve --candidate-ip {target_ip} --port {port}")
+    if bridge and bridge_needed and not apply_bridge:
+        commands = bridge.get("commands", {}).get("apply", [])
+        if commands:
+            steps.append("Apply bridge from an elevated Windows shell or rerun with --apply-bridge when elevated.")
+    if bridge and apply_bridge and not _repair_bridge_ok(bridge, apply_bridge=True):
+        steps.append("Bridge apply failed; rerun from an elevated Windows shell or inspect mobile-bridge output.")
+    scan_url = status_after.get("mobile_access", {}).get("recommended_url")
+    if status_after.get("overall") == "ready" and scan_url:
+        steps.append(f"Open on phone: {scan_url}")
+    if not steps:
+        steps.extend(status_after.get("next_steps", []))
     return steps
 
 

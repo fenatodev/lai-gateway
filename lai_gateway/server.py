@@ -12,10 +12,12 @@ from urllib.parse import parse_qs, urlparse
 
 from . import __version__
 from .access import collect_mobile_access
+from .ops import collect_ops_status
 from .config import GatewayConfig, read_gateway_access_token, validate_gateway_bind
 from .tokens import read_valid_gateway_pairing_token
 from .errors import ConfigError, GatewayError, HarnessHTTPError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient, build_read_only_run_body
+from .model import collect_model_plan, collect_model_status
 
 _REQUEST_BODY_MAX_BYTES = 64 * 1024
 _AUTH_FAILURE_LIMIT = 5
@@ -73,6 +75,30 @@ class GatewayHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/v1/gateway/mobile-access":
             self._send_json(HTTPStatus.OK, collect_mobile_access(port=self.server.server_address[1], bind=self.server.server_address[0]))
+            return
+        if parsed.path == "/v1/gateway/model-status":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            probe = values.get("probe_openai", ["0"])[0] in {"1", "true", "yes", "on"}
+            self._send_json(HTTPStatus.OK, collect_model_status(probe_openai=probe))
+            return
+        if parsed.path == "/v1/gateway/model-plan":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            self._send_json(HTTPStatus.OK, collect_model_plan())
+            return
+        if parsed.path == "/v1/gateway/ops-status":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            self._send_json(
+                HTTPStatus.OK,
+                collect_ops_status(
+                    config=self.server.config,
+                    mobile_candidate_ip=self.server.server_address[0],
+                    mobile_port=self.server.server_address[1],
+                ),
+            )
             return
         if parsed.path == "/v1/harness/status":
             if not self._authorize_gateway_api(parsed.path):
@@ -172,7 +198,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
 
 
     def _authorize_gateway_api(self, path: str) -> bool:
-        if not path.startswith("/v1/harness/"):
+        if not (path.startswith("/v1/harness/") or path in {"/v1/gateway/ops-status", "/v1/gateway/model-status", "/v1/gateway/model-plan"}):
             return True
         expected = self.server.access_token
         if expected is None:

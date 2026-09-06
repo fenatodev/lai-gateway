@@ -21,9 +21,17 @@ chmod 755 "$bin_dir/lai-gateway"
 
 cat > "$bin_dir/lai-gateway-ui" <<EOF
 #!/usr/bin/env sh
+repo_dir='$repo_dir'
 exec "\$repo_dir/scripts/launch-local.sh" "\$@"
 EOF
 chmod 755 "$bin_dir/lai-gateway-ui"
+
+cat > "$bin_dir/lai-gateway-mobile" <<EOF
+#!/usr/bin/env sh
+repo_dir='$repo_dir'
+exec "\$repo_dir/scripts/launch-mobile.sh" "\$@"
+EOF
+chmod 755 "$bin_dir/lai-gateway-mobile"
 
 printf 'installed lai-gateway wrappers in %s\n' "$bin_dir"
 "$bin_dir/lai-gateway" --version
