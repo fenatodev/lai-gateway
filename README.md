@@ -80,3 +80,7 @@ The gateway currently refuses public bind addresses. Private-network/mobile expo
 ```bash
 make check
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
