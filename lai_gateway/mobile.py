@@ -5,9 +5,9 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
-from .config import DEFAULT_PORT
+from .config import DEFAULT_HARNESS_URL, DEFAULT_PORT, DEFAULT_TOKEN_FILE, GatewayConfig
 from .errors import ConfigError
-from .lan import collect_lan_info
+from .lan import _safe_lan_ip, collect_lan_info
 from .tokens import (
     check_gateway_access_token_file,
     check_gateway_pairing_token_file,
@@ -97,6 +97,102 @@ def collect_mobile_start(
         },
     }
     return payload
+
+
+def prepare_mobile_serve_config(
+    *,
+    candidate_ip: str | None = None,
+    port: int = DEFAULT_PORT,
+    ttl_seconds: int = 600,
+    show_pair: bool = False,
+    access_token_path: Path | None = None,
+    pair_token_path: Path | None = None,
+    discovered_hosts: Iterable[str] | None = None,
+    env: dict[str, str] | None = None,
+) -> tuple[dict[str, Any], GatewayConfig]:
+    """Prepare mobile access and return a private-bind config for serving.
+
+    This function writes token files by design. It does not start the server.
+    """
+    access_path = (access_token_path or default_access_token_path()).expanduser()
+    pair_path = (pair_token_path or default_pair_token_path()).expanduser()
+    hosts = [candidate_ip] if candidate_ip else discovered_hosts
+    candidate_probe = collect_mobile_start(
+        port=port,
+        ttl_seconds=ttl_seconds,
+        prepare=False,
+        show_pair=False,
+        access_token_path=access_path,
+        pair_token_path=pair_path,
+        discovered_hosts=hosts,
+    )
+    chosen = _single_mobile_candidate(candidate_probe)
+    payload = collect_mobile_start(
+        port=port,
+        ttl_seconds=ttl_seconds,
+        prepare=True,
+        show_pair=show_pair,
+        access_token_path=access_path,
+        pair_token_path=pair_path,
+        discovered_hosts=[chosen["ip"]],
+    )
+    values = {
+        "LAI_GATEWAY_HARNESS_URL": DEFAULT_HARNESS_URL,
+        "LAI_GATEWAY_TOKEN_FILE": DEFAULT_TOKEN_FILE,
+        "LAI_GATEWAY_PRIVATE_BIND": "1",
+        "LAI_GATEWAY_BIND": chosen["ip"],
+        "LAI_GATEWAY_PORT": str(port),
+        "LAI_GATEWAY_ACCESS_TOKEN_FILE": str(access_path),
+        "LAI_GATEWAY_PAIR_TOKEN_FILE": str(pair_path),
+    }
+    if env:
+        for key in ("LAI_GATEWAY_HARNESS_URL", "LAI_GATEWAY_TOKEN_FILE", "LAI_GATEWAY_TIMEOUT_SECONDS"):
+            if key in env:
+                values[key] = env[key]
+    config = GatewayConfig.from_env(values)
+    payload = dict(payload)
+    payload["operation"] = "mobile-serve"
+    payload["starts_server"] = True
+    payload["modifies_files"] = True
+    payload["selected_candidate"] = chosen
+    payload["serve"] = {
+        "bind": config.bind,
+        "port": config.port,
+        "url": chosen["url"],
+        "access_mode": config.access_mode,
+    }
+    payload["security"] = dict(payload["security"], requires_private_bind=True, wildcard_bind_allowed=False, public_bind_allowed=False)
+    return payload, config
+
+
+def render_mobile_serve_ready(payload: dict[str, Any]) -> str:
+    lines = [
+        f"lai-gateway mobile-serve: {payload['overall']}",
+        f"version: {payload['version']}",
+        f"access: {payload['serve']['access_mode']}",
+        f"ui: {payload['serve']['url']}",
+        "starts_server: true",
+        "modifies_files: true",
+    ]
+    if payload["actions"]:
+        lines.append("actions:")
+        for action in payload["actions"]:
+            lines.append(f"  - {action['name']}")
+            if action.get("expires_at"):
+                lines.append(f"    expires_at: {action['expires_at']}")
+            if action.get("pair_token"):
+                lines.append(f"    pair_token: {action['pair_token']}")
+    lines.append("Paste the temporary pair token into the UI and keep it only in page memory.")
+    return "\n".join(lines)
+
+
+def _single_mobile_candidate(payload: dict[str, Any]) -> dict[str, Any]:
+    candidates = payload.get("candidates", [])
+    if len(candidates) == 1:
+        return candidates[0]
+    if not candidates:
+        raise ConfigError("mobile serve requires a private LAN candidate; pass --candidate-ip when autodetection fails")
+    raise ConfigError("mobile serve found multiple private LAN candidates; pass --candidate-ip to choose one")
 
 
 def render_mobile_start(payload: dict[str, Any]) -> str:

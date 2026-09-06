@@ -1,3 +1,15 @@
+## [0.1.13] - 2026-09-06
+
+Add explicit mobile serving for the private LAN workflow.
+
+- Add `lai-gateway mobile-serve` to prepare gateway/pair tokens and then start the private LAN gateway in foreground.
+- Keep serving explicit: the command still requires a concrete private candidate when autodetection is ambiguous.
+- Validate the selected LAN candidate before creating or refreshing token files.
+- Keep pair-token output hidden by default; `--show-pair` is explicit for one-time phone pairing.
+- Add tests for private config preparation, ambiguous-candidate fail-closed behavior, and missing-harness fail-closed CLI behavior.
+
+No public bind, wildcard bind, harness token exposure to the browser, write-capable runs, shell authority, direct llama.cpp proxy, persistent browser storage, or automatic tunnel setup is exposed in this release.
+
 ## [0.1.12] - 2026-09-06
 
 Add guided mobile startup planning without automatically opening a private bind.
