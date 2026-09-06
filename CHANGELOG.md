@@ -1,3 +1,15 @@
+## [0.1.3] - 2026-09-06
+
+Add a local browser UI for the private gateway.
+
+- Serve a dependency-free local UI at `/`.
+- Add static assets for status, readiness, sessions, and read-only run workflows.
+- Add security headers, CSP, no-store caching, nosniff, and no-referrer headers to gateway responses.
+- Keep token handling server-side; the browser never receives the LAI control token.
+- Add tests for local UI routing, static assets, CSP, token absence, and no browser storage usage.
+
+No public bind, authentication bypass, write-mode run creation, shell authority, direct llama.cpp proxy, or external asset loading is exposed in this release.
+
 ## [0.1.2] - 2026-09-06
 
 Add read-only harness run creation through the private gateway.

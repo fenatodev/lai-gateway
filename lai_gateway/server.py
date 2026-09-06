@@ -3,15 +3,34 @@ from __future__ import annotations
 import json
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from . import __version__
 from .config import GatewayConfig, validate_loopback_bind
-from .errors import GatewayError, HarnessHTTPError
-from .harness_client import MAX_TASK_CHARS, HarnessClient, build_read_only_run_body
+from .errors import ConfigError, GatewayError, HarnessHTTPError
+from .harness_client import READ_ONLY_RUN_MODES, HarnessClient, build_read_only_run_body
 
-MAX_REQUEST_BODY_BYTES = 16 * 1024
+_REQUEST_BODY_MAX_BYTES = 64 * 1024
+_STATIC_DIR = Path(__file__).with_name("static")
+_STATIC_ROUTES = {
+    "/": ("index.html", "text/html; charset=utf-8"),
+    "/index.html": ("index.html", "text/html; charset=utf-8"),
+    "/assets/app.css": ("app.css", "text/css; charset=utf-8"),
+    "/assets/app.js": ("app.js", "application/javascript; charset=utf-8"),
+}
+_CSP = (
+    "default-src 'self'; "
+    "connect-src 'self'; "
+    "script-src 'self'; "
+    "style-src 'self'; "
+    "img-src 'self' data:; "
+    "object-src 'none'; "
+    "base-uri 'none'; "
+    "frame-ancestors 'none'; "
+    "form-action 'none'"
+)
 
 
 class GatewayHTTPServer(ThreadingHTTPServer):
@@ -30,11 +49,10 @@ class GatewayHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        if self._serve_static(parsed.path):
+            return
         if parsed.path == "/healthz":
-            self._send_json(
-                HTTPStatus.OK,
-                {"ok": True, "product": "lai-gateway", "version": __version__},
-            )
+            self._send_json(HTTPStatus.OK, {"ok": True, "product": "lai-gateway", "version": __version__})
             return
         if parsed.path == "/v1/harness/status":
             self._proxy(lambda: self.server.client.status())
@@ -81,14 +99,15 @@ class GatewayHandler(BaseHTTPRequestHandler):
             self._proxy(lambda: self.server.client.create_session(), success=HTTPStatus.CREATED)
             return
         if parsed.path == "/v1/harness/runs":
-            payload = self._read_json_body()
-            if payload is None:
-                return
-            run_body = self._read_only_run_body(payload)
-            if run_body is None:
+            body = self._read_run_body()
+            if body is None:
                 return
             self._proxy(
-                lambda: self.server.client.create_read_only_run(**run_body),
+                lambda: self.server.client.create_read_only_run(
+                    mode=body["mode"],
+                    task=body["task"],
+                    session_id=body.get("session_id"),
+                ),
                 success=HTTPStatus.ACCEPTED,
             )
             return
@@ -99,6 +118,19 @@ class GatewayHandler(BaseHTTPRequestHandler):
 
     def do_DELETE(self) -> None:  # noqa: N802
         self._send_json(HTTPStatus.METHOD_NOT_ALLOWED, {"error": "delete_not_supported"})
+
+    def _serve_static(self, path: str) -> bool:
+        route = _STATIC_ROUTES.get(path)
+        if route is None:
+            return False
+        filename, content_type = route
+        try:
+            data = (_STATIC_DIR / filename).read_bytes()
+        except OSError:
+            self._send_json(HTTPStatus.NOT_FOUND, {"error": "static_asset_missing"})
+            return True
+        self._send_bytes(HTTPStatus.OK, data, content_type)
+        return True
 
     def _proxy(self, call: Any, success: int | HTTPStatus = HTTPStatus.OK) -> None:
         try:
@@ -127,39 +159,26 @@ class GatewayHandler(BaseHTTPRequestHandler):
         return limit
 
     def _require_empty_body(self) -> bool:
-        length = self._content_length()
-        if length is None:
+        raw_length = self.headers.get("Content-Length", "0")
+        try:
+            length = int(raw_length)
+        except ValueError:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_content_length"})
             return False
         if length != 0:
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": "request_body_not_supported"})
             return False
         return True
 
-    def _content_length(self) -> int | None:
+    def _read_run_body(self) -> dict[str, str] | None:
         raw_length = self.headers.get("Content-Length", "0")
         try:
             length = int(raw_length)
         except ValueError:
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_content_length"})
             return None
-        if length < 0:
-            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_content_length"})
-            return None
-        return length
-
-    def _read_json_body(self) -> dict[str, Any] | None:
-        length = self._content_length()
-        if length is None:
-            return None
-        if length == 0:
-            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "request_body_required"})
-            return None
-        if length > MAX_REQUEST_BODY_BYTES:
-            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "request_body_too_large"})
-            return None
-        content_type = self.headers.get("Content-Type", "")
-        if "application/json" not in content_type.lower():
-            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_content_type"})
+        if length <= 0 or length > _REQUEST_BODY_MAX_BYTES:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_request_body_size"})
             return None
         raw = self.rfile.read(length)
         try:
@@ -170,37 +189,42 @@ class GatewayHandler(BaseHTTPRequestHandler):
         if not isinstance(payload, dict):
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_json_object"})
             return None
-        return payload
-
-    def _read_only_run_body(self, payload: dict[str, Any]) -> dict[str, str] | None:
-        allowed = {"mode", "task", "session_id"}
-        unknown = sorted(set(payload) - allowed)
-        if unknown:
-            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "unknown_run_fields", "fields": unknown})
+        allowed_keys = {"mode", "task", "session_id"}
+        if set(payload) - allowed_keys:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "unsupported_run_fields"})
             return None
         mode = payload.get("mode")
         task = payload.get("task")
         session_id = payload.get("session_id")
-        if session_id is not None and not isinstance(session_id, str):
-            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_session_id"})
-            return None
         if not isinstance(mode, str) or not isinstance(task, str):
-            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_run_request"})
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_run_body"})
             return None
-        if len(task) > MAX_TASK_CHARS:
-            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "task_too_large"})
+        if session_id is not None and not isinstance(session_id, str):
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_run_body"})
+            return None
+        if mode not in READ_ONLY_RUN_MODES:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "write_mode_not_allowed"})
             return None
         try:
             return build_read_only_run_body(mode=mode, task=task, session_id=session_id)
-        except GatewayError as exc:
-            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_run_request", "message": str(exc)})
+        except ConfigError as exc:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_run_body", "message": str(exc)})
             return None
+
+    def _security_headers(self) -> None:
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Security-Policy", _CSP)
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
 
     def _send_json(self, status: int | HTTPStatus, payload: dict[str, Any]) -> None:
         data = json.dumps(payload, sort_keys=True).encode("utf-8")
+        self._send_bytes(status, data, "application/json; charset=utf-8")
+
+    def _send_bytes(self, status: int | HTTPStatus, data: bytes, content_type: str) -> None:
         self.send_response(int(status))
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Type", content_type)
+        self._security_headers()
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)

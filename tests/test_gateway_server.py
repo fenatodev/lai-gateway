@@ -117,14 +117,14 @@ class GatewayServerTest(unittest.TestCase):
                     {"mode": "implement", "task": "change files"},
                 )
                 self.assertEqual(status, HTTPStatus.BAD_REQUEST)
-                self.assertEqual(body["error"], "invalid_run_request")
+                self.assertEqual(body["error"], "write_mode_not_allowed")
 
                 status, body = post_json_error(
                     f"{gateway.url}/v1/harness/runs",
                     {"mode": "plan", "task": "x", "surprise": True},
                 )
                 self.assertEqual(status, HTTPStatus.BAD_REQUEST)
-                self.assertEqual(body["error"], "unknown_run_fields")
+                self.assertEqual(body["error"], "unsupported_run_fields")
 
     def test_gateway_mvp_does_not_expose_raw_run_creation(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
