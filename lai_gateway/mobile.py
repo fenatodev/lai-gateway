@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
+import socket
 
 from . import __version__
 from .access import collect_mobile_access
@@ -128,6 +129,7 @@ def prepare_mobile_serve_config(
         discovered_hosts=hosts,
     )
     chosen = _single_mobile_candidate(candidate_probe)
+    _ensure_no_existing_listener(chosen["ip"], port)
     payload = collect_mobile_start(
         port=port,
         ttl_seconds=ttl_seconds,
@@ -167,6 +169,25 @@ def prepare_mobile_serve_config(
     payload["scan_url"] = mobile_access.get("recommended_url") or chosen["url"]
     payload["security"] = dict(payload["security"], requires_private_bind=True, wildcard_bind_allowed=False, public_bind_allowed=False)
     return payload, config
+
+
+def _ensure_no_existing_listener(ip: str, port: int) -> None:
+    if _tcp_connects(ip, port):
+        raise ConfigError(
+            f"mobile serve target already has a listener: {ip}:{port}; stop the existing mobile-serve process or choose --port"
+        )
+
+
+def _tcp_connects(ip: str, port: int) -> bool:
+    family = socket.AF_INET6 if ":" in ip else socket.AF_INET
+    sock = socket.socket(family, socket.SOCK_STREAM)
+    sock.settimeout(0.10)
+    try:
+        return sock.connect_ex((ip, int(port))) == 0
+    except OSError:
+        return False
+    finally:
+        sock.close()
 
 
 def render_mobile_serve_ready(payload: dict[str, Any]) -> str:

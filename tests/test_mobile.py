@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from lai_gateway.errors import ConfigError
 from lai_gateway.mobile import collect_mobile_start, prepare_mobile_serve_config, render_mobile_start
@@ -150,6 +151,22 @@ class MobileStartTest(unittest.TestCase):
                     pair_token_path=pair,
                     discovered_hosts=["192.168.7.50", "10.7.0.50"],
                 )
+            self.assertFalse(access.exists())
+            self.assertFalse(pair.exists())
+
+    def test_mobile_serve_blocks_existing_listener_before_mutating_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            access = Path(tmp) / "access-token"
+            pair = Path(tmp) / "pair-token.json"
+            with patch("lai_gateway.mobile._tcp_connects", return_value=True):
+                with self.assertRaises(ConfigError) as ctx:
+                    prepare_mobile_serve_config(
+                        candidate_ip="192.168.7.52",
+                        port=18806,
+                        access_token_path=access,
+                        pair_token_path=pair,
+                    )
+            self.assertIn("already has a listener", str(ctx.exception))
             self.assertFalse(access.exists())
             self.assertFalse(pair.exists())
 

@@ -1,3 +1,26 @@
+## [0.1.20] - 2026-09-06
+
+### Changed
+- Make `lai-gateway mobile-serve` fail before refreshing pair tokens or sending Telegram notifications when the selected mobile bind target already has a listener.
+
+### Security
+- Avoid printing a fresh pair token or sending a stale mobile access notification when startup cannot proceed because the target IP/port is already in use.
+
+## [0.1.19] - 2026-09-06
+
+### Added
+- Add `lai-gateway telegram bot-info` to identify the configured bot by public username/id without reading messages or exposing the token.
+- Add `lai-gateway telegram chat-set` and `telegram chat-check` to persist the discovered Telegram destination in a `0600` file without printing the chat id.
+
+### Changed
+- Resolve Telegram destinations from explicit argument, environment, then the persisted chat-id file.
+- Print concrete `chat-set` commands from `telegram discover-chat` alongside optional shell exports.
+- Preserve safe Telegram API error descriptions and add actionable recovery hints for common failures such as chat-not-found, invalid-token, blocked-bot, and rate-limit responses.
+
+### Security
+- Keep `LAI_GATEWAY_TELEGRAM_ENABLE_SEND=1` mandatory even when the chat id is persisted.
+- Redact Telegram bot-token-shaped fragments from HTTP error descriptions before surfacing them in CLI errors.
+
 ## [0.1.18] - 2026-09-06
 
 ### Added
