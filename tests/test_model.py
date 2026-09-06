@@ -53,7 +53,7 @@ class FakeOpenAIModelsHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 return
             request_body = self.rfile.read(int(self.headers.get("Content-Length", "0") or "0")).decode("utf-8", errors="replace")
-            content = "def lai_add(a, b): return a + b" if "lai_add" in request_body else "LAI_SMOKE_OK"
+            content = "def lai_add(a, b): return a + b" if "lai_add" in request_body else ('{"lai_json_status":"ok","count":2}' if "lai_json_status" in request_body else "LAI_SMOKE_OK")
             body = json.dumps({"choices": [{"message": {"content": content}}]}).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -63,7 +63,7 @@ class FakeOpenAIModelsHandler(BaseHTTPRequestHandler):
             return
         if self.path == "/v1/chat/completions":
             request_body = self.rfile.read(int(self.headers.get("Content-Length", "0") or "0")).decode("utf-8", errors="replace")
-            content = "def lai_add(a, b): return a + b" if "lai_add" in request_body else "LAI_SMOKE_OK"
+            content = "def lai_add(a, b): return a + b" if "lai_add" in request_body else ('{"lai_json_status":"ok","count":2}' if "lai_json_status" in request_body else "LAI_SMOKE_OK")
             body = json.dumps({"choices": [{"message": {"content": content}}]}).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -219,6 +219,21 @@ class ModelStatusTest(unittest.TestCase):
         self.assertNotIn(SECRET, result.stdout + result.stderr)
         self.assertNotIn("Bearer", result.stdout + result.stderr)
 
+
+
+    def test_model_task_reaches_loopback_json_mini_completion(self) -> None:
+        with FakeOpenAIModelsServer() as server:
+            payload = collect_model_task(
+                env={
+                    "LAI_GATEWAY_MODEL_BASE_URL": server.url,
+                    "LAI_GATEWAY_MODEL_NAME": "local-code-model",
+                },
+                task="json-mini",
+            )
+        self.assertEqual(payload["overall"], "ready")
+        self.assertEqual(payload["task"], "json-mini")
+        self.assertTrue(payload["result"]["matched"])
+        self.assertIn("lai_json_status", payload["result"]["response_preview"])
 
     def test_model_task_reaches_loopback_code_mini_completion(self) -> None:
         with FakeOpenAIModelsServer() as server:
@@ -495,9 +510,9 @@ class ModelStatusTest(unittest.TestCase):
             raw = runs_file.read_text(encoding="utf-8")
         self.assertEqual(payload["operation"], "model-eval")
         self.assertEqual(payload["overall"], "ready")
-        self.assertEqual(payload["summary"]["checks"], 2)
-        self.assertEqual(payload["summary"]["ready"], 2)
-        self.assertEqual(recorded["count"], 2)
+        self.assertEqual(payload["summary"]["checks"], 3)
+        self.assertEqual(payload["summary"]["ready"], 3)
+        self.assertEqual(recorded["count"], 3)
         self.assertIn("model-smoke", recorded["summary"]["operations"])
         self.assertIn("model-task", recorded["summary"]["operations"])
         self.assertIn("model-eval: ready", rendered)
@@ -530,7 +545,7 @@ class ModelStatusTest(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertEqual(payload["operation"], "model-eval")
         self.assertEqual(payload["overall"], "ready")
-        self.assertEqual(payload["summary"]["checks"], 2)
+        self.assertEqual(payload["summary"]["checks"], 3)
         self.assertNotIn(MODEL_API_KEY, result.stdout + result.stderr)
         self.assertNotIn("Bearer", result.stdout + result.stderr)
         self.assertNotIn("Return only this exact one-line", result.stdout + result.stderr)

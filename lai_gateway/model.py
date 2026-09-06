@@ -50,6 +50,13 @@ _MODEL_TASKS: dict[str, dict[str, Any]] = {
         "temperature": 0,
         "required_markers": ("def lai_add", "return a + b"),
     },
+    "json-mini": {
+        "title": "minimal structured JSON generation",
+        "prompt": 'Return only this exact compact JSON object, with no markdown: {"lai_json_status":"ok","count":2}',
+        "max_tokens": 64,
+        "temperature": 0,
+        "required_markers": ('"lai_json_status"', '"ok"', '"count"', "2"),
+    },
 }
 
 
@@ -367,7 +374,7 @@ def collect_model_eval(
     runs_file: Path | None = None,
 ) -> dict[str, Any]:
     """Run a bounded fixed local model evaluation suite without accepting arbitrary prompts."""
-    selected_tasks = tasks or ("code-mini",)
+    selected_tasks = tasks or ("code-mini", "json-mini")
     started = time.monotonic()
     smoke = collect_model_smoke(env=env, timeout_seconds=timeout_seconds, record=record, runs_file=runs_file)
     task_results = [

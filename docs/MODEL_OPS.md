@@ -207,7 +207,7 @@ Run the fixed validation suite against the configured local OpenAI-compatible en
 lai-gateway model-eval
 ```
 
-The current suite runs `model-smoke` plus fixed model tasks such as `code-mini`. It does not accept arbitrary prompts. Use `--record` to append prompt-free metrics for each underlying check:
+The current suite runs `model-smoke` plus fixed model tasks such as `code-mini` and `json-mini`. It does not accept arbitrary prompts. Use `--record` to append prompt-free metrics for each underlying check:
 
 ```bash
 lai-gateway model-eval --record
