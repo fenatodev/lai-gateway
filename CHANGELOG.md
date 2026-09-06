@@ -1,6 +1,7 @@
 ## [0.1.23] - 2026-09-06
 
 ### Added
+- Show prompt-free model run history in `ops-status` and suggest `lai-gateway-model --eval --record` when no metrics exist.
 - Add fixed local model evaluation with `model-eval`, launcher `--eval`, and `/v1/gateway/model-eval`.
 - Add prompt-free local model run metrics with `model-smoke --record`, `model-task --record`, `model-runs`, launcher `--record`, and `/v1/gateway/model-runs`.
 - Add `lai-gateway-model --task` to run the fixed local code task after model startup and readiness probing.

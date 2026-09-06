@@ -41,7 +41,9 @@ class OpsStatusTest(unittest.TestCase):
             )
             pair_secret = json.loads(pair_file.read_text(encoding="utf-8"))["token"]
 
-            with patch("lai_gateway.mobile._tcp_connects", return_value=True):
+            runs_file = Path(tmp) / "model-runs.jsonl"
+            runs_file.write_text('{"operation":"model-eval","overall":"ready","elapsed_ms":42.0}\n', encoding="utf-8")
+            with patch.dict(os.environ, {"LAI_GATEWAY_MODEL_RUNS_FILE": str(runs_file)}, clear=False), patch("lai_gateway.mobile._tcp_connects", return_value=True):
                 payload = collect_ops_status(
                     config=config,
                     mobile_candidate_ip="192.168.7.62",
@@ -53,6 +55,8 @@ class OpsStatusTest(unittest.TestCase):
             stdout = json.dumps(payload, sort_keys=True) + rendered
 
             self.assertEqual(payload["overall"], "ready")
+            self.assertEqual(payload["model_runs"]["count"], 1)
+            self.assertIn("model_runs: 1", rendered)
             self.assertFalse(payload["starts_server"])
             self.assertFalse(payload["modifies_files"])
             self.assertNotIn(TOKEN, stdout)
@@ -76,6 +80,7 @@ class OpsStatusTest(unittest.TestCase):
             self.assertEqual(payload["overall"], "warn")
             self.assertEqual(payload["doctor"]["overall"], "ready")
             self.assertIn("Configure Telegram token", "\n".join(payload["next_steps"]))
+            self.assertIn("Run local model evaluation metrics", "\n".join(payload["next_steps"]))
 
     def test_cli_ops_status_json_is_secret_free(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
@@ -102,6 +107,7 @@ class OpsStatusTest(unittest.TestCase):
                 "LAI_GATEWAY_ACCESS_TOKEN_FILE": str(access_file),
                 "LAI_GATEWAY_PAIR_TOKEN_FILE": str(pair_file),
                 "LAI_GATEWAY_TELEGRAM_ENABLE_SEND": "1",
+                "LAI_GATEWAY_MODEL_RUNS_FILE": str(Path(tmp) / "missing-model-runs.jsonl"),
             })
             result = subprocess.run(
                 [

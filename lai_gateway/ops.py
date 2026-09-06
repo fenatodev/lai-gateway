@@ -8,7 +8,7 @@ from .config import GatewayConfig
 from .doctor import collect_doctor
 from .errors import GatewayError
 from .mobile import collect_mobile_status
-from .model import collect_model_status
+from .model import collect_model_runs, collect_model_status
 from .telegram import collect_telegram_preflight
 
 
@@ -45,6 +45,7 @@ def collect_ops_status(
         enable_send=telegram_enable_send,
     )
     model = collect_model_status()
+    model_runs = collect_model_runs(limit=5)
     overall = _ops_overall(doctor=doctor, mobile=mobile, telegram=telegram)
     return {
         "product": "lai-gateway",
@@ -63,7 +64,8 @@ def collect_ops_status(
         "mobile": mobile,
         "telegram": telegram,
         "model": model,
-        "next_steps": _ops_next_steps(doctor=doctor, mobile=mobile, telegram=telegram),
+        "model_runs": model_runs,
+        "next_steps": _ops_next_steps(doctor=doctor, mobile=mobile, telegram=telegram, model_runs=model_runs),
         "security": {
             "prints_tokens": False,
             "starts_server": False,
@@ -79,6 +81,7 @@ def render_ops_status(payload: dict[str, Any]) -> str:
     mobile = payload["mobile"]
     telegram = payload["telegram"]
     model = payload.get("model", {})
+    model_runs = payload.get("model_runs", {})
     lines = [
         f"lai-gateway ops-status: {payload['overall']}",
         f"version: {payload['version']}",
@@ -88,6 +91,7 @@ def render_ops_status(payload: dict[str, Any]) -> str:
         f"mobile: {mobile['overall']}",
         f"telegram: {telegram['overall']}",
         f"model: {model.get('overall', 'unknown')}",
+        f"model_runs: {model_runs.get('count', 0)}",
     ]
     config = doctor.get("config")
     if isinstance(config, dict):
@@ -119,12 +123,14 @@ def _ops_overall(*, doctor: dict[str, Any], mobile: dict[str, Any], telegram: di
     return "ready"
 
 
-def _ops_next_steps(*, doctor: dict[str, Any], mobile: dict[str, Any], telegram: dict[str, Any]) -> list[str]:
+def _ops_next_steps(*, doctor: dict[str, Any], mobile: dict[str, Any], telegram: dict[str, Any], model_runs: dict[str, Any] | None = None) -> list[str]:
     steps: list[str] = []
     for check in doctor.get("checks", []):
         if check.get("status") == "fail":
             steps.append(f"Fix doctor check `{check.get('name')}`: {check.get('detail')}")
     steps.extend(str(step) for step in mobile.get("next_steps", []))
+    if (model_runs or {}).get("count", 0) == 0:
+        steps.append("Run local model evaluation metrics: lai-gateway-model --eval --record")
     if telegram.get("overall") != "ready":
         if not telegram.get("token_file", {}).get("ok"):
             steps.append("Configure Telegram token: lai-gateway telegram token-set --force")

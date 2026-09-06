@@ -215,3 +215,12 @@ lai-gateway-model --eval --record
 ```
 
 The UI exposes `GET /v1/gateway/model-eval` and a `Run model eval` button. It does not record by default. In private mode the endpoint requires gateway authentication.
+
+
+`ops-status` also reads the prompt-free model run history without running the model. When no model metrics exist, it suggests:
+
+```bash
+lai-gateway-model --eval --record
+```
+
+This keeps the operations snapshot useful without turning status checks into hidden model executions.
