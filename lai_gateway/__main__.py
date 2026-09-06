@@ -23,9 +23,14 @@ from .server import serve
 from .telegram import (
     collect_telegram_preflight,
     discover_telegram_chats,
+    get_telegram_bot_info,
+    inspect_telegram_chat_file,
     inspect_telegram_token_file,
     notify_gateway_status,
     notify_mobile_access,
+    render_telegram_bot_info,
+    render_telegram_chat_check,
+    render_telegram_chat_set,
     render_telegram_discover,
     render_telegram_preflight,
     render_telegram_token_check,
@@ -33,6 +38,7 @@ from .telegram import (
     render_telegram_token_set,
     repair_telegram_token_whitespace,
     send_telegram_message,
+    write_telegram_chat_file,
     write_telegram_token_file,
 )
 from .tokens import (
@@ -170,6 +176,17 @@ def main(argv: list[str] | None = None) -> int:
     telegram_token_set.add_argument("--stdin", action="store_true", help="read token from stdin instead of a hidden prompt")
     telegram_token_set.add_argument("--force", action="store_true", help="overwrite an existing token file")
     telegram_token_set.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    telegram_bot_info = telegram_sub.add_parser("bot-info", help="show the public bot username and id for the configured token")
+    telegram_bot_info.add_argument("--token-file", default=None, help="telegram bot token file; defaults to ~/.config/lai-gateway/telegram-bot-token")
+    telegram_bot_info.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    telegram_chat_check = telegram_sub.add_parser("chat-check", help="diagnose the persisted Telegram chat id without printing it")
+    telegram_chat_check.add_argument("--chat-file", default=None, help="telegram chat id file; defaults to ~/.config/lai-gateway/telegram-chat-id")
+    telegram_chat_check.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    telegram_chat_set = telegram_sub.add_parser("chat-set", help="persist a Telegram chat id with 0600 permissions")
+    telegram_chat_set.add_argument("--chat-file", default=None, help="telegram chat id file; defaults to ~/.config/lai-gateway/telegram-chat-id")
+    telegram_chat_set.add_argument("--chat-id", required=True, help="numeric Telegram chat id returned by discover-chat")
+    telegram_chat_set.add_argument("--force", action="store_true", help="overwrite an existing chat id file")
+    telegram_chat_set.add_argument("--json", action="store_true", help="print machine-readable JSON")
     telegram_preflight = telegram_sub.add_parser("preflight", help="check Telegram token/chat configuration without network calls")
     telegram_preflight.add_argument("--token-file", default=None, help="telegram bot token file; defaults to ~/.config/lai-gateway/telegram-bot-token")
     telegram_preflight.add_argument("--chat-id", default=None, help="telegram chat id; defaults to LAI_GATEWAY_TELEGRAM_CHAT_ID")
@@ -390,6 +407,29 @@ def main(argv: list[str] | None = None) -> int:
                     print(json.dumps(payload, indent=2, sort_keys=True))
                 else:
                     print(render_telegram_token_set(payload))
+                return 0
+            if args.telegram_command == "bot-info":
+                payload = get_telegram_bot_info(token_file=token_path)
+                if args.json:
+                    print(json.dumps(payload, indent=2, sort_keys=True))
+                else:
+                    print(render_telegram_bot_info(payload))
+                return 0
+            if args.telegram_command == "chat-check":
+                chat_path = Path(args.chat_file).expanduser() if args.chat_file else None
+                payload = inspect_telegram_chat_file(chat_file=chat_path)
+                if args.json:
+                    print(json.dumps(payload, indent=2, sort_keys=True))
+                else:
+                    print(render_telegram_chat_check(payload))
+                return 0 if payload["ok"] else 1
+            if args.telegram_command == "chat-set":
+                chat_path = Path(args.chat_file).expanduser() if args.chat_file else None
+                payload = write_telegram_chat_file(chat_id=args.chat_id, chat_file=chat_path, force=args.force)
+                if args.json:
+                    print(json.dumps(payload, indent=2, sort_keys=True))
+                else:
+                    print(render_telegram_chat_set(payload))
                 return 0
             if args.telegram_command == "preflight":
                 payload = collect_telegram_preflight(token_file=token_path, chat_id=args.chat_id)

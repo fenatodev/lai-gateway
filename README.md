@@ -92,6 +92,9 @@ python3 -m lai_gateway pair revoke
 python3 -m lai_gateway telegram token-check
 python3 -m lai_gateway telegram token-set
 python3 -m lai_gateway telegram token-repair-whitespace
+python3 -m lai_gateway telegram bot-info
+python3 -m lai_gateway telegram chat-check
+python3 -m lai_gateway telegram chat-set --chat-id CHAT_ID_FROM_DISCOVER
 python3 -m lai_gateway telegram preflight
 python3 -m lai_gateway sessions list --limit 10
 python3 -m lai_gateway sessions create
@@ -203,6 +206,6 @@ Release rules are documented in [docs/RELEASE.md](docs/RELEASE.md).
 ## License
 
 
-Telegram setup should use `lai-gateway telegram token-set` instead of editing the token file by hand. `telegram token-check` reports redacted diagnostics, and `telegram token-repair-whitespace` only rewrites the file when the compact token shape is valid. Avoid shell placeholders such as `<chat_id>` or `<chat-id>`; `telegram discover-chat` prints concrete export commands for discovered chats.
+Telegram setup should use `lai-gateway telegram token-set` instead of editing the token file by hand. `telegram token-check` reports redacted diagnostics, `telegram token-repair-whitespace` only rewrites the file when the compact token shape is valid, and `telegram bot-info` shows the public bot identity without reading messages or printing the token. `telegram chat-set` persists a discovered numeric chat id in `~/.config/lai-gateway/telegram-chat-id` with `0600` permissions; explicit `--chat-id` arguments and `LAI_GATEWAY_TELEGRAM_CHAT_ID` still override the file. Avoid shell placeholders such as `<chat_id>` or `<chat-id>`; `telegram discover-chat` prints concrete `chat-set` and export commands for discovered chats. Telegram API errors retain bounded, sanitized descriptions and include recovery hints for common setup failures such as `chat not found`.
 
 MIT. See [LICENSE](LICENSE).

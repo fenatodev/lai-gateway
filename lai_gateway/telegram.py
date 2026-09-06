@@ -18,13 +18,19 @@ from .errors import ConfigError, GatewayError
 from .tokens import token_file_mode
 
 DEFAULT_TELEGRAM_TOKEN_FILE = "~/.config/lai-gateway/telegram-bot-token"
+DEFAULT_TELEGRAM_CHAT_FILE = "~/.config/lai-gateway/telegram-chat-id"
 _MAX_MESSAGE_CHARS = 4096
 _MAX_DISCOVER_LIMIT = 20
 _TELEGRAM_TOKEN_RE = re.compile(r"^\d{5,}:[A-Za-z0-9_-]{20,}$")
+_TELEGRAM_CHAT_ID_RE = re.compile(r"^-?\d{1,20}$")
 
 
 def default_telegram_token_path() -> Path:
     return Path(DEFAULT_TELEGRAM_TOKEN_FILE).expanduser()
+
+
+def default_telegram_chat_path() -> Path:
+    return Path(DEFAULT_TELEGRAM_CHAT_FILE).expanduser()
 
 
 def inspect_telegram_token_file(*, token_file: Path | None = None) -> dict[str, Any]:
@@ -125,18 +131,150 @@ def render_telegram_token_set(payload: dict[str, Any]) -> str:
     ])
 
 
+def inspect_telegram_chat_file(*, chat_file: Path | None = None) -> dict[str, Any]:
+    path = (chat_file or default_telegram_chat_path()).expanduser()
+    exists = path.exists()
+    mode = token_file_mode(path) if exists else None
+    detail = "telegram chat id file not found"
+    chat_id = ""
+    if exists:
+        try:
+            chat_id = _read_chat_id(path)
+            detail = "telegram chat id file is ready"
+        except ConfigError as exc:
+            detail = str(exc)
+    return {
+        "product": "lai-gateway",
+        "version": __version__,
+        "operation": "telegram-chat-check",
+        "path": str(path),
+        "exists": exists,
+        "ok": bool(exists and chat_id),
+        "status": "ready" if exists and chat_id else ("missing" if not exists else "invalid"),
+        "detail": detail,
+        "mode": mode,
+        "chat_id_length": len(chat_id),
+        "chat_id_printed": False,
+    }
+
+
+def render_telegram_chat_check(payload: dict[str, Any]) -> str:
+    return "\n".join([
+        f"lai-gateway telegram chat-check: {payload['status']}",
+        f"version: {payload['version']}",
+        f"path: {payload['path']}",
+        f"exists: {str(payload['exists']).lower()}",
+        f"mode: {payload.get('mode') or 'none'}",
+        f"chat_id_length: {payload['chat_id_length']}",
+        f"detail: {payload['detail']}",
+        "chat_id_printed: false",
+    ])
+
+
+def write_telegram_chat_file(*, chat_id: str, chat_file: Path | None = None, force: bool = False) -> dict[str, Any]:
+    path = (chat_file or default_telegram_chat_path()).expanduser()
+    cleaned = chat_id.strip()
+    _validate_telegram_chat_id(cleaned)
+    if path.exists() and not force:
+        raise ConfigError(f"telegram chat id file already exists: {path}; pass --force to overwrite")
+    _write_secret_file(path, cleaned + "\n", force=True)
+    info = inspect_telegram_chat_file(chat_file=path)
+    return {
+        "product": "lai-gateway",
+        "version": __version__,
+        "operation": "telegram-chat-set",
+        "ok": True,
+        "path": str(path),
+        "mode": info.get("mode"),
+        "chat_id_length": info["chat_id_length"],
+        "chat_id_printed": False,
+    }
+
+
+def render_telegram_chat_set(payload: dict[str, Any]) -> str:
+    return "\n".join([
+        "lai-gateway telegram chat-set: ok",
+        f"version: {payload['version']}",
+        f"path: {payload['path']}",
+        f"mode: {payload.get('mode')}",
+        f"chat_id_length: {payload['chat_id_length']}",
+        "chat_id_printed: false",
+    ])
+
+
+def get_telegram_bot_info(
+    *,
+    token_file: Path | None = None,
+    opener: Callable[..., Any] = urlopen,
+) -> dict[str, Any]:
+    path = (token_file or default_telegram_token_path()).expanduser()
+    token_info = _inspect_token(path)
+    if not token_info["ok"]:
+        raise ConfigError(f"telegram token file is not ready: {token_info['detail']}")
+    token = _read_token(path)
+    request = Request(f"https://api.telegram.org/bot{token}/getMe", method="GET")
+    raw = _open_json(request, opener=opener, timeout=10, label="telegram getMe")
+    if not raw.get("ok"):
+        raise GatewayError("telegram getMe was rejected by Telegram")
+    result = raw.get("result") if isinstance(raw.get("result"), dict) else {}
+    username = str(result.get("username") or "").strip()
+    bot_id = result.get("id")
+    if not username or bot_id is None or not result.get("is_bot"):
+        raise GatewayError("telegram getMe returned an incomplete bot identity")
+    return {
+        "product": "lai-gateway",
+        "version": __version__,
+        "operation": "telegram-bot-info",
+        "ok": True,
+        "network_call": True,
+        "bot_id": bot_id,
+        "username": username,
+        "is_bot": True,
+        "security": {
+            "token_printed": False,
+            "message_text_read": False,
+            "webhook_exposed": False,
+            "harness_write_authority": False,
+        },
+    }
+
+
+def render_telegram_bot_info(payload: dict[str, Any]) -> str:
+    username = payload["username"]
+    return "\n".join([
+        "lai-gateway telegram bot-info: ready",
+        f"version: {payload['version']}",
+        f"username: @{username}",
+        f"bot_id: {payload['bot_id']}",
+        "network_call: true",
+        "token_printed: false",
+        f"next: send /start to @{username}, then run LAI_GATEWAY_TELEGRAM_ENABLE_RECEIVE=1 lai-gateway telegram discover-chat",
+    ])
+
+
 def collect_telegram_preflight(
     *,
     token_file: Path | None = None,
     chat_id: str | None = None,
+    chat_file: Path | None = None,
     enable_send: bool | None = None,
 ) -> dict[str, Any]:
     path = (token_file or default_telegram_token_path()).expanduser()
-    configured_chat = chat_id if chat_id is not None else os.environ.get("LAI_GATEWAY_TELEGRAM_CHAT_ID", "")
     send_enabled = _env_send_enabled() if enable_send is None else enable_send
     receive_enabled = _env_receive_enabled()
     token = _inspect_token(path)
-    chat_ok = bool(str(configured_chat).strip())
+    chat_detail = "telegram chat id is required"
+    chat_source = "none"
+    try:
+        configured_chat, chat_source = _resolve_chat_id(chat_id=chat_id, chat_file=chat_file)
+        chat_ok = bool(configured_chat)
+        if chat_ok:
+            chat_detail = "telegram chat id is ready"
+    except ConfigError as exc:
+        configured_chat = ""
+        chat_ok = False
+        chat_detail = str(exc)
+        chat_source = "invalid"
     overall = "ready" if token["ok"] and chat_ok and send_enabled else "needs_config"
     return {
         "product": "lai-gateway",
@@ -148,9 +286,11 @@ def collect_telegram_preflight(
         "network_call": False,
         "token_file": token,
         "chat_id_configured": chat_ok,
-        "chat_id_source": "argument" if chat_id else "environment",
+        "chat_id_source": chat_source,
+        "chat_id_detail": chat_detail,
         "security": {
             "token_printed": False,
+            "chat_id_printed": False,
             "requires_enable_flag": True,
             "requires_receive_flag_for_updates": True,
             "outbound_only": True,
@@ -170,6 +310,8 @@ def render_telegram_preflight(payload: dict[str, Any]) -> str:
             f"receive_enabled: {str(payload.get('receive_enabled', False)).lower()}",
             f"token_file: {token['status']} ({token['path']})",
             f"chat_id_configured: {str(payload['chat_id_configured']).lower()}",
+            f"chat_id_source: {payload.get('chat_id_source', 'none')}",
+            f"chat_id_detail: {payload.get('chat_id_detail', '')}",
             "network_call: false",
             "webhook_exposed: false",
         ]
@@ -181,17 +323,18 @@ def send_telegram_message(
     text: str,
     token_file: Path | None = None,
     chat_id: str | None = None,
+    chat_file: Path | None = None,
     enable_send: bool | None = None,
     opener: Callable[..., Any] = urlopen,
 ) -> dict[str, Any]:
-    preflight = collect_telegram_preflight(token_file=token_file, chat_id=chat_id, enable_send=enable_send)
+    preflight = collect_telegram_preflight(token_file=token_file, chat_id=chat_id, chat_file=chat_file, enable_send=enable_send)
     if not preflight["send_enabled"]:
         raise ConfigError("telegram send requires LAI_GATEWAY_TELEGRAM_ENABLE_SEND=1")
     if not preflight["token_file"]["ok"]:
         raise ConfigError(f"telegram token file is not ready: {preflight['token_file']['detail']}")
-    target_chat = str(chat_id if chat_id is not None else os.environ.get("LAI_GATEWAY_TELEGRAM_CHAT_ID", "")).strip()
-    if not target_chat:
-        raise ConfigError("telegram chat id is required")
+    if not preflight["chat_id_configured"]:
+        raise ConfigError(preflight.get("chat_id_detail") or "telegram chat id is required")
+    target_chat, _ = _resolve_chat_id(chat_id=chat_id, chat_file=chat_file)
     if not text or len(text) > _MAX_MESSAGE_CHARS:
         raise ConfigError("telegram message text must be between 1 and 4096 characters")
     token = _read_token((token_file or default_telegram_token_path()).expanduser())
@@ -277,8 +420,9 @@ def render_telegram_discover(payload: dict[str, Any]) -> str:
     if not payload["chats"]:
         lines.append("  none")
     if payload["chats"]:
-        lines.append("export commands:")
+        lines.append("setup commands:")
         for chat in payload["chats"]:
+            lines.append(f"  lai-gateway telegram chat-set --chat-id '{chat['id']}' --force")
             lines.append(f"  export LAI_GATEWAY_TELEGRAM_CHAT_ID='{chat['id']}'")
             lines.append("  export LAI_GATEWAY_TELEGRAM_ENABLE_SEND=1")
     else:
@@ -409,7 +553,7 @@ def _open_json(request: Request, *, opener: Callable[..., Any], timeout: int, la
         with opener(request, timeout=timeout) as response:
             raw = response.read().decode("utf-8")
     except HTTPError as exc:
-        raise GatewayError(f"{label} failed with HTTP {exc.code}") from exc
+        raise GatewayError(_render_telegram_http_error(label=label, error=exc)) from exc
     except URLError as exc:
         raise GatewayError(f"{label} failed: {exc.reason}") from exc
     try:
@@ -419,6 +563,50 @@ def _open_json(request: Request, *, opener: Callable[..., Any], timeout: int, la
     if not isinstance(payload, dict):
         raise GatewayError(f"{label} returned non-object JSON")
     return payload
+
+
+def _render_telegram_http_error(*, label: str, error: HTTPError) -> str:
+    description = ""
+    try:
+        body = error.read(4096).decode("utf-8", errors="replace")
+        payload = json.loads(body)
+        if isinstance(payload, dict) and isinstance(payload.get("description"), str):
+            description = _sanitize_telegram_error_description(payload["description"])
+    except (OSError, ValueError, TypeError):
+        description = ""
+
+    message = f"{label} failed with HTTP {error.code}"
+    if description:
+        message += f": {description}"
+    hint = _telegram_error_hint(label=label, status=error.code, description=description)
+    if hint:
+        message += f"; hint: {hint}"
+    return message
+
+
+def _sanitize_telegram_error_description(value: str) -> str:
+    text = " ".join(value.split())
+    text = re.sub(r"\d{5,}:[A-Za-z0-9_-]{20,}", "[redacted-token]", text)
+    return text[:240]
+
+
+def _telegram_error_hint(*, label: str, status: int, description: str) -> str:
+    normalized = description.lower()
+    if "chat not found" in normalized or "bot can't initiate conversation" in normalized:
+        return (
+            "send a message to the bot first, then run "
+            "LAI_GATEWAY_TELEGRAM_ENABLE_RECEIVE=1 lai-gateway telegram discover-chat "
+            "and export the discovered chat id"
+        )
+    if "bot was blocked by the user" in normalized:
+        return "unblock the bot, send it a message, then run telegram discover-chat again"
+    if status == 401 or "unauthorized" in normalized:
+        return "the bot token was rejected by Telegram; replace it with lai-gateway telegram token-set --force"
+    if status == 429 or "too many requests" in normalized:
+        return "Telegram rate-limited this request; retry after the server-provided delay"
+    if label == "telegram send" and status == 400:
+        return "verify the discovered chat id before retrying the notification"
+    return ""
 
 
 def _token_diagnostics(path: Path) -> dict[str, Any]:
@@ -486,6 +674,43 @@ def _public_token_diagnostics(payload: dict[str, Any]) -> dict[str, Any]:
         "whitespace_count", "compact_length", "token_shape_ok", "compact_token_shape_ok",
         "can_repair_whitespace", "token_printed"
     ) if k in payload}
+
+
+def _validate_telegram_chat_id(chat_id: str) -> None:
+    if not chat_id:
+        raise ConfigError("telegram chat id is empty")
+    if not _TELEGRAM_CHAT_ID_RE.fullmatch(chat_id):
+        raise ConfigError("telegram chat id must be a non-zero integer")
+    value = int(chat_id)
+    if value == 0 or value < -(2**63) or value > 2**63 - 1:
+        raise ConfigError("telegram chat id must fit a signed 64-bit non-zero integer")
+
+
+def _read_chat_id(path: Path) -> str:
+    try:
+        chat_id = path.read_text(encoding="utf-8").strip()
+    except FileNotFoundError as exc:
+        raise ConfigError(f"telegram chat id file not found: {path}") from exc
+    except OSError as exc:
+        raise ConfigError(f"cannot read telegram chat id file: {path}: {exc}") from exc
+    _require_0600(path)
+    _validate_telegram_chat_id(chat_id)
+    return chat_id
+
+
+def _resolve_chat_id(*, chat_id: str | None = None, chat_file: Path | None = None) -> tuple[str, str]:
+    if chat_id is not None:
+        value = str(chat_id).strip()
+        _validate_telegram_chat_id(value)
+        return value, "argument"
+    env_value = os.environ.get("LAI_GATEWAY_TELEGRAM_CHAT_ID", "").strip()
+    if env_value:
+        _validate_telegram_chat_id(env_value)
+        return env_value, "environment"
+    path = (chat_file or default_telegram_chat_path()).expanduser()
+    if path.exists():
+        return _read_chat_id(path), "file"
+    return "", "none"
 
 
 def _validate_telegram_token(token: str) -> None:
