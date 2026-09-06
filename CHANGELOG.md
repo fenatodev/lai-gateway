@@ -2,6 +2,7 @@
 
 ### Added
 - Add `json-mini` structured-output task to the fixed local model evaluation suite.
+- Raise the Windows llama.cpp launcher/default examples to `--ctx-size 4096` after real harness plan runs exceeded 2048 tokens.
 - Show prompt-free model run history in `ops-status` and suggest `lai-gateway-model --eval --record` when no metrics exist.
 - Add fixed local model evaluation with `model-eval`, launcher `--eval`, and `/v1/gateway/model-eval`.
 - Add prompt-free local model run metrics with `model-smoke --record`, `model-task --record`, `model-runs`, launcher `--record`, and `/v1/gateway/model-runs`.

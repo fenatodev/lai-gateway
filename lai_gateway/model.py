@@ -951,7 +951,7 @@ def _recommend_model_file(models: list[dict[str, Any]]) -> dict[str, Any] | None
         "is_code_model": chosen["is_code_model"],
         "is_split": chosen["is_split"],
         "create_api_key_file": f"lai-gateway model-key-create --path '{_wsl_model_api_key_path(windows_path)}' --force",
-        "start_runtime_example": f"llama-server.exe --host {host} --port {port} --model '{windows_path}' --ctx-size 2048 --threads 8 --n-gpu-layers 0 --api-key-file '{_windows_model_api_key_path(windows_path)}' --cors-origins localhost --no-cors-credentials",
+        "start_runtime_example": f"llama-server.exe --host {host} --port {port} --model '{windows_path}' --ctx-size 4096 --threads 8 --n-gpu-layers 0 --api-key-file '{_windows_model_api_key_path(windows_path)}' --cors-origins localhost --no-cors-credentials",
         "configure_base_url": f"export LAI_GATEWAY_MODEL_BASE_URL='http://{host}:{port}'",
         "configure_model": f"export LAI_GATEWAY_MODEL_NAME='{chosen['name']}'",
         "configure_api_key_file": f"export LAI_GATEWAY_MODEL_API_KEY_FILE='{_wsl_model_api_key_path(windows_path)}'",
@@ -1426,7 +1426,7 @@ def _model_plan_commands(*, backend: str, model_name: str, base_url: str) -> dic
         host, port = _base_url_host_port(base_url, default_host=_windows_model_host(), default_port=_WINDOWS_LLAMA_CPP_DEFAULT_PORT)
         commands["find_windows_host_from_wsl"] = "ip route | awk '/default via/ {print $3; exit}'"
         commands["create_api_key_file"] = "lai-gateway model-key-create --path '/mnt/c/Users/<user>/.config/lai-gateway/model-api-key' --force"
-        commands["start_runtime_example"] = f"llama-server.exe --host {host} --port {port} --model C:\\path\\to\\model.gguf --ctx-size 2048 --threads 8 --n-gpu-layers 0 --api-key-file C:\\Users\\<user>\\.config\\lai-gateway\\model-api-key --cors-origins localhost --no-cors-credentials"
+        commands["start_runtime_example"] = f"llama-server.exe --host {host} --port {port} --model C:\\path\\to\\model.gguf --ctx-size 4096 --threads 8 --n-gpu-layers 0 --api-key-file C:\\Users\\<user>\\.config\\lai-gateway\\model-api-key --cors-origins localhost --no-cors-credentials"
         commands["configure_api_key_file"] = "export LAI_GATEWAY_MODEL_API_KEY_FILE='/mnt/c/Users/<user>/.config/lai-gateway/model-api-key'"
     elif backend == "windows-ollama":
         commands["find_windows_host_from_wsl"] = "ip route | awk '/default via/ {print $3; exit}'"

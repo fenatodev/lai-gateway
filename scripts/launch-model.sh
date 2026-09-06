@@ -9,7 +9,7 @@ model_path=${LAI_GATEWAY_MODEL_PATH:-}
 model_name=${LAI_GATEWAY_MODEL_NAME:-}
 key_file=${LAI_GATEWAY_MODEL_API_KEY_FILE:-}
 threads=${LAI_GATEWAY_MODEL_THREADS:-8}
-ctx_size=${LAI_GATEWAY_MODEL_CTX_SIZE:-2048}
+ctx_size=${LAI_GATEWAY_MODEL_CTX_SIZE:-4096}
 gpu_layers=${LAI_GATEWAY_MODEL_GPU_LAYERS:-0}
 create_key=0
 force_key=0
@@ -170,7 +170,20 @@ if [ -z "$model_path" ] || [ -z "$model_name" ]; then
 fi
 
 if [ -z "$key_file" ]; then
-  key_file="/mnt/c/Users/${USER}/.config/lai-gateway/model-api-key"
+  key_file=$("$python_bin" - "$model_path" <<'PYCODE'
+import os, re, sys
+path = sys.argv[1]
+match = re.match(r"^([a-zA-Z]):\\Users\\([^\\]+)\\", path)
+if match:
+    print(f"/mnt/{match.group(1).lower()}/Users/{match.group(2)}/.config/lai-gateway/model-api-key")
+else:
+    match = re.match(r"^/mnt/([a-zA-Z])/Users/([^/]+)/", path)
+    if match:
+        print(f"/mnt/{match.group(1).lower()}/Users/{match.group(2)}/.config/lai-gateway/model-api-key")
+    else:
+        print(f"/mnt/c/Users/{os.environ.get('USER', 'user')}/.config/lai-gateway/model-api-key")
+PYCODE
+)
 fi
 key_file_win=$("$python_bin" - "$key_file" <<'PYCODE'
 import re, sys
@@ -183,6 +196,23 @@ else:
 PYCODE
 )
 base_url="http://${host}:${port}"
+
+if [ "$plan_only" = "1" ]; then
+  echo "lai-gateway-model: plan"
+  echo "host: $host"
+  echo "port: $port"
+  echo "model_name: $model_name"
+  echo "model_path: $model_path"
+  echo "key_file: $key_file"
+  echo "base_url: $base_url"
+  echo "start: llama-server.exe --host $host --port $port --model '<model-path>' --ctx-size $ctx_size --threads $threads --n-gpu-layers $gpu_layers --api-key-file '<key-file>' --cors-origins localhost --no-cors-credentials"
+  echo "smoke: $run_smoke"
+  echo "task: $run_task"
+  echo "task_name: $task_name"
+  echo "eval: $run_eval"
+  echo "record: $run_record"
+  exit 0
+fi
 
 if [ "$create_key" = "1" ]; then
   key_args=(model-key-create --path "$key_file")
@@ -231,23 +261,6 @@ run_validations() {
     "$python_bin" -m lai_gateway model-task --task "$task_name" "${record_args[@]}"
   fi
 }
-
-if [ "$plan_only" = "1" ]; then
-  echo "lai-gateway-model: plan"
-  echo "host: $host"
-  echo "port: $port"
-  echo "model_name: $model_name"
-  echo "model_path: $model_path"
-  echo "key_file: $key_file"
-  echo "base_url: $base_url"
-  echo "start: llama-server.exe --host $host --port $port --model '<model-path>' --ctx-size $ctx_size --threads $threads --n-gpu-layers $gpu_layers --api-key-file '<key-file>' --cors-origins localhost --no-cors-credentials"
-  echo "smoke: $run_smoke"
-  echo "task: $run_task"
-  echo "task_name: $task_name"
-  echo "eval: $run_eval"
-  echo "record: $run_record"
-  exit 0
-fi
 
 if [ "$probe_only" = "1" ]; then
   run_validations

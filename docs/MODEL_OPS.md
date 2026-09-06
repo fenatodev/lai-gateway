@@ -91,10 +91,11 @@ ip route | awk '/default via/ {print $3; exit}'
 Use the generated `model-files` recommendation. The validated shape is:
 
 ```bash
-LLAMA_API_KEY='<set-local-model-api-key>' llama-server.exe --host <wsl-default-gateway> --port 18082 --model '<recommended-windows-gguf-path>' --ctx-size 2048 --threads 8 --n-gpu-layers 0 --cors-origins localhost --no-cors-credentials
+lai-gateway model-key-create --path '/mnt/c/Users/fenat/.config/lai-gateway/model-api-key' --force
+llama-server.exe --host <wsl-default-gateway> --port 18082 --model '<recommended-windows-gguf-path>' --ctx-size 4096 --threads 8 --n-gpu-layers 0 --api-key-file 'C:\Users\fenat\.config\lai-gateway\model-api-key' --cors-origins localhost --no-cors-credentials
 export LAI_GATEWAY_MODEL_BASE_URL='http://<wsl-default-gateway>:18082'
 export LAI_GATEWAY_MODEL_NAME='<recommended-model-name>'
-export LAI_GATEWAY_MODEL_API_KEY='<same-local-model-api-key>'
+export LAI_GATEWAY_MODEL_API_KEY_FILE='/mnt/c/Users/fenat/.config/lai-gateway/model-api-key'
 lai-gateway model-status --probe-openai
 ```
 
@@ -175,7 +176,7 @@ Use the launcher to start the recommended Windows llama.cpp runtime and run both
 lai-gateway-model --create-key --smoke --task
 ```
 
-This starts the local runtime when needed, waits for `/v1/models`, runs `model-status --probe-openai`, runs `model-smoke`, and runs `model-task --task code-mini`. The key value stays in the key file and is not passed as a process argument.
+This starts the local runtime when needed, waits for `/v1/models`, runs `model-status --probe-openai`, runs `model-smoke`, and runs `model-task --task code-mini`. The default context size is 4096 because a real read-only harness `plan` request exceeded 2048 tokens. The key value stays in the key file and is not passed as a process argument.
 
 
 ## Prompt-free run metrics

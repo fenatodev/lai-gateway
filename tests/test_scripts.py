@@ -186,8 +186,19 @@ class ScriptTest(unittest.TestCase):
             timeout=10,
         )
         with tempfile.TemporaryDirectory() as tmp:
+            missing_path = Path(tmp) / "missing-key"
+            common_args = ["--host", "172.29.192.1", "--model-path", r"C:\Users\tester\models\code.gguf", "--model-name", "test-code-model"]
+            plan = subprocess.run(
+                ["bash", "scripts/launch-model.sh", *common_args, "--plan-only"],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=20,
+            )
             missing = subprocess.run(
-                ["bash", "scripts/launch-model.sh", "--key-file", str(Path(tmp) / "missing-key"), "--plan-only"],
+                ["bash", "scripts/launch-model.sh", *common_args, "--key-file", str(missing_path), "--probe-only"],
                 cwd=repo,
                 text=True,
                 stdout=subprocess.PIPE,
@@ -200,7 +211,11 @@ class ScriptTest(unittest.TestCase):
         self.assertIn("--record", help_result.stdout)
         self.assertIn("--eval", help_result.stdout)
         self.assertIn("--task", help_result.stdout)
-        self.assertNotIn("Bearer", help_result.stdout + help_result.stderr + missing.stdout + missing.stderr)
+        self.assertNotIn("Bearer", help_result.stdout + help_result.stderr + plan.stdout + plan.stderr + missing.stdout + missing.stderr)
+        self.assertEqual(plan.returncode, 0)
+        self.assertIn("lai-gateway-model: plan", plan.stdout)
+        self.assertIn("--ctx-size 4096", plan.stdout)
+        self.assertIn("key_file: /mnt/c/Users/tester/.config/lai-gateway/model-api-key", plan.stdout)
         self.assertEqual(missing.returncode, 1)
         self.assertIn("model API key file is not ready", missing.stderr)
 

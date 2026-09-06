@@ -70,12 +70,13 @@ class OpsStatusTest(unittest.TestCase):
             token_file.write_text(TOKEN, encoding="utf-8")
             config = GatewayConfig(harness_url=harness.url, token_file=token_file)
 
-            payload = collect_ops_status(
-                config=config,
-                mobile_candidate_ip="192.168.7.63",
-                mobile_port=18817,
-                telegram_token_file=Path(tmp) / "missing-telegram-token",
-            )
+            with patch.dict(os.environ, {"LAI_GATEWAY_MODEL_RUNS_FILE": str(Path(tmp) / "missing-model-runs.jsonl")}):
+                payload = collect_ops_status(
+                    config=config,
+                    mobile_candidate_ip="192.168.7.63",
+                    mobile_port=18817,
+                    telegram_token_file=Path(tmp) / "missing-telegram-token",
+                )
 
             self.assertEqual(payload["overall"], "warn")
             self.assertEqual(payload["doctor"]["overall"], "ready")
