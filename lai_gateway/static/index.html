@@ -12,6 +12,11 @@
       <p class="eyebrow">local-first control surface</p>
       <h1>lai-gateway</h1>
       <p>Loopback UI for <code>lai harness</code> status, sessions, and read-only runs.</p>
+      <div class="status-strip" aria-label="Runtime summary">
+        <span id="readiness-pill" class="pill muted">readiness unknown</span>
+        <span id="active-session-pill" class="pill muted">no active session</span>
+        <span id="active-run-pill" class="pill muted">no active run</span>
+      </div>
     </header>
 
     <section class="grid" aria-label="Gateway controls">
@@ -60,8 +65,12 @@
           <button data-action="list-runs">List runs</button>
           <button data-action="create-run">Create read-only run</button>
           <button data-action="get-run">Get selected run</button>
+          <button data-action="poll-run">Poll selected run</button>
+          <button data-action="copy-run-output">Copy output</button>
         </div>
         <pre id="runs-output" aria-live="polite">Not loaded.</pre>
+        <h3>Recent run history</h3>
+        <ol id="run-history" class="history" aria-live="polite"></ol>
       </article>
     </section>
   </main>

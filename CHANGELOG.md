@@ -1,3 +1,15 @@
+## [0.1.4] - 2026-09-06
+
+Polish the local gateway UI for read-only operation.
+
+- Add runtime summary pills for readiness, active session, and active run status.
+- Add automatic polling after read-only run creation and manual polling for selected runs.
+- Add an in-memory compact recent run history with clickable run selection.
+- Add output copy support without exposing the harness control token to the browser.
+- Keep UI assets local-only with no browser storage, CDN, analytics, or raw harness proxy expansion.
+
+No public bind, write-capable runs, shell authority, direct llama.cpp proxy, or source checkout mutation is exposed in this release.
+
 ## [0.1.3] - 2026-09-06
 
 Add a local browser UI for the private gateway.
