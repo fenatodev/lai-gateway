@@ -65,3 +65,16 @@ If Windows llama.cpp is detected, `model-plan --backend auto` prefers the `windo
 The plan remains non-mutating: it does not download models, start `llama-server.exe`, change firewall rules, or expose a model proxy through the mobile gateway.
 
 Use the generated `find_windows_host_from_wsl` command to identify the host address, start the Windows model server manually with a local GGUF model, then configure `LAI_GATEWAY_MODEL_BASE_URL` and verify with `model-status --probe-openai`.
+
+
+## Local GGUF inventory
+
+Use `model-files` before downloading anything:
+
+```bash
+lai-gateway model-files --max-results 10
+```
+
+It performs a bounded local scan only, groups split GGUF files, ignores accessory-only files such as `mmproj`, and recommends the best local candidate for the <=8 GiB code-model path.
+
+On WSL with Windows llama.cpp available, the recommended command keeps the raw model behind `llama-server.exe` and still requires the normal `model-status --probe-openai` verification before any harness integration.

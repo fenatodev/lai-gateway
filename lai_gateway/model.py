@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -21,6 +23,17 @@ _MODEL_RUNTIME_COMMANDS = (
 _WINDOWS_RUNTIME_COMMANDS = ("ollama.exe", "llama-server.exe", "llama-cli.exe")
 _GPU_COMMANDS = ("rocminfo", "rocm-smi", "clinfo", "nvidia-smi")
 _SECRET_ENV_PARTS = ("TOKEN", "KEY", "SECRET", "PASSWORD", "AUTH", "BEARER")
+
+_MODEL_FILE_DEFAULT_ROOTS = (
+    "~/models",
+    "~/.cache/huggingface",
+    "/mnt/c/Users/fenat/Downloads",
+    "/mnt/c/Users/fenat/Documents",
+    "/mnt/c/Users/fenat/.cache/huggingface",
+    "/mnt/c/Users/fenat/.lmstudio/models",
+    "/mnt/c/Users/fenat/AppData/Local/nomic.ai/GPT4All",
+)
+_SPLIT_GGUF_RE = re.compile(r"^(?P<stem>.+)-(?P<idx>\d{5})-of-(?P<total>\d{5})\.gguf$", re.IGNORECASE)
 
 
 def collect_model_status(*, env: dict[str, str] | None = None, probe_openai: bool = False) -> dict[str, Any]:
@@ -159,6 +172,245 @@ def render_model_plan(payload: dict[str, Any]) -> str:
         lines.append(f"    {command}")
     return "\n".join(lines)
 
+
+
+def collect_model_files(
+    *,
+    paths: list[str] | None = None,
+    env: dict[str, str] | None = None,
+    max_results: int = 20,
+    max_seconds: float = 20.0,
+) -> dict[str, Any]:
+    """Return a bounded, read-only inventory of local GGUF model files."""
+    values = env if env is not None else os.environ
+    roots = _model_file_roots(paths=paths, values=values)
+    started = time.monotonic()
+    file_payloads: list[dict[str, Any]] = []
+    truncated = False
+    for root in roots:
+        if time.monotonic() - started > max_seconds:
+            truncated = True
+            break
+        try:
+            matches = root.rglob("*.gguf")
+        except OSError:
+            continue
+        for path in matches:
+            if time.monotonic() - started > max_seconds:
+                truncated = True
+                break
+            payload = _gguf_file_payload(path)
+            if payload is None:
+                continue
+            file_payloads.append(payload)
+            if len(file_payloads) >= max_results * 4:
+                truncated = True
+                break
+        if truncated:
+            break
+    models = _group_gguf_models(file_payloads)
+    models.sort(key=_model_sort_key)
+    limited = models[:max_results]
+    recommended = _recommend_model_file(limited)
+    return {
+        "product": "lai-gateway",
+        "version": __version__,
+        "operation": "model-files",
+        "overall": "ready" if limited else "empty",
+        "starts_server": False,
+        "modifies_files": False,
+        "downloads_models": False,
+        "network_calls": False,
+        "roots": [str(root) for root in roots],
+        "models_found": len(models),
+        "models": limited,
+        "recommended": recommended,
+        "truncated": truncated,
+        "elapsed_seconds": round(time.monotonic() - started, 3),
+        "security": {
+            "prints_tokens": False,
+            "starts_server": False,
+            "modifies_files": False,
+            "downloads_models": False,
+            "network_calls": False,
+        },
+    }
+
+
+def render_model_files(payload: dict[str, Any]) -> str:
+    lines = [
+        f"lai-gateway model-files: {payload['overall']}",
+        f"version: {payload['version']}",
+        "starts_server: false",
+        "modifies_files: false",
+        "downloads_models: false",
+        f"models_found: {payload['models_found']}",
+    ]
+    if payload.get("truncated"):
+        lines.append("truncated: true")
+    recommended = payload.get("recommended")
+    if recommended:
+        lines.append("recommended:")
+        lines.append(f"  name: {recommended['name']}")
+        lines.append(f"  size_total_gib: {recommended['size_total_gib']}")
+        lines.append(f"  primary_path: {recommended['primary_path']}")
+        if recommended.get("windows_path"):
+            lines.append(f"  windows_path: {recommended['windows_path']}")
+        lines.append(f"  start_runtime_example: {recommended['start_runtime_example']}")
+    if payload.get("models"):
+        lines.append("models:")
+        for model in payload["models"]:
+            flags = []
+            if model.get("is_code_model"):
+                flags.append("code")
+            if model.get("is_split"):
+                flags.append(f"split:{model['shard_count']}/{model['shard_total']}")
+            if model.get("too_large_for_8gb_target"):
+                flags.append(">8GiB")
+            if model.get("is_accessory"):
+                flags.append("accessory")
+            suffix = f" ({', '.join(flags)})" if flags else ""
+            lines.append(f"  - {model['name']} [{model['size_total_gib']} GiB]{suffix}")
+            lines.append(f"    primary_path: {model['primary_path']}")
+    else:
+        lines.append("models: none")
+    return "\n".join(lines)
+
+
+def _model_file_roots(*, paths: list[str] | None, values: dict[str, str]) -> list[Path]:
+    if paths is not None:
+        raw_roots = paths
+    elif values.get("LAI_GATEWAY_MODEL_PATHS"):
+        raw_roots = list(values.get("LAI_GATEWAY_MODEL_PATHS", "").split(os.pathsep))
+    else:
+        raw_roots = list(_MODEL_FILE_DEFAULT_ROOTS)
+    roots: list[Path] = []
+    seen: set[str] = set()
+    for raw in raw_roots:
+        if not raw:
+            continue
+        path = Path(raw).expanduser()
+        try:
+            resolved = path.resolve()
+        except OSError:
+            resolved = path
+        key = str(resolved)
+        if key in seen or not path.exists() or not path.is_dir():
+            continue
+        seen.add(key)
+        roots.append(path)
+    return roots
+
+
+def _gguf_file_payload(path: Path) -> dict[str, Any] | None:
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    split = _split_gguf(path.name)
+    lower = str(path).lower()
+    return {
+        "name": path.name,
+        "path": str(path),
+        "windows_path": _to_windows_path(path),
+        "size_bytes": stat.st_size,
+        "size_gib": round(stat.st_size / (1024 ** 3), 2),
+        "split_stem": split["stem"] if split else None,
+        "shard_index": split["idx"] if split else None,
+        "shard_total": split["total"] if split else None,
+        "is_accessory": "mmproj" in lower,
+        "is_code_model": any(part in lower for part in ("coder", "code", "deepseek-coder", "starcoder")),
+    }
+
+
+def _split_gguf(name: str) -> dict[str, Any] | None:
+    match = _SPLIT_GGUF_RE.match(name)
+    if not match:
+        return None
+    return {
+        "stem": match.group("stem"),
+        "idx": int(match.group("idx")),
+        "total": int(match.group("total")),
+    }
+
+
+def _group_gguf_models(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    groups: dict[tuple[str, str, int | None], list[dict[str, Any]]] = {}
+    for item in files:
+        parent = str(Path(item["path"]).parent)
+        if item.get("split_stem"):
+            key = (parent, item["split_stem"], item.get("shard_total"))
+        else:
+            key = (parent, item["name"].removesuffix(".gguf"), None)
+        groups.setdefault(key, []).append(item)
+    models: list[dict[str, Any]] = []
+    for (_parent, name, split_total), group in groups.items():
+        group.sort(key=lambda item: item.get("shard_index") or 0)
+        primary = next((item for item in group if item.get("shard_index") in (None, 1)), group[0])
+        shard_count = len(group)
+        shard_total = int(split_total or shard_count)
+        total_size = sum(int(item["size_bytes"]) for item in group)
+        is_accessory = all(item.get("is_accessory") for item in group)
+        is_code_model = any(item.get("is_code_model") for item in group)
+        models.append({
+            "name": name,
+            "primary_path": primary["path"],
+            "windows_path": primary.get("windows_path"),
+            "size_total_bytes": total_size,
+            "size_total_gib": round(total_size / (1024 ** 3), 2),
+            "is_split": split_total is not None,
+            "shard_count": shard_count,
+            "shard_total": shard_total,
+            "complete": shard_count >= shard_total,
+            "is_accessory": is_accessory,
+            "is_code_model": is_code_model,
+            "too_large_for_8gb_target": total_size > 8 * (1024 ** 3),
+            "files": group,
+        })
+    return models
+
+
+def _model_sort_key(model: dict[str, Any]) -> tuple[int, int, int, int]:
+    return (
+        0 if model.get("is_code_model") else 1,
+        0 if model.get("complete") else 1,
+        0 if not model.get("is_accessory") else 1,
+        0 if not model.get("too_large_for_8gb_target") else 1,
+    )
+
+
+def _recommend_model_file(models: list[dict[str, Any]]) -> dict[str, Any] | None:
+    candidates = [
+        model for model in models
+        if model.get("complete") and not model.get("is_accessory") and not model.get("too_large_for_8gb_target")
+    ]
+    code = [model for model in candidates if model.get("is_code_model")]
+    pool = code or candidates
+    if not pool:
+        return None
+    chosen = sorted(pool, key=lambda model: model["size_total_bytes"], reverse=True)[0]
+    windows_path = chosen.get("windows_path") or chosen["primary_path"]
+    return {
+        "name": chosen["name"],
+        "primary_path": chosen["primary_path"],
+        "windows_path": chosen.get("windows_path"),
+        "size_total_gib": chosen["size_total_gib"],
+        "is_code_model": chosen["is_code_model"],
+        "is_split": chosen["is_split"],
+        "start_runtime_example": f"llama-server.exe --host <windows-host-ip> --port 8080 --model '{windows_path}'",
+        "configure_base_url": "export LAI_GATEWAY_MODEL_BASE_URL='http://<windows-host-ip>:8080'",
+        "configure_model": f"export LAI_GATEWAY_MODEL_NAME='{chosen['name']}'",
+        "verify": "lai-gateway model-status --probe-openai",
+    }
+
+
+def _to_windows_path(path: Path) -> str | None:
+    text = str(path)
+    if not text.startswith("/mnt/") or len(text) < 7 or text[6] != "/":
+        return None
+    drive = text[5].upper()
+    rest = text[7:].replace("/", "\\")
+    return f"{drive}:\\{rest}"
 
 def _command_payload(name: str) -> dict[str, Any]:
     path = shutil.which(name)

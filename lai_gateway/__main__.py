@@ -17,7 +17,7 @@ from .doctor import collect_doctor, render_doctor
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .lan import collect_lan_info, render_lan_info
-from .model import collect_model_plan, collect_model_status, render_model_plan, render_model_status
+from .model import collect_model_files, collect_model_plan, collect_model_status, render_model_files, render_model_plan, render_model_status
 from .mobile import (
     collect_mobile_repair,
     collect_mobile_start,
@@ -129,10 +129,15 @@ def main(argv: list[str] | None = None) -> int:
     model_parser.add_argument("--probe-openai", action="store_true", help="probe the configured local OpenAI-compatible /v1/models endpoint")
     model_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     model_plan_parser = sub.add_parser("model-plan", help="print a safe non-mutating plan for a local model runtime")
-    model_plan_parser.add_argument("--backend", choices=["auto", "ollama", "llama-cpp", "docker", "windows-openai"], default="auto", help="runtime path to plan")
+    model_plan_parser.add_argument("--backend", choices=["auto", "ollama", "llama-cpp", "docker", "windows-openai", "windows-llama-cpp", "windows-ollama"], default="auto", help="runtime path to plan")
     model_plan_parser.add_argument("--model-name", default=None, help="local model name to place in exported configuration")
     model_plan_parser.add_argument("--base-url", default=None, help="local OpenAI-compatible base URL to place in exported configuration")
     model_plan_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    model_files_parser = sub.add_parser("model-files", help="find local GGUF model files without downloads or server startup")
+    model_files_parser.add_argument("--path", action="append", default=None, help="directory to scan for GGUF files; repeatable")
+    model_files_parser.add_argument("--max-results", type=int, default=20, help="maximum grouped models to print")
+    model_files_parser.add_argument("--max-seconds", type=float, default=20.0, help="bounded scan timeout in seconds")
+    model_files_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     service_plan_parser = sub.add_parser("service-plan", help="plan a token-free systemd user service for mobile serving")
     service_plan_parser.add_argument("--candidate-ip", required=True, help="private LAN IP for mobile serving")
     service_plan_parser.add_argument("--port", type=int, default=None, help="gateway/mobile port")
@@ -346,6 +351,13 @@ def main(argv: list[str] | None = None) -> int:
                 return 0 if payload["overall"] != "blocked" else 1
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0 if payload["overall"] != "blocked" else 1
+        if args.command == "model-files":
+            payload = collect_model_files(paths=args.path, max_results=args.max_results, max_seconds=args.max_seconds)
+            if not args.json:
+                print(render_model_files(payload))
+                return 0
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
         if args.command == "service-plan":
             payload = collect_service_plan(
                 config=config,

@@ -4,12 +4,14 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from unittest.mock import patch
 
-from lai_gateway.model import collect_model_plan, collect_model_status, render_model_plan, render_model_status
+from lai_gateway.model import collect_model_files, collect_model_plan, collect_model_status, render_model_files, render_model_plan, render_model_status
 
 
 SECRET = "sk-local-secret-value"
@@ -211,6 +213,74 @@ class ModelStatusTest(unittest.TestCase):
         self.assertFalse(payload["starts_server"])
         self.assertFalse(payload["downloads_models"])
         self.assertNotIn("Bearer", result.stdout + result.stderr)
+
+
+    def test_model_files_groups_split_and_recommends_code_model(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            qwen = root / "qwen2.5-coder-7b-instruct-q4_k_m-00001-of-00002.gguf"
+            qwen_2 = root / "qwen2.5-coder-7b-instruct-q4_k_m-00002-of-00002.gguf"
+            ministral = root / "Ministral-3-8B-Instruct-2512-Q4_K_M.gguf"
+            mmproj = root / "Ministral-3-8B-Instruct-2512-BF16-mmproj.gguf"
+            qwen.write_bytes(b"q" * 128)
+            qwen_2.write_bytes(b"w" * 64)
+            ministral.write_bytes(b"m" * 512)
+            mmproj.write_bytes(b"x" * 32)
+            payload = collect_model_files(paths=[tmp], max_results=10)
+        rendered = render_model_files(payload)
+        text = json.dumps(payload, sort_keys=True) + rendered
+        self.assertEqual(payload["operation"], "model-files")
+        self.assertEqual(payload["overall"], "ready")
+        self.assertFalse(payload["starts_server"])
+        self.assertFalse(payload["downloads_models"])
+        self.assertEqual(payload["models_found"], 3)
+        self.assertEqual(payload["recommended"]["name"], "qwen2.5-coder-7b-instruct-q4_k_m")
+        recommended_model = payload["models"][0]
+        self.assertTrue(recommended_model["is_split"])
+        self.assertEqual(recommended_model["shard_count"], 2)
+        self.assertEqual(recommended_model["shard_total"], 2)
+        self.assertTrue(recommended_model["complete"])
+        self.assertIn("llama-server.exe", payload["recommended"]["start_runtime_example"])
+        self.assertNotIn("Bearer", text)
+
+    def test_cli_model_files_json_is_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "local-code-q4_k_m.gguf").write_bytes(b"model")
+            result = subprocess.run(
+                [sys.executable, "-m", "lai_gateway", "model-files", "--path", tmp, "--json"],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=10,
+            )
+        self.assertEqual(result.returncode, 0)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["operation"], "model-files")
+        self.assertEqual(payload["overall"], "ready")
+        self.assertFalse(payload["starts_server"])
+        self.assertFalse(payload["modifies_files"])
+        self.assertFalse(payload["downloads_models"])
+        self.assertEqual(payload["recommended"]["name"], "local-code-q4_k_m")
+        self.assertNotIn("Bearer", result.stdout + result.stderr)
+
+    def test_cli_model_plan_accepts_windows_llama_cpp_backend(self) -> None:
+        result = subprocess.run(
+            [sys.executable, "-m", "lai_gateway", "model-plan", "--backend", "windows-llama-cpp", "--model-name", "local-code", "--json"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=10,
+        )
+        self.assertEqual(result.returncode, 0)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["operation"], "model-plan")
+        self.assertEqual(payload["backend"], "windows-llama-cpp")
+        self.assertIn("start_runtime_example", payload["commands"])
+        self.assertFalse(payload["starts_server"])
+        self.assertFalse(payload["downloads_models"])
 
 
 if __name__ == "__main__":
