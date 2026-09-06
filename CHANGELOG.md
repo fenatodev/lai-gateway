@@ -1,3 +1,14 @@
+## [0.1.6] - 2026-09-06
+
+Add a single-command checked local dev stack.
+
+- Add `python3 -m lai_gateway dev` to run doctor, print the local UI URL, optionally open the browser, and serve the gateway in foreground.
+- Keep dev serving loopback-only and reject startup when harness connectivity or contract checks are blocked.
+- Route `scripts/launch-local.sh` through the checked `dev` command instead of duplicating launch logic.
+- Add tests for blocked dev startup, checked launcher startup, script wrappers, and secret-free output.
+
+No public bind, write-capable runs, shell authority, direct llama.cpp proxy, token exposure, or automatic harness startup is exposed in this release.
+
 ## [0.1.5] - 2026-09-06
 
 Add local operational tooling for installing and diagnosing the gateway.
