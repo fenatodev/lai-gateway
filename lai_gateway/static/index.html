@@ -23,15 +23,27 @@
 
       <article class="card">
         <h2>Gateway access</h2>
-        <p class="muted">Loopback does not need this. Private LAN mode requires the separate gateway access token.</p>
-        <label>Gateway token
-          <input id="gateway-token" type="password" autocomplete="off" spellcheck="false" placeholder="gateway access token">
+        <p class="muted">Loopback does not need this. Private LAN mode requires a gateway token or short-lived pair token.</p>
+        <label>Token type
+          <select id="gateway-token-kind">
+            <option value="pair">temporary pair token</option>
+            <option value="permanent">permanent gateway token</option>
+          </select>
+        </label>
+        <label>Gateway or pair token
+          <input id="gateway-token" type="password" autocomplete="off" spellcheck="false" placeholder="paste token from lai-gateway pair create --show">
+        </label>
+        <label>Pair token expires at, optional
+          <input id="pair-expires-at" autocomplete="off" spellcheck="false" placeholder="2026-09-06T06:35:00Z">
         </label>
         <div class="actions">
           <button data-action="use-gateway-token">Use token</button>
           <button data-action="forget-gateway-token">Forget token</button>
+          <button data-action="refresh-token-countdown">Refresh pairing timer</button>
         </div>
         <p id="gateway-access-state" class="muted" aria-live="polite">No gateway token loaded in page memory.</p>
+        <p id="pairing-state" class="muted" aria-live="polite">No pairing token timer loaded.</p>
+        <p class="hint"><code>lai-gateway pair create --ttl-seconds 600 --show</code> creates a temporary token for phone pairing.</p>
       </article>
 
       <article class="card">
