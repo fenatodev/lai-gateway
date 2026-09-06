@@ -77,6 +77,9 @@ python3 -m lai_gateway lan-info --port 8787
 python3 -m lai_gateway mobile-access --port 8787
 python3 -m lai_gateway mobile-bridge --target tailscale --port 8787
 python3 -m lai_gateway mobile-bridge --target tailscale --port 8787 --apply
+python3 -m lai_gateway telegram discover-chat --json
+python3 -m lai_gateway telegram notify-mobile --port 8787
+python3 -m lai_gateway telegram notify-status
 python3 -m lai_gateway mobile-start --port 8787
 python3 -m lai_gateway mobile-start --port 8787 --prepare
 python3 -m lai_gateway mobile-start --candidate-ip 192.168.1.20 --port 8787
