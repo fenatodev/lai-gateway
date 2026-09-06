@@ -53,6 +53,24 @@ class CliTest(unittest.TestCase):
             self.assertIn(str(token_file), result.stdout)
             self.assertNotIn(TOKEN, result.stdout)
 
+    def test_cli_release_check_json_is_read_only_and_secret_free(self) -> None:
+        proc = subprocess.run(
+            [sys.executable, "-m", "lai_gateway", "release-check", "--target", "0.1.0", "--json"],
+            cwd=Path(__file__).parents[1],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertIn(proc.returncode, {0, 1})
+        self.assertEqual(proc.stderr, "")
+        payload = json.loads(proc.stdout)
+        self.assertEqual(payload["product"], "lai-gateway")
+        self.assertEqual(payload["target_version"], "0.1.0")
+        self.assertEqual(payload["expected_tag"], "v0.1.0")
+        self.assertIn(payload["overall"], {"ready", "blocked"})
+        self.assertNotIn("TOKEN", proc.stdout.upper())
+
 
 if __name__ == "__main__":
     unittest.main()
