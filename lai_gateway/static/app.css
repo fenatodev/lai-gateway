@@ -12,16 +12,24 @@ button, input, select, textarea { font: inherit; }
 .eyebrow { margin: 0 0 6px; text-transform: uppercase; letter-spacing: .14em; opacity: .72; font-size: .78rem; }
 h1 { margin: 0; font-size: clamp(2rem, 8vw, 4rem); }
 h2 { margin-top: 0; }
+h3 { margin: 18px 0 8px; }
 code { background: rgb(255 255 255 / .08); padding: .08rem .32rem; border-radius: .35rem; }
 .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .card { border: 1px solid rgb(255 255 255 / .14); background: rgb(17 19 24 / .78); border-radius: 18px; padding: 18px; box-shadow: 0 20px 70px rgb(0 0 0 / .25); }
 .wide { grid-column: 1 / -1; }
-.actions, .form-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+.actions, .form-row, .status-strip { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
 label { display: grid; gap: 6px; margin: 10px 0; color: #cbd3e1; }
 input, select, textarea { width: 100%; border: 1px solid rgb(255 255 255 / .18); border-radius: 12px; padding: 10px 12px; color: inherit; background: rgb(255 255 255 / .07); }
 button { border: 0; border-radius: 999px; padding: 10px 14px; cursor: pointer; color: #111318; background: #eef1f7; }
 button:hover { filter: brightness(.92); }
 pre { overflow: auto; max-height: 420px; min-height: 120px; padding: 14px; border-radius: 14px; background: rgb(0 0 0 / .38); border: 1px solid rgb(255 255 255 / .1); color: #dce6ff; }
+.pill { display: inline-flex; align-items: center; min-height: 32px; border-radius: 999px; padding: 6px 12px; font-size: .9rem; background: rgb(255 255 255 / .09); border: 1px solid rgb(255 255 255 / .14); }
+.pill.ready { background: rgb(64 196 125 / .18); }
+.pill.running { background: rgb(120 168 255 / .18); }
+.pill.danger { background: rgb(255 106 106 / .18); }
+.history { display: grid; gap: 8px; margin: 0; padding-left: 22px; }
+.history li { cursor: pointer; padding: 8px 10px; border-radius: 10px; background: rgb(255 255 255 / .06); }
+.history li:hover { filter: brightness(1.12); }
 @media (max-width: 780px) {
   .grid { grid-template-columns: 1fr; }
   .shell { width: min(100vw - 20px, 1120px); padding: 20px 0; }

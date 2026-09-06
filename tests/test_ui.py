@@ -55,6 +55,12 @@ class GatewayUITest(unittest.TestCase):
                 self.assertEqual(headers["referrer-policy"], "no-referrer")
                 self.assertIn('<script src="/assets/app.js" defer></script>', html)
                 self.assertIn('<link rel="stylesheet" href="/assets/app.css">', html)
+                self.assertIn('id="readiness-pill"', html)
+                self.assertIn('id="active-session-pill"', html)
+                self.assertIn('id="active-run-pill"', html)
+                self.assertIn('data-action="poll-run"', html)
+                self.assertIn('data-action="copy-run-output"', html)
+                self.assertIn('id="run-history"', html)
                 self.assertNotIn(TOKEN, html)
 
     def test_gateway_serves_assets_without_external_dependencies_or_token_storage(self) -> None:
@@ -69,12 +75,19 @@ class GatewayUITest(unittest.TestCase):
         self.assertEqual(css_status, 200)
         self.assertIn("text/css", css_headers["content-type"])
         self.assertIn(".shell", css)
+        self.assertIn(".pill.running", css)
+        self.assertIn(".history", css)
         self.assertEqual(js_status, 200)
         self.assertIn("application/javascript", js_headers["content-type"])
         self.assertIn("/v1/harness/status", js)
         self.assertIn("/v1/harness/sessions", js)
         self.assertIn("/v1/harness/runs", js)
+        self.assertIn("window.setInterval", js)
+        self.assertIn("window.clearInterval", js)
+        self.assertIn("navigator.clipboard.writeText", js)
+        self.assertIn("replaceChildren", js)
         self.assertIn("textContent", js)
+        self.assertIn("READ_ONLY_MODES", js)
         for forbidden in (TOKEN, "localStorage", "sessionStorage", "innerHTML", "http://", "https://"):
             self.assertNotIn(forbidden, js)
 
