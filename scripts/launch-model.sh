@@ -17,10 +17,12 @@ plan_only=0
 probe_only=0
 foreground=0
 run_smoke=0
+run_task=0
+task_name=code-mini
 
 usage() {
   cat <<USAGE
-usage: lai-gateway-model [--host <windows-wsl-ip>] [--port 18082] [--model-path <gguf>] [--model-name <name>] [--key-file <path>] [--create-key] [--force-key] [--plan-only] [--probe-only] [--smoke] [--foreground]
+usage: lai-gateway-model [--host <windows-wsl-ip>] [--port 18082] [--model-path <gguf>] [--model-name <name>] [--key-file <path>] [--create-key] [--force-key] [--plan-only] [--probe-only] [--smoke] [--task [code-mini]] [--foreground]
 
 Idempotent local model launcher for Windows llama.cpp from WSL:
   - discovers the recommended local GGUF when --model-path is omitted
@@ -28,6 +30,7 @@ Idempotent local model launcher for Windows llama.cpp from WSL:
   - starts llama-server.exe bound to a private WSL-reachable Windows IP
   - waits for /v1/models, then runs lai-gateway model-status --probe-openai
   - with --smoke, also runs a fixed-prompt completion smoke test
+  - with --task, also runs a fixed local model task such as code-mini
 
 No model downloads are performed. No API key values are printed.
 USAGE
@@ -87,6 +90,15 @@ while [ "$#" -gt 0 ]; do
     --smoke)
       run_smoke=1
       shift
+      ;;
+    --task)
+      run_task=1
+      if [ "${2:-}" != "" ] && [ "${2#--}" = "$2" ]; then
+        task_name=$2
+        shift 2
+      else
+        shift
+      fi
       ;;
     --foreground)
       foreground=1
@@ -166,11 +178,9 @@ if [ "$create_key" = "1" ]; then
     key_args+=(--force)
   fi
   "$python_bin" -m lai_gateway "${key_args[@]}"
-else
-  if ! "$python_bin" -m lai_gateway model-key-check --path "$key_file" >/dev/null 2>&1; then
-    echo "error: model API key file is not ready; run with --create-key or create one with lai-gateway model-key-create" >&2
-    exit 1
-  fi
+elif ! "$python_bin" -m lai_gateway model-key-check --path "$key_file" >/dev/null 2>&1; then
+  echo "error: model API key file is not ready; run with --create-key or create one with lai-gateway model-key-create" >&2
+  exit 1
 fi
 
 export LAI_GATEWAY_MODEL_BASE_URL="$base_url"
@@ -180,7 +190,6 @@ export LAI_GATEWAY_MODEL_API_KEY_FILE="$key_file"
 probe_models_endpoint() {
   "$python_bin" - "$base_url" "$key_file" <<'PYCODE'
 import sys
-import urllib.error
 import urllib.request
 base_url, key_file = sys.argv[1:3]
 try:
@@ -193,6 +202,15 @@ except Exception:
 PYCODE
 }
 
+run_validations() {
+  "$python_bin" -m lai_gateway model-status --probe-openai
+  if [ "$run_smoke" = "1" ]; then
+    "$python_bin" -m lai_gateway model-smoke
+  fi
+  if [ "$run_task" = "1" ]; then
+    "$python_bin" -m lai_gateway model-task --task "$task_name"
+  fi
+}
 
 if [ "$plan_only" = "1" ]; then
   echo "lai-gateway-model: plan"
@@ -204,17 +222,14 @@ if [ "$plan_only" = "1" ]; then
   echo "base_url: $base_url"
   echo "start: llama-server.exe --host $host --port $port --model '<model-path>' --ctx-size $ctx_size --threads $threads --n-gpu-layers $gpu_layers --api-key-file '<key-file>' --cors-origins localhost --no-cors-credentials"
   echo "smoke: $run_smoke"
+  echo "task: $run_task"
+  echo "task_name: $task_name"
   exit 0
 fi
 
 if [ "$probe_only" = "1" ]; then
-  if [ "$run_smoke" = "1" ]; then
-    exec "$python_bin" -m lai_gateway model-smoke
-  fi
-  exec "$python_bin" -m lai_gateway model-status --probe-openai
-if [ "$run_smoke" = "1" ]; then
-  "$python_bin" -m lai_gateway model-smoke
-fi
+  run_validations
+  exit 0
 fi
 
 if ! command -v llama-server.exe >/dev/null 2>&1; then
@@ -223,13 +238,7 @@ if ! command -v llama-server.exe >/dev/null 2>&1; then
 fi
 
 if probe_models_endpoint; then
-  "$python_bin" -m lai_gateway model-status --probe-openai
-if [ "$run_smoke" = "1" ]; then
-  "$python_bin" -m lai_gateway model-smoke
-fi
-  if [ "$run_smoke" = "1" ]; then
-    exec "$python_bin" -m lai_gateway model-smoke
-  fi
+  run_validations
   exit 0
 fi
 
@@ -286,7 +295,4 @@ if [ "$ready" != "1" ]; then
   exit 1
 fi
 
-"$python_bin" -m lai_gateway model-status --probe-openai
-if [ "$run_smoke" = "1" ]; then
-  "$python_bin" -m lai_gateway model-smoke
-fi
+run_validations

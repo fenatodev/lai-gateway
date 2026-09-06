@@ -166,3 +166,13 @@ lai-gateway model-task --task code-mini
 The task asks for a tiny Python function and validates structural markers in the response. It is intentionally not a general prompt interface.
 
 The local UI exposes the same fixed task through `/v1/gateway/model-task`; in private mode it requires the gateway bearer or pair token.
+
+## One-command startup validation
+
+Use the launcher to start the recommended Windows llama.cpp runtime and run both fixed validations:
+
+```bash
+lai-gateway-model --create-key --smoke --task
+```
+
+This starts the local runtime when needed, waits for `/v1/models`, runs `model-status --probe-openai`, runs `model-smoke`, and runs `model-task --task code-mini`. The key value stays in the key file and is not passed as a process argument.
