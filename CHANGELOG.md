@@ -1,3 +1,15 @@
+## [0.1.10] - 2026-09-06
+
+Add a safer pairing experience to the local gateway UI.
+
+- Add token type selection for permanent gateway tokens versus short-lived pair tokens.
+- Add optional pairing expiration input and in-memory countdown in the browser.
+- Add explicit refresh and forget controls for pairing state.
+- Report private API authentication status for success, missing token, rejected token, and rate limiting.
+- Keep token values only in page memory with no browser storage, CDN, external URLs, or harness token exposure.
+
+No public bind, harness token exposure to the browser, write-capable runs, shell authority, direct llama.cpp proxy, persistent browser storage, or automatic tunnel setup is exposed in this release.
+
 ## [0.1.9] - 2026-09-06
 
 Add short-lived mobile pairing tokens for private gateway access.

@@ -35,3 +35,16 @@ pre { overflow: auto; max-height: 420px; min-height: 120px; padding: 14px; borde
   .grid { grid-template-columns: 1fr; }
   .shell { width: min(100vw - 20px, 1120px); padding: 20px 0; }
 }
+
+.hint {
+  font-size: 0.85rem;
+  margin-top: 0.75rem;
+}
+
+.warn-text {
+  color: #8a5a00;
+}
+
+.danger-text {
+  color: #9f1d1d;
+}

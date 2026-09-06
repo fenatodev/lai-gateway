@@ -4,6 +4,9 @@ const runHistory = [];
 let lastRunPayload = null;
 let runPollTimer = null;
 let gatewayAccessToken = "";
+let gatewayTokenKind = "none";
+let pairExpiresAt = null;
+let pairCountdownTimer = null;
 
 function pretty(payload) {
   return JSON.stringify(payload, null, 2);
@@ -42,10 +45,72 @@ async function requestJson(path, options = {}) {
   } catch (_err) {
     payload = { error: "invalid_json", body: text };
   }
+  updateGatewayAuthState(response.status, response.ok);
   if (!response.ok) {
     throw new Error(pretty({ status: response.status, payload }));
   }
   return payload;
+}
+
+function updateGatewayAuthState(status, ok) {
+  if (!gatewayAccessToken) {
+    byId("gateway-access-state").textContent = "No gateway token loaded in page memory.";
+    return;
+  }
+  if (ok) {
+    const label = gatewayTokenKind === "pair" ? "Pair token authenticated." : "Gateway token authenticated.";
+    byId("gateway-access-state").textContent = `${label} Token remains only in page memory.`;
+    return;
+  }
+  if (status === 401) {
+    byId("gateway-access-state").textContent = "Private API requires a gateway or pair token.";
+  } else if (status === 403) {
+    byId("gateway-access-state").textContent = "Loaded token was rejected by the gateway.";
+  } else if (status === 429) {
+    byId("gateway-access-state").textContent = "Too many failed token attempts. Wait before retrying.";
+  }
+}
+
+function parsePairExpiresAt(raw) {
+  const value = raw.trim();
+  if (!value) return null;
+  const instant = Date.parse(value);
+  if (Number.isNaN(instant)) throw new Error("pair token expiration must be an ISO timestamp");
+  return instant;
+}
+
+function renderPairCountdown() {
+  const target = byId("pairing-state");
+  if (gatewayTokenKind !== "pair" || pairExpiresAt === null) {
+    target.textContent = "No pairing token timer loaded.";
+    target.className = "muted";
+    return;
+  }
+  const remainingSeconds = Math.max(0, Math.floor((pairExpiresAt - Date.now()) / 1000));
+  if (remainingSeconds <= 0) {
+    target.textContent = "Pair token timer expired. Forget it and create a new pair token.";
+    target.className = "danger-text";
+    return;
+  }
+  const minutes = Math.floor(remainingSeconds / 60);
+  const seconds = remainingSeconds % 60;
+  target.textContent = `Pair token timer: ${minutes}m ${String(seconds).padStart(2, "0")}s remaining.`;
+  target.className = remainingSeconds < 60 ? "warn-text" : "muted";
+}
+
+function startPairCountdown() {
+  stopPairCountdown();
+  renderPairCountdown();
+  if (gatewayTokenKind === "pair" && pairExpiresAt !== null) {
+    pairCountdownTimer = window.setInterval(renderPairCountdown, 1000);
+  }
+}
+
+function stopPairCountdown() {
+  if (pairCountdownTimer !== null) {
+    window.clearInterval(pairCountdownTimer);
+    pairCountdownTimer = null;
+  }
 }
 
 function setSessionFromPayload(payload) {
@@ -146,12 +211,24 @@ async function runAction(action) {
   try {
     if (action === "use-gateway-token") {
       gatewayAccessToken = byId("gateway-token").value.trim();
+      gatewayTokenKind = byId("gateway-token-kind").value === "permanent" ? "permanent" : "pair";
+      pairExpiresAt = gatewayTokenKind === "pair" ? parsePairExpiresAt(byId("pair-expires-at").value) : null;
       byId("gateway-token").value = "";
-      byId("gateway-access-state").textContent = gatewayAccessToken ? "Gateway token loaded in page memory." : "No gateway token loaded in page memory.";
+      byId("gateway-access-state").textContent = gatewayAccessToken ? `${gatewayTokenKind === "pair" ? "Pair" : "Gateway"} token loaded in page memory.` : "No gateway token loaded in page memory.";
+      startPairCountdown();
     } else if (action === "forget-gateway-token") {
       gatewayAccessToken = "";
+      gatewayTokenKind = "none";
+      pairExpiresAt = null;
+      stopPairCountdown();
       byId("gateway-token").value = "";
+      byId("pair-expires-at").value = "";
       byId("gateway-access-state").textContent = "No gateway token loaded in page memory.";
+      renderPairCountdown();
+    } else if (action === "refresh-token-countdown") {
+      pairExpiresAt = parsePairExpiresAt(byId("pair-expires-at").value);
+      if (pairExpiresAt !== null) gatewayTokenKind = "pair";
+      startPairCountdown();
     } else if (action === "refresh-status") {
       show("status-output", await requestJson("/v1/harness/status"));
     } else if (action === "refresh-readiness") {

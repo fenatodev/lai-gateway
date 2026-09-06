@@ -117,7 +117,7 @@ Start the harness and gateway, then open:
 http://127.0.0.1:8787/
 ```
 
-The UI is intentionally local-only. It can refresh readiness/status, create and inspect sessions, create read-only runs, poll selected runs, keep a compact in-memory run history, and copy run output. It does not receive the harness control token, does not use external CDN assets, and does not use browser storage. Tiny mercy in a world full of tracking pixels.
+The UI is intentionally local-only. It can refresh readiness/status, create and inspect sessions, create read-only runs, poll selected runs, keep a compact in-memory run history, and copy run output. In private mode, paste either the permanent gateway token or a short-lived pair token into the Gateway access card. The optional pair expiration field shows an in-memory countdown, and Forget token clears token state from the page. It does not receive the harness control token, does not use external CDN assets, and does not use browser storage. Tiny mercy in a world full of tracking pixels.
 
 
 ## Private LAN preview
@@ -137,7 +137,7 @@ LAI_GATEWAY_PAIR_TOKEN_FILE="$HOME/.config/lai-gateway/pair-token.json" \
 lai-gateway dev --no-open
 ```
 
-When private mode is enabled, `/v1/harness/*` requires a gateway access token or a valid short-lived pairing token. Static UI files and `/healthz` remain secret-free. The UI keeps the gateway token only in page memory. The harness control token stays server-side. Token files must be `0600`, pairing tokens expire, and repeated failed API auth attempts return `429 gateway_auth_rate_limited`. Humanity gets one less obvious way to leak credentials.
+When private mode is enabled, `/v1/harness/*` requires a gateway access token or a valid short-lived pairing token. Static UI files and `/healthz` remain secret-free. The UI keeps the selected token only in page memory, shows an optional pairing countdown, and has an explicit Forget token control. The harness control token stays server-side. Token files must be `0600`, pairing tokens expire, and repeated failed API auth attempts return `429 gateway_auth_rate_limited`. Humanity gets one less obvious way to leak credentials.
 
 ## Gateway server MVP
 
@@ -168,7 +168,7 @@ The gateway refuses wildcard and public bind addresses. Private-network/mobile e
 
 ```bash
 make check
-python3 -m lai_gateway release-check --target 0.1.9 --json
+python3 -m lai_gateway release-check --target 0.1.10 --json
 ```
 
 Release rules are documented in [docs/RELEASE.md](docs/RELEASE.md).
