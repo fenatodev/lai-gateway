@@ -91,6 +91,9 @@ def render_mobile_access(payload: dict[str, Any]) -> str:
             if item.get("firewall_command"):
                 lines.append("    windows_firewall:")
                 lines.append(f"      {item['firewall_command']}")
+            if item.get("mobile_bridge_apply_command"):
+                lines.append("    lai_bridge_apply:")
+                lines.append(f"      {item['mobile_bridge_apply_command']}")
     else:
         lines.append("  none")
     if payload["warnings"]:
@@ -139,6 +142,12 @@ def _link(
         payload["firewall_command"] = (
             f"New-NetFirewallRule -DisplayName \"lai-gateway {port}\" -Direction Inbound "
             f"-Action Allow -Protocol TCP -LocalAddress {ip} -LocalPort {port} -Profile Private"
+        )
+        payload["mobile_bridge_apply_command"] = (
+            f"lai-gateway mobile-bridge --listen-ip {ip} --connect-ip {connect_address} --port {port} --apply"
+        )
+        payload["mobile_bridge_remove_command"] = (
+            f"lai-gateway mobile-bridge --listen-ip {ip} --connect-ip {connect_address} --port {port} --remove"
         )
     return payload
 

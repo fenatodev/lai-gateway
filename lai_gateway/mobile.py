@@ -190,6 +190,9 @@ def render_mobile_serve_ready(payload: dict[str, Any]) -> str:
         if recommended and recommended.get("firewall_command"):
             lines.append("  windows_firewall:")
             lines.append(f"    {recommended['firewall_command']}")
+        if recommended and recommended.get("mobile_bridge_apply_command"):
+            lines.append("  lai_bridge_apply:")
+            lines.append(f"    {recommended['mobile_bridge_apply_command']}")
     if mobile_access.get("warnings"):
         lines.append("mobile_warnings:")
         for warning in mobile_access["warnings"]:
