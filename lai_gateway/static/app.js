@@ -7,6 +7,7 @@ let gatewayAccessToken = "";
 let gatewayTokenKind = "none";
 let pairExpiresAt = null;
 let pairCountdownTimer = null;
+let lastMobileUrl = "";
 const TASK_PRESETS = {
   plan: "Plan the next safe, high-impact step from the current project state.",
   review: "Review the current state and identify issues, risks, and quick wins.",
@@ -25,6 +26,34 @@ function byId(id) {
 
 function show(targetId, payload) {
   byId(targetId).textContent = typeof payload === "string" ? payload : pretty(payload);
+}
+
+
+function setMobileQr(svg) {
+  const image = byId("mobile-access-qr");
+  if (!svg) {
+    image.removeAttribute("src");
+    return;
+  }
+  image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function setMobileAccess(payload) {
+  lastMobileUrl = payload.recommended_url || "";
+  byId("mobile-access-url").textContent = lastMobileUrl || "No mobile URL detected.";
+  setPill("mobile-access-kind", payload.recommended_kind ? `mobile ${payload.recommended_kind}` : "mobile URL unavailable", lastMobileUrl ? "ready" : "danger");
+  setMobileQr(payload.qr_svg || "");
+  show("mobile-access-output", payload);
+}
+
+async function copyMobileUrl() {
+  const text = lastMobileUrl || byId("mobile-access-url").textContent;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    await navigator.clipboard.writeText(text || "");
+    setPill("mobile-access-kind", "mobile URL copied", "ready");
+  } else {
+    show("mobile-access-output", `${text}\n\nClipboard API unavailable.`);
+  }
 }
 
 function setCheck(id, text, state = "muted") {
@@ -272,6 +301,10 @@ async function runAction(action) {
       pairExpiresAt = parsePairExpiresAt(byId("pair-expires-at").value);
       if (pairExpiresAt !== null) gatewayTokenKind = "pair";
       startPairCountdown();
+    } else if (action === "refresh-mobile-access") {
+      setMobileAccess(await requestJson("/v1/gateway/mobile-access"));
+    } else if (action === "copy-mobile-url") {
+      await copyMobileUrl();
     } else if (action === "refresh-status") {
       show("status-output", await requestJson("/v1/harness/status"));
     } else if (action === "refresh-readiness") {
@@ -348,5 +381,6 @@ document.addEventListener("DOMContentLoaded", () => {
   updateTaskCounter();
   const taskBox = byId("run-task");
   if (taskBox) taskBox.addEventListener("input", updateTaskCounter);
+  runAction("refresh-mobile-access");
   runAction("refresh-readiness");
 });

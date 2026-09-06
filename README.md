@@ -74,6 +74,7 @@ python3 -m lai_gateway readiness
 python3 -m lai_gateway doctor
 python3 -m lai_gateway open-ui --print-only
 python3 -m lai_gateway lan-info --port 8787
+python3 -m lai_gateway mobile-access --port 8787
 python3 -m lai_gateway mobile-start --port 8787
 python3 -m lai_gateway mobile-start --port 8787 --prepare
 python3 -m lai_gateway mobile-start --candidate-ip 192.168.1.20 --port 8787
@@ -83,6 +84,7 @@ python3 -m lai_gateway token check
 python3 -m lai_gateway pair create --ttl-seconds 600 --show
 python3 -m lai_gateway pair check
 python3 -m lai_gateway pair revoke
+python3 -m lai_gateway telegram preflight
 python3 -m lai_gateway sessions list --limit 10
 python3 -m lai_gateway sessions create
 python3 -m lai_gateway sessions get <session_id>
@@ -122,12 +124,12 @@ Start the harness and gateway, then open:
 http://127.0.0.1:8787/
 ```
 
-The UI is intentionally local-first and phone-friendly. It can refresh readiness/status, guide mobile pairing with an in-memory checklist, create and inspect sessions, create read-only runs, poll selected runs, stop polling, keep a compact in-memory run history, fill read-only task presets, count task characters, and copy run output. Use `lai-gateway lan-info` to print private LAN URL candidates and safe startup commands without starting a server. Use `lai-gateway mobile-start --prepare` to create missing token files and refresh the short-lived pair token before opening the UI on a phone. Use `lai-gateway mobile-serve --candidate-ip <private-ip>` only when you intentionally want to prepare tokens and start the private LAN gateway in one foreground command. The phone UI keeps token state only in memory and exposes a Forget token control. In private mode, paste either the permanent gateway token or a short-lived pair token into the Gateway access card. The optional pair expiration field shows an in-memory countdown, and Forget token clears token state from the page. It does not receive the harness control token, does not use external CDN assets, and does not use browser storage. Tiny mercy in a world full of tracking pixels.
+The UI is intentionally local-first and phone-friendly. It can refresh readiness/status, show a local QR code for mobile access, guide mobile pairing with an in-memory checklist, create and inspect sessions, create read-only runs, poll selected runs, stop polling, keep a compact in-memory run history, fill read-only task presets, count task characters, and copy run output. Use `lai-gateway lan-info` to print private LAN URL candidates and safe startup commands without starting a server. Use `lai-gateway mobile-access` to show WSL/Windows/Tailscale phone URLs, QR data, and portproxy hints. Use `lai-gateway mobile-start --prepare` to create missing token files and refresh the short-lived pair token before opening the UI on a phone. Use `lai-gateway mobile-serve --candidate-ip <private-ip>` only when you intentionally want to prepare tokens and start the private LAN gateway in one foreground command. The phone UI keeps token state only in memory and exposes a Forget token control. In private mode, paste either the permanent gateway token or a short-lived pair token into the Gateway access card. The optional pair expiration field shows an in-memory countdown, and Forget token clears token state from the page. It does not receive the harness control token, does not use external CDN assets, and does not use browser storage. Tiny mercy in a world full of tracking pixels.
 
 
 ## Private LAN preview
 
-Loopback remains the default. To inspect safe private LAN candidates without opening a port, run `lai-gateway lan-info --port 8787`. To get a guided mobile setup plan, run `lai-gateway mobile-start --port 8787`; add `--prepare` to create or refresh the separate gateway and pair-token files. If autodetection picks the wrong address, pass `--candidate-ip <private-ip>`. To intentionally prepare and serve in one step, run `lai-gateway mobile-serve --candidate-ip <private-ip> --port 8787`. To expose the gateway on a private LAN, use an explicit private address and a separate gateway token:
+Loopback remains the default. To inspect safe private LAN candidates without opening a port, run `lai-gateway lan-info --port 8787`. To inspect phone URLs and local QR data, run `lai-gateway mobile-access --port 8787`. To get a guided mobile setup plan, run `lai-gateway mobile-start --port 8787`; add `--prepare` to create or refresh the separate gateway and pair-token files. If autodetection picks the wrong address, pass `--candidate-ip <private-ip>`. To intentionally prepare and serve in one step, run `lai-gateway mobile-serve --candidate-ip <private-ip> --port 8787`. To expose the gateway on a private LAN, use an explicit private address and a separate gateway token:
 
 ```bash
 lai-gateway token create
@@ -143,6 +145,18 @@ lai-gateway dev --no-open
 ```
 
 When private mode is enabled, `/v1/harness/*` requires a gateway access token or a valid short-lived pairing token. Static UI files and `/healthz` remain secret-free. The UI keeps the selected token only in page memory, shows an optional pairing countdown, and has an explicit Forget token control. The harness control token stays server-side. Token files must be `0600`, pairing tokens expire, and repeated failed API auth attempts return `429 gateway_auth_rate_limited`. Humanity gets one less obvious way to leak credentials.
+
+## Telegram outbound notifications
+
+Telegram support is outbound-only in this release. It does not expose a webhook and it does not let Telegram create harness runs. Configure a bot token file with `0600` permissions and a chat id, then explicitly enable sending:
+
+```bash
+chmod 600 "$HOME/.config/lai-gateway/telegram-bot-token"
+LAI_GATEWAY_TELEGRAM_CHAT_ID=<chat-id> lai-gateway telegram preflight
+LAI_GATEWAY_TELEGRAM_ENABLE_SEND=1 LAI_GATEWAY_TELEGRAM_CHAT_ID=<chat-id> lai-gateway telegram send-message --text "lai-gateway ready"
+```
+
+The token value is never printed by `preflight` or `send-message`. Tiny outbreak of restraint.
 
 ## Gateway server MVP
 
@@ -173,7 +187,7 @@ The gateway refuses wildcard and public bind addresses. Private-network/mobile e
 
 ```bash
 make check
-python3 -m lai_gateway release-check --target 0.1.14 --json
+python3 -m lai_gateway release-check --target 0.1.15 --json
 ```
 
 Release rules are documented in [docs/RELEASE.md](docs/RELEASE.md).

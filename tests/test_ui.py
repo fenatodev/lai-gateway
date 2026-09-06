@@ -55,6 +55,10 @@ class GatewayUITest(unittest.TestCase):
                 self.assertEqual(headers["referrer-policy"], "no-referrer")
                 self.assertIn('<script src="/assets/app.js" defer></script>', html)
                 self.assertIn('<link rel="stylesheet" href="/assets/app.css">', html)
+                self.assertIn('id="mobile-access-qr"', html)
+                self.assertIn('id="mobile-access-url"', html)
+                self.assertIn('data-action="refresh-mobile-access"', html)
+                self.assertIn('data-action="copy-mobile-url"', html)
                 self.assertIn('id="gateway-token"', html)
                 self.assertIn('id="gateway-token-kind"', html)
                 self.assertIn('id="pair-expires-at"', html)
@@ -95,6 +99,8 @@ class GatewayUITest(unittest.TestCase):
         self.assertEqual(css_status, 200)
         self.assertIn("text/css", css_headers["content-type"])
         self.assertIn(".shell", css)
+        self.assertIn(".mobile-access-card", css)
+        self.assertIn(".qr", css)
         self.assertIn(".pill.running", css)
         self.assertIn(".history", css)
         self.assertIn(".mobile-guide", css)
@@ -107,6 +113,10 @@ class GatewayUITest(unittest.TestCase):
         self.assertIn(".danger-text", css)
         self.assertEqual(js_status, 200)
         self.assertIn("application/javascript", js_headers["content-type"])
+        self.assertIn("/v1/gateway/mobile-access", js)
+        self.assertIn("data:image/svg+xml", js)
+        self.assertIn("setMobileQr", js)
+        self.assertIn("copyMobileUrl", js)
         self.assertIn("/v1/harness/status", js)
         self.assertIn("/v1/harness/sessions", js)
         self.assertIn("/v1/harness/runs", js)
@@ -132,6 +142,24 @@ class GatewayUITest(unittest.TestCase):
         self.assertIn("Authorization", js)
         for forbidden in (TOKEN, "localStorage", "sessionStorage", "innerHTML", "http://", "https://"):
             self.assertNotIn(forbidden, js)
+
+
+    def test_gateway_mobile_access_endpoint_returns_local_qr_without_tokens(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with RunningGateway(config) as gateway:
+                status, headers, body = read_url(f"{gateway.url}/v1/gateway/mobile-access")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        payload = __import__("json").loads(body)
+        self.assertEqual(payload["operation"], "mobile-access")
+        self.assertIn("qr_svg", payload)
+        self.assertIn("<svg", payload["qr_svg"])
+        self.assertFalse(payload["security"]["qr_contains_token"])
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
 
 
 if __name__ == "__main__":

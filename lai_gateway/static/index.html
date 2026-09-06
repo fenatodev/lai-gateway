@@ -34,6 +34,21 @@
 
     <section class="grid" aria-label="Gateway controls">
 
+      <article class="card mobile-access-card">
+        <h2>Mobile Access</h2>
+        <p class="muted">Scan the local QR after starting <code>mobile-serve</code>. The QR contains only the URL, never tokens.</p>
+        <div class="mobile-url-box">
+          <span id="mobile-access-kind" class="pill muted">mobile URL unknown</span>
+          <code id="mobile-access-url">Not loaded.</code>
+        </div>
+        <img id="mobile-access-qr" class="qr" alt="QR code for mobile gateway URL">
+        <div class="actions">
+          <button data-action="refresh-mobile-access">Refresh mobile URL</button>
+          <button data-action="copy-mobile-url">Copy mobile URL</button>
+        </div>
+        <pre id="mobile-access-output" aria-live="polite">Not loaded.</pre>
+      </article>
+
       <article class="card">
         <h2>Gateway access</h2>
         <p class="muted">Loopback does not need this. Private LAN mode requires a gateway token or short-lived pair token.</p>

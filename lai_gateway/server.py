@@ -11,6 +11,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from . import __version__
+from .access import collect_mobile_access
 from .config import GatewayConfig, read_gateway_access_token, validate_gateway_bind
 from .tokens import read_valid_gateway_pairing_token
 from .errors import ConfigError, GatewayError, HarnessHTTPError
@@ -69,6 +70,9 @@ class GatewayHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/healthz":
             self._send_json(HTTPStatus.OK, {"ok": True, "product": "lai-gateway", "version": __version__})
+            return
+        if parsed.path == "/v1/gateway/mobile-access":
+            self._send_json(HTTPStatus.OK, collect_mobile_access(port=self.server.server_address[1], bind=self.server.server_address[0]))
             return
         if parsed.path == "/v1/harness/status":
             if not self._authorize_gateway_api(parsed.path):
