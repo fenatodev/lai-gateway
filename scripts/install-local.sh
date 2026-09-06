@@ -43,15 +43,16 @@ chmod 755 "$bin_dir/lai-gateway-model"
 cat > "$bin_dir/lai-gateway-mobile-proxy" <<EOF
 #!/usr/bin/env sh
 repo_dir='$repo_dir'
-python_bin='$python_bin'
-if [ -n "\${PYTHONPATH:-}" ]; then
-  export PYTHONPATH="\$repo_dir:\$PYTHONPATH"
-else
-  export PYTHONPATH="\$repo_dir"
-fi
-exec "\$python_bin" -m lai_gateway mobile-proxy "\$@"
+exec "\$repo_dir/scripts/launch-mobile-proxy.sh" "\$@"
 EOF
 chmod 755 "$bin_dir/lai-gateway-mobile-proxy"
+
+cat > "$bin_dir/lai-gateway-daily" <<EOF
+#!/usr/bin/env sh
+repo_dir='$repo_dir'
+exec "\$repo_dir/scripts/launch-daily.sh" "\$@"
+EOF
+chmod 755 "$bin_dir/lai-gateway-daily"
 
 printf 'installed lai-gateway wrappers in %s\n' "$bin_dir"
 "$bin_dir/lai-gateway" --version

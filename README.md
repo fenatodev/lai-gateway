@@ -223,4 +223,10 @@ For the full daily startup path after the published Harness and Gateway releases
 lai-gateway-mobile-proxy --target-host 172.29.193.62 --target-port 8787
 ```
 
+For daily startup, use the wrapper that checks the published path end to end:
+
+```bash
+lai-gateway-daily --candidate-ip 172.29.193.62 --show-pair
+```
+
 Use this loopback proxy when Tailscale Serve needs to reach a WSL-bound mobile gateway through `http://127.0.0.1:18787`.

@@ -41,21 +41,25 @@ class ScriptTest(unittest.TestCase):
             mobile = bin_dir / "lai-gateway-mobile"
             model = bin_dir / "lai-gateway-model"
             mobile_proxy = bin_dir / "lai-gateway-mobile-proxy"
+            daily = bin_dir / "lai-gateway-daily"
             self.assertTrue(gateway.exists())
             self.assertTrue(ui.exists())
             self.assertTrue(mobile.exists())
             self.assertTrue(model.exists())
             self.assertTrue(mobile_proxy.exists())
+            self.assertTrue(daily.exists())
             self.assertIn(f"lai-gateway {__version__}", result.stdout)
             self.assertNotIn("TOKEN", gateway.read_text(encoding="utf-8").upper())
             self.assertNotIn("TOKEN", ui.read_text(encoding="utf-8").upper())
             self.assertNotIn("TOKEN", mobile.read_text(encoding="utf-8").upper())
             self.assertNotIn("TOKEN", model.read_text(encoding="utf-8").upper())
             self.assertNotIn("TOKEN", mobile_proxy.read_text(encoding="utf-8").upper())
+            self.assertNotIn("TOKEN", daily.read_text(encoding="utf-8").upper())
             self.assertIn("repo_dir=", ui.read_text(encoding="utf-8"))
             self.assertIn("repo_dir=", mobile.read_text(encoding="utf-8"))
             self.assertIn("repo_dir=", model.read_text(encoding="utf-8"))
             self.assertIn("mobile-proxy", mobile_proxy.read_text(encoding="utf-8"))
+            self.assertIn("launch-daily.sh", daily.read_text(encoding="utf-8"))
             mobile_help = subprocess.run(
                 [str(mobile), "--help"],
                 text=True,
@@ -83,6 +87,15 @@ class ScriptTest(unittest.TestCase):
                 timeout=10,
             )
             self.assertIn("mobile-proxy", proxy_help.stdout)
+            daily_help = subprocess.run(
+                [str(daily), "--help"],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=10,
+            )
+            self.assertIn("lai-gateway-daily", daily_help.stdout)
             version = subprocess.run(
                 [str(gateway), "--version"],
                 text=True,
@@ -93,6 +106,57 @@ class ScriptTest(unittest.TestCase):
             )
             self.assertEqual(version.stdout.strip(), f"lai-gateway {__version__}")
 
+
+
+    def test_launch_daily_help_check_only_and_missing_candidate_are_secret_free(self) -> None:
+        repo = Path(__file__).parents[1]
+        help_result = subprocess.run(
+            ["bash", "scripts/launch-daily.sh", "--help"],
+            cwd=repo,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+            timeout=10,
+        )
+        missing = subprocess.run(
+            ["bash", "scripts/launch-daily.sh"],
+            cwd=repo,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=10,
+        )
+        env = {**os.environ, "LAI_GATEWAY_PHONE_URL": "http://example.tailnet.ts.net:8787/", "PYTHON": sys.executable}
+        check_only = subprocess.run(
+            [
+                "bash",
+                "scripts/launch-daily.sh",
+                "--candidate-ip",
+                "172.29.193.62",
+                "--check-only",
+                "--skip-model",
+                "--skip-harness",
+                "--skip-mobile",
+                "--skip-proxy",
+            ],
+            cwd=repo,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+            timeout=10,
+        )
+        combined = help_result.stdout + help_result.stderr + missing.stdout + missing.stderr + check_only.stdout + check_only.stderr
+        self.assertIn("lai-gateway-daily", help_result.stdout)
+        self.assertEqual(missing.returncode, 2)
+        self.assertIn("--candidate-ip is required", missing.stderr)
+        self.assertIn("check_only: true", check_only.stdout)
+        self.assertIn("phone_url: http://example.tailnet.ts.net:8787/", check_only.stdout)
+        self.assertNotIn("Bearer", combined)
+        self.assertNotIn(TOKEN, combined)
 
     def test_launch_mobile_help_and_missing_candidate_are_secret_free(self) -> None:
         repo = Path(__file__).parents[1]

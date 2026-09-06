@@ -103,3 +103,19 @@ lai-gateway-mobile-proxy --target-host 172.29.193.62 --target-port 8787
 ```
 
 Point Tailscale Serve at `http://127.0.0.1:18787` and open the MagicDNS URL on the phone.
+
+## One-command daily startup
+
+Once Tailscale Serve points at `http://127.0.0.1:18787`, the daily wrapper can validate and start the local path:
+
+```bash
+lai-gateway-daily --candidate-ip 172.29.193.62 --show-pair
+```
+
+The wrapper keeps token values out of logs unless `--show-pair` is passed. It checks or starts `lai-server-start`, the harness control plane, `lai-gateway-mobile`, `lai-gateway-mobile-proxy`, and a final `ops-status` snapshot.
+
+For a dry plan without starting services:
+
+```bash
+lai-gateway-daily --candidate-ip 172.29.193.62 --check-only
+```
