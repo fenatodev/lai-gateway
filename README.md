@@ -56,6 +56,9 @@ python3 -m lai_gateway config
 python3 -m lai_gateway contract
 python3 -m lai_gateway status
 python3 -m lai_gateway readiness
+python3 -m lai_gateway sessions list --limit 10
+python3 -m lai_gateway sessions create
+python3 -m lai_gateway sessions get <session_id>
 ```
 
 ## Gateway server MVP
@@ -71,7 +74,12 @@ GET /healthz
 GET /v1/harness/status
 GET /v1/harness/readiness
 GET /v1/harness/gateway-contract
+GET /v1/harness/sessions?limit=N
+POST /v1/harness/sessions
+GET /v1/harness/sessions/{session_id}
 ```
+
+Session routes can create and inspect persistent harness sessions, but they do not create runs. `POST /v1/runs` remains blocked. That distinction matters unless your threat model was written on a napkin.
 
 The gateway currently refuses public bind addresses. Private-network/mobile exposure belongs in a later spec with explicit authentication and threat modeling.
 

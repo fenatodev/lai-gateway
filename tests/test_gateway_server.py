@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import threading
 import unittest
@@ -51,6 +52,35 @@ class GatewayServerTest(unittest.TestCase):
                     get_json(f"{gateway.url}/v1/harness/readiness")["overall"],
                     "ready",
                 )
+                self.assertEqual(
+                    get_json(f"{gateway.url}/v1/harness/sessions?limit=5")["sessions"][0]["session_id"],
+                    "s_test",
+                )
+                self.assertEqual(
+                    get_json(f"{gateway.url}/v1/harness/sessions/s_test")["session"]["session_id"],
+                    "s_test",
+                )
+
+    def test_gateway_creates_sessions_without_exposing_runs(self):
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with RunningGateway(config) as gateway:
+                request = Request(f"{gateway.url}/v1/harness/sessions", data=None, method="POST")
+                with urlopen(request, timeout=5) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
+                    self.assertEqual(response.status, HTTPStatus.CREATED)
+                self.assertEqual(payload["session"]["session_id"], "s_test")
+
+                bad_request = Request(f"{gateway.url}/v1/harness/sessions", data=b"{}", method="POST")
+                with self.assertRaises(HTTPError) as caught:
+                    urlopen(bad_request, timeout=5)
+                self.assertEqual(caught.exception.code, HTTPStatus.BAD_REQUEST)
+
+                with self.assertRaises(HTTPError) as caught:
+                    urlopen(f"{gateway.url}/v1/harness/sessions?limit=0", timeout=5)
+                self.assertEqual(caught.exception.code, HTTPStatus.BAD_REQUEST)
 
     def test_gateway_mvp_does_not_expose_run_creation(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

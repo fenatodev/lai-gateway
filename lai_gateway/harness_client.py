@@ -36,6 +36,10 @@ class HarnessClient:
     def create_session(self) -> dict[str, Any]:
         return self._request_json("POST", "/v1/sessions", {})
 
+    def get_session(self, session_id: str) -> dict[str, Any]:
+        _validate_id(session_id, "session_id")
+        return self._request_json("GET", f"/v1/sessions/{session_id}")
+
     def list_runs(self, limit: int = 20) -> dict[str, Any]:
         _validate_limit(limit)
         return self._request_json("GET", f"/v1/runs?{urlencode({'limit': limit})}")
