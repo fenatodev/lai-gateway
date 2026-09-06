@@ -73,6 +73,7 @@ python3 -m lai_gateway status
 python3 -m lai_gateway readiness
 python3 -m lai_gateway doctor
 python3 -m lai_gateway open-ui --print-only
+python3 -m lai_gateway lan-info --port 8787
 python3 -m lai_gateway token create
 python3 -m lai_gateway token check
 python3 -m lai_gateway pair create --ttl-seconds 600 --show
@@ -117,12 +118,12 @@ Start the harness and gateway, then open:
 http://127.0.0.1:8787/
 ```
 
-The UI is intentionally local-only. It can refresh readiness/status, create and inspect sessions, create read-only runs, poll selected runs, keep a compact in-memory run history, and copy run output. In private mode, paste either the permanent gateway token or a short-lived pair token into the Gateway access card. The optional pair expiration field shows an in-memory countdown, and Forget token clears token state from the page. It does not receive the harness control token, does not use external CDN assets, and does not use browser storage. Tiny mercy in a world full of tracking pixels.
+The UI is intentionally local-only. It can refresh readiness/status, create and inspect sessions, create read-only runs, poll selected runs, keep a compact in-memory run history, and copy run output. Use `lai-gateway lan-info` to print private LAN URL candidates and safe startup commands without starting a server. In private mode, paste either the permanent gateway token or a short-lived pair token into the Gateway access card. The optional pair expiration field shows an in-memory countdown, and Forget token clears token state from the page. It does not receive the harness control token, does not use external CDN assets, and does not use browser storage. Tiny mercy in a world full of tracking pixels.
 
 
 ## Private LAN preview
 
-Loopback remains the default. To expose the gateway on a private LAN, use an explicit private address and a separate gateway token:
+Loopback remains the default. To inspect safe private LAN candidates without opening a port, run `lai-gateway lan-info --port 8787`. To expose the gateway on a private LAN, use an explicit private address and a separate gateway token:
 
 ```bash
 lai-gateway token create
@@ -168,7 +169,7 @@ The gateway refuses wildcard and public bind addresses. Private-network/mobile e
 
 ```bash
 make check
-python3 -m lai_gateway release-check --target 0.1.10 --json
+python3 -m lai_gateway release-check --target 0.1.11 --json
 ```
 
 Release rules are documented in [docs/RELEASE.md](docs/RELEASE.md).

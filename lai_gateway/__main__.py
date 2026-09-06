@@ -13,6 +13,7 @@ from .contract import summarize_contract
 from .doctor import collect_doctor, render_doctor
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
+from .lan import collect_lan_info, render_lan_info
 from .release import collect_release_check, render_release_check
 from .server import serve
 from .tokens import (
@@ -80,6 +81,9 @@ def main(argv: list[str] | None = None) -> int:
     dev_parser.add_argument("--bind", default=None, help="gateway bind address allowed by config policy")
     dev_parser.add_argument("--port", type=int, default=None, help="gateway port")
     dev_parser.add_argument("--no-open", action="store_true", help="do not open the browser")
+    lan_parser = sub.add_parser("lan-info", help="show safe private LAN access candidates without starting a server")
+    lan_parser.add_argument("--port", type=int, default=None, help="gateway port for suggested mobile URLs")
+    lan_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     token_parser = sub.add_parser("token", help="manage the separate gateway access token")
     token_sub = token_parser.add_subparsers(dest="token_command")
     token_create = token_sub.add_parser("create", help="create a gateway access token file")
@@ -134,6 +138,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     try:
         config = GatewayConfig.from_env()
+        if args.command == "lan-info":
+            payload = collect_lan_info(port=args.port or config.port)
+            if not args.json:
+                print(render_lan_info(payload))
+                return 0
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
         if args.command == "serve":
             config = _config_with_overrides(config, args.bind, args.port)
             serve(config)

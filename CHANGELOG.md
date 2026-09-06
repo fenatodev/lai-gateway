@@ -1,3 +1,15 @@
+## [0.1.11] - 2026-09-06
+
+Add safe LAN discovery instructions for mobile access.
+
+- Add `lai-gateway lan-info` to discover private LAN IP candidates without starting a server.
+- Print mobile UI URLs and exact private-bind startup commands for each candidate.
+- Keep the command read-only: no token creation, no server startup, no file mutation, and no remote bind.
+- Filter out loopback, wildcard, public, reserved, multicast, and link-local addresses.
+- Add tests for LAN candidate filtering, CLI JSON output, secret-free rendering, and shell-safe commands.
+
+No public bind, harness token exposure to the browser, write-capable runs, shell authority, direct llama.cpp proxy, persistent browser storage, or automatic tunnel setup is exposed in this release.
+
 ## [0.1.10] - 2026-09-06
 
 Add a safer pairing experience to the local gateway UI.
