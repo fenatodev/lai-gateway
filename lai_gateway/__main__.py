@@ -3,11 +3,13 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import webbrowser
 from typing import Any
 
 from . import __version__
 from .config import GatewayConfig
 from .contract import summarize_contract
+from .doctor import collect_doctor, render_doctor
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .release import collect_release_check, render_release_check
@@ -22,6 +24,10 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("contract", help="fetch and validate the harness gateway contract")
     sub.add_parser("status", help="fetch harness status through the gateway client")
     sub.add_parser("readiness", help="fetch harness readiness through the gateway client")
+    doctor_parser = sub.add_parser("doctor", help="check gateway configuration and harness connectivity")
+    doctor_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    open_ui_parser = sub.add_parser("open-ui", help="print or open the local gateway UI URL")
+    open_ui_parser.add_argument("--print-only", action="store_true", help="only print the UI URL")
     sessions_parser = sub.add_parser("sessions", help="manage harness sessions without creating runs")
     sessions_sub = sessions_parser.add_subparsers(dest="sessions_command")
     sessions_list = sessions_sub.add_parser("list", help="list harness sessions")
@@ -82,6 +88,19 @@ def main(argv: list[str] | None = None) -> int:
             payload = client.status()
         elif args.command == "readiness":
             payload = client.readiness()
+        elif args.command == "doctor":
+            payload = collect_doctor(config)
+            if not args.json:
+                print(render_doctor(payload))
+                return 0 if payload["overall"] in {"ready", "warn"} else 1
+        elif args.command == "open-ui":
+            url = f"http://{config.bind}:{config.port}/"
+            if args.print_only:
+                print(url)
+            else:
+                opened = webbrowser.open(url, new=2)
+                print(json.dumps({"product": "lai-gateway", "version": __version__, "url": url, "opened": opened}, indent=2, sort_keys=True))
+            return 0
         elif args.command == "sessions":
             if args.sessions_command == "list":
                 payload = client.list_sessions(args.limit)

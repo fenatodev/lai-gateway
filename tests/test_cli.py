@@ -113,6 +113,42 @@ class CliTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("invalid choice", result.stderr)
 
+
+    def test_cli_doctor_json_and_open_ui_are_secret_free(self):
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            env = {
+                **os.environ,
+                "LAI_GATEWAY_HARNESS_URL": harness.url,
+                "LAI_GATEWAY_TOKEN_FILE": str(token_file),
+                "LAI_GATEWAY_PORT": "18787",
+            }
+            doctor = subprocess.run(
+                [sys.executable, "-m", "lai_gateway", "doctor", "--json"],
+                text=True,
+                capture_output=True,
+                check=True,
+                timeout=10,
+                env=env,
+            )
+            payload = json.loads(doctor.stdout)
+            self.assertEqual(payload["overall"], "ready")
+            self.assertNotIn(TOKEN, doctor.stdout)
+            self.assertEqual(doctor.stderr, "")
+
+            open_ui = subprocess.run(
+                [sys.executable, "-m", "lai_gateway", "open-ui", "--print-only"],
+                text=True,
+                capture_output=True,
+                check=True,
+                timeout=10,
+                env=env,
+            )
+            self.assertEqual(open_ui.stdout.strip(), "http://127.0.0.1:18787/")
+            self.assertNotIn(TOKEN, open_ui.stdout)
+            self.assertEqual(open_ui.stderr, "")
+
     def test_cli_config_prints_path_not_token_value(self):
         with tempfile.TemporaryDirectory() as tmp:
             token_file = Path(tmp) / "token"
