@@ -251,6 +251,7 @@ def main(argv: list[str] | None = None) -> int:
     bridge_parser.add_argument("--connect-ip", default=None, help="WSL IPv4 address where lai-gateway is bound")
     bridge_parser.add_argument("--apply", action="store_true", help="apply Windows portproxy/firewall rules")
     bridge_parser.add_argument("--remove", action="store_true", help="remove Windows portproxy/firewall rules")
+    bridge_parser.add_argument("--check", action="store_true", help="run read-only checks for portproxy, firewall, and TCP reachability")
     bridge_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     token_parser = sub.add_parser("token", help="manage the separate gateway access token")
     token_sub = token_parser.add_subparsers(dest="token_command")
@@ -319,6 +320,7 @@ def main(argv: list[str] | None = None) -> int:
     telegram_notify.add_argument("--chat-id", default=None, help="telegram chat id; defaults to LAI_GATEWAY_TELEGRAM_CHAT_ID")
     telegram_notify.add_argument("--port", type=int, default=None, help="gateway port for the mobile URL")
     telegram_notify.add_argument("--bind", default=None, help="gateway bind address used for WSL/Tailscale hints")
+    telegram_notify.add_argument("--candidate-ip", default=None, help="WSL/private gateway IP used as the mobile bridge target")
     telegram_notify.add_argument("--json", action="store_true", help="print machine-readable JSON")
     telegram_status = telegram_sub.add_parser("notify-status", help="send current gateway/harness status to Telegram when explicitly enabled")
     telegram_status.add_argument("--token-file", default=None, help="telegram bot token file; defaults to ~/.config/lai-gateway/telegram-bot-token")
@@ -561,6 +563,7 @@ def main(argv: list[str] | None = None) -> int:
                 target=args.target,
                 apply=args.apply,
                 remove=args.remove,
+                check=args.check,
             )
             if args.json:
                 print(json.dumps(payload, indent=2, sort_keys=True))
@@ -740,6 +743,7 @@ def main(argv: list[str] | None = None) -> int:
                     chat_id=args.chat_id,
                     port=args.port or config.port,
                     bind=args.bind or config.bind,
+                    candidate_ip=args.candidate_ip,
                 )
                 if args.json:
                     print(json.dumps(payload, indent=2, sort_keys=True))

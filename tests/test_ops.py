@@ -56,6 +56,8 @@ class OpsStatusTest(unittest.TestCase):
 
             self.assertEqual(payload["overall"], "ready")
             self.assertEqual(payload["model_runs"]["count"], 1)
+            self.assertIn("harness_model: ready", rendered)
+            self.assertIn("gateway_model_probe:", rendered)
             self.assertIn("model_runs: 1", rendered)
             self.assertFalse(payload["starts_server"])
             self.assertFalse(payload["modifies_files"])

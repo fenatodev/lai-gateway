@@ -380,6 +380,13 @@ class TelegramTest(unittest.TestCase):
         self.assertNotIn("pair_token", text)
         self.assertNotIn("harness", text.lower().replace("harness_control_token", ""))
 
+    def test_mobile_access_text_accepts_candidate_ip_without_tokens(self) -> None:
+        text = build_mobile_access_telegram_text(port=8787, bind="127.0.0.1", candidate_ip="172.29.193.62")
+        self.assertLessEqual(len(text), 4096)
+        self.assertIn("bridge_target: 172.29.193.62", text)
+        self.assertNotIn("pair_token", text)
+        self.assertNotIn("Bearer", text)
+
 
     def test_notify_status_sends_doctor_summary_without_tokens(self) -> None:
         captured = {}
