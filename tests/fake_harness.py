@@ -10,6 +10,8 @@ from urllib.request import Request, urlopen
 from .fixtures import CONTRACT
 
 TOKEN = "test-token"
+LAST_RUN_BODY: dict[str, Any] | None = None
+
 
 
 class FakeHarnessHandler(BaseHTTPRequestHandler):
@@ -32,17 +34,29 @@ class FakeHarnessHandler(BaseHTTPRequestHandler):
         if self.path.startswith("/v1/sessions?"):
             self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.2", "sessions": [{"session_id": "s_test", "turn_count": 0}]})
             return
+        if self.path.startswith("/v1/runs?"):
+            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.2", "runs": [{"control_run_id": "cr_test", "status": "queued", "mode": "plan"}]})
+            return
+        if self.path == "/v1/runs/cr_test":
+            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.2", "run": {"control_run_id": "cr_test", "status": "succeeded", "mode": "plan"}})
+            return
         if self.path == "/v1/sessions/s_test":
             self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.2", "session": {"session_id": "s_test", "turn_count": 0, "turns": []}})
             return
         self._send(HTTPStatus.NOT_FOUND, {"error": "not_found"})
 
     def do_POST(self) -> None:  # noqa: N802
+        global LAST_RUN_BODY
         if self.headers.get("Authorization") != f"Bearer {TOKEN}":
             self._send(HTTPStatus.UNAUTHORIZED, {"error": "auth_required"})
             return
         if self.path == "/v1/sessions":
             self._send(HTTPStatus.CREATED, {"product": "lai harness", "version": "0.4.2", "session": {"session_id": "s_test", "turn_count": 0, "turns": []}})
+            return
+        if self.path == "/v1/runs":
+            length = int(self.headers.get("Content-Length", "0"))
+            LAST_RUN_BODY = json.loads(self.rfile.read(length).decode("utf-8"))
+            self._send(HTTPStatus.ACCEPTED, {"product": "lai harness", "version": "0.4.2", "run": {"control_run_id": "cr_test", "status": "queued", "mode": LAST_RUN_BODY.get("mode"), "session_id": LAST_RUN_BODY.get("session_id")}})
             return
         self._send(HTTPStatus.NOT_FOUND, {"error": "not_found"})
 

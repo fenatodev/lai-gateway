@@ -1,3 +1,16 @@
+## [0.1.2] - 2026-09-06
+
+Add read-only harness run creation through the private gateway.
+
+- Add gateway CLI commands for listing, creating, and reading harness runs.
+- Add loopback-only HTTP routes for `/v1/harness/runs`.
+- Allow only read-only modes: `diagnose`, `plan`, `release`, `review`, and `security`.
+- Keep write-capable modes blocked at the gateway boundary.
+- Keep raw `POST /v1/runs` blocked to avoid exposing the harness API as an unshaped proxy.
+- Add tests for malformed run bodies, write-mode rejection, token redaction, and read-only run proxying.
+
+No public bind, shell authority, direct llama.cpp proxy, or source checkout mutation is exposed in this release.
+
 ## [0.1.1] - 2026-09-06
 
 Add session discovery and creation through the private gateway.

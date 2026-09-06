@@ -63,6 +63,56 @@ class CliTest(unittest.TestCase):
                 self.assertNotIn(TOKEN, result.stdout)
                 self.assertEqual(result.stderr, "")
 
+
+    def test_cli_runs_commands_proxy_read_only_without_printing_token(self):
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            env = {
+                **os.environ,
+                "LAI_GATEWAY_HARNESS_URL": harness.url,
+                "LAI_GATEWAY_TOKEN_FILE": str(token_file),
+            }
+            commands = (
+                (["runs", "list", "--limit", "5"], "runs"),
+                (["runs", "create", "--mode", "plan", "--task", "Summarize."], "run"),
+                (["runs", "get", "cr_test"], "run"),
+            )
+            for args, expected_key in commands:
+                result = subprocess.run(
+                    [sys.executable, "-m", "lai_gateway", *args],
+                    text=True,
+                    capture_output=True,
+                    check=True,
+                    timeout=10,
+                    env=env,
+                )
+                payload = json.loads(result.stdout)
+                self.assertIn(expected_key, payload)
+                self.assertNotIn(TOKEN, result.stdout)
+                self.assertEqual(result.stderr, "")
+
+    def test_cli_runs_create_rejects_write_mode(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "lai_gateway",
+                "runs",
+                "create",
+                "--mode",
+                "implement",
+                "--task",
+                "change files",
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=10,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("invalid choice", result.stderr)
+
     def test_cli_config_prints_path_not_token_value(self):
         with tempfile.TemporaryDirectory() as tmp:
             token_file = Path(tmp) / "token"

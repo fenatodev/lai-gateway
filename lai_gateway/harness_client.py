@@ -11,6 +11,9 @@ from .contract import assert_no_secret_values, validate_gateway_contract
 from .errors import ConfigError, HarnessHTTPError
 
 MAX_RESPONSE_BYTES = 1024 * 1024
+READ_ONLY_RUN_MODES = frozenset({"diagnose", "plan", "release", "review", "security"})
+MAX_TASK_CHARS = 12000
+
 
 
 class HarnessClient:
@@ -47,6 +50,16 @@ class HarnessClient:
     def get_run(self, run_id: str) -> dict[str, Any]:
         _validate_id(run_id, "run_id")
         return self._request_json("GET", f"/v1/runs/{run_id}")
+
+    def create_read_only_run(
+        self,
+        *,
+        mode: str,
+        task: str,
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        body = build_read_only_run_body(mode=mode, task=task, session_id=session_id)
+        return self._request_json("POST", "/v1/runs", body)
 
     def _request_json(
         self,
@@ -97,3 +110,18 @@ def _validate_limit(limit: int) -> None:
 def _validate_id(value: str, label: str) -> None:
     if not value or any(ch in value for ch in "/?#\\") or len(value) > 128:
         raise ConfigError(f"invalid {label}")
+
+
+def build_read_only_run_body(*, mode: str, task: str, session_id: str | None = None) -> dict[str, str]:
+    if mode not in READ_ONLY_RUN_MODES:
+        allowed = ", ".join(sorted(READ_ONLY_RUN_MODES))
+        raise ConfigError(f"mode must be read-only; allowed: {allowed}")
+    if not isinstance(task, str) or not task.strip():
+        raise ConfigError("task must be a non-empty string")
+    if len(task) > MAX_TASK_CHARS:
+        raise ConfigError(f"task must be at most {MAX_TASK_CHARS} characters")
+    body = {"mode": mode, "task": task}
+    if session_id is not None:
+        _validate_id(session_id, "session_id")
+        body["session_id"] = session_id
+    return body
