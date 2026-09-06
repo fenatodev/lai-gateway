@@ -574,7 +574,7 @@ def main(argv: list[str] | None = None) -> int:
                     connect_timeout=args.timeout_seconds,
                 )
                 print(dump_mobile_proxy_json(payload) if args.json else render_mobile_proxy_status(payload))
-                return 0 if payload["overall"] == "ready_to_start" else 1
+                return 0 if payload["overall"] in {"ready", "ready_to_start"} else 1
             config = validate_mobile_proxy_config(
                 listen_host=args.listen_host,
                 listen_port=args.listen_port,

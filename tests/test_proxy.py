@@ -120,6 +120,70 @@ class MobileProxyTest(unittest.TestCase):
         self.assertEqual(payload["overall"], "ready_to_start")
         self.assertNotIn("Bearer", result.stdout + result.stderr)
 
+    def test_cli_check_reports_ready_when_proxy_is_already_running(self) -> None:
+        repo = Path(__file__).parents[1]
+        listen_port = free_port()
+        with TinyHTTPServer() as target:
+            proc = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "lai_gateway",
+                    "mobile-proxy",
+                    "--listen-port",
+                    str(listen_port),
+                    "--target-host",
+                    "127.0.0.1",
+                    "--target-port",
+                    str(target.port),
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            try:
+                assert proc.stdout is not None
+                self.assertEqual(proc.stdout.readline().strip(), "lai-gateway mobile-proxy: ready")
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "lai_gateway",
+                        "mobile-proxy",
+                        "--check",
+                        "--json",
+                        "--listen-port",
+                        str(listen_port),
+                        "--target-host",
+                        "127.0.0.1",
+                        "--target-port",
+                        str(target.port),
+                    ],
+                    cwd=repo,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=True,
+                    timeout=10,
+                )
+                payload = json.loads(result.stdout)
+                self.assertEqual(payload["overall"], "ready")
+                self.assertFalse(payload["checks"]["listen_available"]["ok"])
+                self.assertTrue(payload["checks"]["listen_http"]["ok"])
+                self.assertNotIn("Bearer", result.stdout + result.stderr)
+            finally:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=5)
+                if proc.stdout is not None:
+                    proc.stdout.close()
+                if proc.stderr is not None:
+                    proc.stderr.close()
+
     def test_proxy_forwards_http_without_payload_logging(self) -> None:
         repo = Path(__file__).parents[1]
         listen_port = free_port()
