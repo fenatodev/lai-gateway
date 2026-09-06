@@ -35,59 +35,100 @@ class RunningGateway:
         self.thread.join(timeout=5)
 
 
+def post_json(url: str, payload: dict[str, object]) -> tuple[int, dict[str, object]]:
+    request = Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urlopen(request, timeout=5) as response:
+        body = json.loads(response.read().decode("utf-8"))
+        return response.status, body
+
+
+def post_json_error(url: str, payload: dict[str, object]) -> tuple[int, dict[str, object]]:
+    request = Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        urlopen(request, timeout=5)
+    except HTTPError as exc:
+        body = json.loads(exc.read().decode("utf-8"))
+        return exc.code, body
+    raise AssertionError("expected HTTPError")
+
+
 class GatewayServerTest(unittest.TestCase):
+    def _config(self, tmp: str, harness_url: str) -> GatewayConfig:
+        token_file = Path(tmp) / "token"
+        token_file.write_text(TOKEN, encoding="utf-8")
+        return GatewayConfig(harness_url=harness_url, token_file=token_file)
+
     def test_gateway_exposes_read_only_harness_contract_status_and_readiness(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
-            token_file = Path(tmp) / "token"
-            token_file.write_text(TOKEN, encoding="utf-8")
-            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
-            with RunningGateway(config) as gateway:
+            with RunningGateway(self._config(tmp, harness.url)) as gateway:
                 self.assertEqual(get_json(f"{gateway.url}/healthz")["product"], "lai-gateway")
-                self.assertEqual(
-                    get_json(f"{gateway.url}/v1/harness/gateway-contract")["version"],
-                    "0.4.2",
-                )
+                contract = get_json(f"{gateway.url}/v1/harness/gateway-contract")
+                self.assertEqual(contract["version"], "0.4.2")
                 self.assertEqual(get_json(f"{gateway.url}/v1/harness/status")["ok"], True)
-                self.assertEqual(
-                    get_json(f"{gateway.url}/v1/harness/readiness")["overall"],
-                    "ready",
-                )
-                self.assertEqual(
-                    get_json(f"{gateway.url}/v1/harness/sessions?limit=5")["sessions"][0]["session_id"],
-                    "s_test",
-                )
+                readiness = get_json(f"{gateway.url}/v1/harness/readiness")
+                self.assertEqual(readiness["overall"], "ready")
+
+    def test_gateway_creates_sessions_without_exposing_runs(self):
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            with RunningGateway(self._config(tmp, harness.url)) as gateway:
+                listed = get_json(f"{gateway.url}/v1/harness/sessions?limit=5")
+                self.assertEqual(listed["sessions"][0]["session_id"], "s_test")
+
+                request = Request(f"{gateway.url}/v1/harness/sessions", data=None, method="POST")
+                with urlopen(request, timeout=5) as response:
+                    body = json.loads(response.read().decode("utf-8"))
+                    self.assertEqual(response.status, HTTPStatus.CREATED)
+                self.assertEqual(body["session"]["session_id"], "s_test")
                 self.assertEqual(
                     get_json(f"{gateway.url}/v1/harness/sessions/s_test")["session"]["session_id"],
                     "s_test",
                 )
 
-    def test_gateway_creates_sessions_without_exposing_runs(self):
+    def test_gateway_creates_only_read_only_runs(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
-            token_file = Path(tmp) / "token"
-            token_file.write_text(TOKEN, encoding="utf-8")
-            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
-            with RunningGateway(config) as gateway:
-                request = Request(f"{gateway.url}/v1/harness/sessions", data=None, method="POST")
-                with urlopen(request, timeout=5) as response:
-                    payload = json.loads(response.read().decode("utf-8"))
-                    self.assertEqual(response.status, HTTPStatus.CREATED)
-                self.assertEqual(payload["session"]["session_id"], "s_test")
+            with RunningGateway(self._config(tmp, harness.url)) as gateway:
+                listed = get_json(f"{gateway.url}/v1/harness/runs?limit=5")
+                self.assertEqual(listed["runs"][0]["control_run_id"], "cr_test")
 
-                bad_request = Request(f"{gateway.url}/v1/harness/sessions", data=b"{}", method="POST")
-                with self.assertRaises(HTTPError) as caught:
-                    urlopen(bad_request, timeout=5)
-                self.assertEqual(caught.exception.code, HTTPStatus.BAD_REQUEST)
+                status, created = post_json(
+                    f"{gateway.url}/v1/harness/runs",
+                    {"mode": "plan", "task": "Summarize.", "session_id": "s_test"},
+                )
+                self.assertEqual(status, HTTPStatus.ACCEPTED)
+                self.assertEqual(created["run"]["control_run_id"], "cr_test")
+                fetched = get_json(f"{gateway.url}/v1/harness/runs/cr_test")
+                self.assertEqual(fetched["run"]["status"], "succeeded")
 
-                with self.assertRaises(HTTPError) as caught:
-                    urlopen(f"{gateway.url}/v1/harness/sessions?limit=0", timeout=5)
-                self.assertEqual(caught.exception.code, HTTPStatus.BAD_REQUEST)
-
-    def test_gateway_mvp_does_not_expose_run_creation(self):
+    def test_gateway_blocks_write_modes_and_malformed_run_bodies(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
-            token_file = Path(tmp) / "token"
-            token_file.write_text(TOKEN, encoding="utf-8")
-            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
-            with RunningGateway(config) as gateway:
+            with RunningGateway(self._config(tmp, harness.url)) as gateway:
+                status, body = post_json_error(
+                    f"{gateway.url}/v1/harness/runs",
+                    {"mode": "implement", "task": "change files"},
+                )
+                self.assertEqual(status, HTTPStatus.BAD_REQUEST)
+                self.assertEqual(body["error"], "invalid_run_request")
+
+                status, body = post_json_error(
+                    f"{gateway.url}/v1/harness/runs",
+                    {"mode": "plan", "task": "x", "surprise": True},
+                )
+                self.assertEqual(status, HTTPStatus.BAD_REQUEST)
+                self.assertEqual(body["error"], "unknown_run_fields")
+
+    def test_gateway_mvp_does_not_expose_raw_run_creation(self):
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            with RunningGateway(self._config(tmp, harness.url)) as gateway:
                 request = Request(f"{gateway.url}/v1/runs", data=b"{}", method="POST")
                 with self.assertRaises(HTTPError) as caught:
                     urlopen(request, timeout=5)

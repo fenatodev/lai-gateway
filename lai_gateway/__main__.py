@@ -9,7 +9,7 @@ from . import __version__
 from .config import GatewayConfig
 from .contract import summarize_contract
 from .errors import GatewayError
-from .harness_client import HarnessClient
+from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .release import collect_release_check, render_release_check
 from .server import serve
 
@@ -29,6 +29,16 @@ def main(argv: list[str] | None = None) -> int:
     sessions_sub.add_parser("create", help="create a harness session")
     sessions_get = sessions_sub.add_parser("get", help="read one harness session")
     sessions_get.add_argument("session_id", help="session id returned by sessions create/list")
+    runs_parser = sub.add_parser("runs", help="manage read-only harness runs")
+    runs_sub = runs_parser.add_subparsers(dest="runs_command")
+    runs_list = runs_sub.add_parser("list", help="list harness runs")
+    runs_list.add_argument("--limit", type=int, default=20, help="number of runs to list")
+    runs_create = runs_sub.add_parser("create", help="create a read-only harness run")
+    runs_create.add_argument("--mode", required=True, choices=sorted(READ_ONLY_RUN_MODES))
+    runs_create.add_argument("--task", required=True, help="read-only task to send to the harness")
+    runs_create.add_argument("--session-id", default=None, help="optional persistent session id")
+    runs_get = runs_sub.add_parser("get", help="read one harness run")
+    runs_get.add_argument("run_id", help="control run id returned by runs create/list")
     release_parser = sub.add_parser("release-check", help="check local release readiness")
     release_parser.add_argument("--target", required=True, help="target semantic version, for example 0.1.0")
     release_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
@@ -81,6 +91,20 @@ def main(argv: list[str] | None = None) -> int:
                 payload = client.get_session(args.session_id)
             else:
                 sessions_parser.print_help()
+                return 0
+        elif args.command == "runs":
+            if args.runs_command == "list":
+                payload = client.list_runs(args.limit)
+            elif args.runs_command == "create":
+                payload = client.create_read_only_run(
+                    mode=args.mode,
+                    task=args.task,
+                    session_id=args.session_id,
+                )
+            elif args.runs_command == "get":
+                payload = client.get_run(args.run_id)
+            else:
+                runs_parser.print_help()
                 return 0
         elif args.command == "release-check":
             payload = collect_release_check(args.target)

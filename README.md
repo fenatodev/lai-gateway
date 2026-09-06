@@ -6,14 +6,15 @@ It is intentionally a separate project. The harness owns local coding authority 
 
 ## Current scope
 
-This first cut only provides:
+The current gateway provides:
 
 - a dependency-free Python client for the harness control plane;
 - validation of the `lai harness v0.4.2` gateway contract;
-- a local CLI for `config`, `contract`, `status`, and `readiness`;
-- a loopback-only HTTP gateway MVP exposing read-only harness status, readiness, and contract routes.
+- a local CLI for `config`, `contract`, `status`, `readiness`, `sessions`, and `runs`;
+- a loopback-only HTTP gateway exposing harness status, readiness, contract, session, and read-only run routes;
+- read-only run creation for `diagnose`, `plan`, `release`, `review`, and `security`.
 
-It does **not** expose run creation yet.
+It does **not** expose write-capable run modes such as `implement`, `fix`, `refactor`, or `ci-fix`.
 
 ## Requirements
 
@@ -59,6 +60,10 @@ python3 -m lai_gateway readiness
 python3 -m lai_gateway sessions list --limit 10
 python3 -m lai_gateway sessions create
 python3 -m lai_gateway sessions get <session_id>
+python3 -m lai_gateway runs list --limit 10
+python3 -m lai_gateway runs create --mode plan --task "Summarize the current state"
+python3 -m lai_gateway runs create --mode review --session-id <session_id> --task "Review this safely"
+python3 -m lai_gateway runs get <control_run_id>
 ```
 
 ## Gateway server MVP
@@ -77,9 +82,12 @@ GET /v1/harness/gateway-contract
 GET /v1/harness/sessions?limit=N
 POST /v1/harness/sessions
 GET /v1/harness/sessions/{session_id}
+GET /v1/harness/runs?limit=N
+POST /v1/harness/runs
+GET /v1/harness/runs/{control_run_id}
 ```
 
-Session routes can create and inspect persistent harness sessions, but they do not create runs. `POST /v1/runs` remains blocked. That distinction matters unless your threat model was written on a napkin.
+Session routes can create and inspect persistent harness sessions. Run routes can create only read-only harness runs. `POST /v1/runs` remains blocked as a raw shortcut, and write modes remain rejected at the gateway boundary. That distinction matters unless your threat model was written on a napkin.
 
 The gateway currently refuses public bind addresses. Private-network/mobile exposure belongs in a later spec with explicit authentication and threat modeling.
 
@@ -87,7 +95,7 @@ The gateway currently refuses public bind addresses. Private-network/mobile expo
 
 ```bash
 make check
-python3 -m lai_gateway release-check --target 0.1.0 --json
+python3 -m lai_gateway release-check --target 0.1.2 --json
 ```
 
 Release rules are documented in [docs/RELEASE.md](docs/RELEASE.md).
