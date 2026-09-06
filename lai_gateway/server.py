@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hmac
 import json
+import threading
+import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -14,6 +16,8 @@ from .errors import ConfigError, GatewayError, HarnessHTTPError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient, build_read_only_run_body
 
 _REQUEST_BODY_MAX_BYTES = 64 * 1024
+_AUTH_FAILURE_LIMIT = 5
+_AUTH_FAILURE_WINDOW_SECONDS = 60.0
 _STATIC_DIR = Path(__file__).with_name("static")
 _STATIC_ROUTES = {
     "/": ("index.html", "text/html; charset=utf-8"),
@@ -47,6 +51,8 @@ class GatewayHTTPServer(ThreadingHTTPServer):
         self.config = config
         self.client = HarnessClient(config)
         self.access_token = access_token
+        self.auth_failures: dict[str, list[float]] = {}
+        self.auth_lock = threading.Lock()
 
 
 class GatewayHandler(BaseHTTPRequestHandler):
@@ -165,16 +171,47 @@ class GatewayHandler(BaseHTTPRequestHandler):
         expected = self.server.access_token
         if expected is None:
             return True
+        client_key = self.client_address[0] if self.client_address else "unknown"
+        if self._auth_rate_limited(client_key):
+            self._send_json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "gateway_auth_rate_limited"})
+            return False
         raw = self.headers.get("Authorization", "")
         prefix = "Bearer "
         if not raw.startswith(prefix):
+            self._record_auth_failure(client_key)
             self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "gateway_auth_required"})
             return False
         supplied = raw[len(prefix) :]
         if not hmac.compare_digest(supplied, expected):
+            self._record_auth_failure(client_key)
             self._send_json(HTTPStatus.FORBIDDEN, {"error": "gateway_auth_failed"})
             return False
+        self._clear_auth_failures(client_key)
         return True
+
+    def _auth_rate_limited(self, client_key: str) -> bool:
+        now = time.monotonic()
+        with self.server.auth_lock:
+            recent = [
+                stamp for stamp in self.server.auth_failures.get(client_key, [])
+                if now - stamp < _AUTH_FAILURE_WINDOW_SECONDS
+            ]
+            self.server.auth_failures[client_key] = recent
+            return len(recent) >= _AUTH_FAILURE_LIMIT
+
+    def _record_auth_failure(self, client_key: str) -> None:
+        now = time.monotonic()
+        with self.server.auth_lock:
+            recent = [
+                stamp for stamp in self.server.auth_failures.get(client_key, [])
+                if now - stamp < _AUTH_FAILURE_WINDOW_SECONDS
+            ]
+            recent.append(now)
+            self.server.auth_failures[client_key] = recent
+
+    def _clear_auth_failures(self, client_key: str) -> None:
+        with self.server.auth_lock:
+            self.server.auth_failures.pop(client_key, None)
 
     def _proxy(self, call: Any, success: int | HTTPStatus = HTTPStatus.OK) -> None:
         try:

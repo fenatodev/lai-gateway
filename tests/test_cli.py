@@ -208,7 +208,8 @@ class CliTest(unittest.TestCase):
         self.assertEqual(payload["target_version"], __version__)
         self.assertEqual(payload["expected_tag"], f"v{__version__}")
         self.assertIn(payload["overall"], {"ready", "blocked"})
-        self.assertNotIn("TOKEN", proc.stdout.upper())
+        self.assertNotIn("test-token", proc.stdout)
+        self.assertNotIn("Bearer ", proc.stdout)
 
 
 if __name__ == "__main__":

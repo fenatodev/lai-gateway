@@ -7,6 +7,7 @@ from typing import Any
 
 from . import __version__
 from .config import GatewayConfig, read_control_token, read_gateway_access_token
+from .tokens import check_gateway_access_token_file
 from .contract import summarize_contract
 from .errors import GatewayError
 from .harness_client import HarnessClient
@@ -48,11 +49,13 @@ def collect_doctor(config: GatewayConfig | None = None) -> dict[str, Any]:
             checks.append(_check("fail", "access_token_file", "private bind requires LAI_GATEWAY_ACCESS_TOKEN_FILE"))
             return _payload(config, checks)
         try:
+            checked = check_gateway_access_token_file(config.access_token_file)
             read_gateway_access_token(config.access_token_file)
         except GatewayError as exc:
             checks.append(_check("fail", "access_token_file", str(exc)))
             return _payload(config, checks)
         checks.append(_check("ok", "access_token_file", f"readable gateway access token file: {config.access_token_file}"))
+        checks.append(_check("ok", "access_token_permissions", f"mode={checked['mode']}"))
 
     client = HarnessClient(config)
     try:
@@ -109,7 +112,10 @@ def render_doctor(payload: dict[str, Any]) -> str:
     if isinstance(config, dict):
         lines.append(f"gateway_url: http://{config['bind']}:{config['port']}/")
         lines.append(f"harness_url: {config['harness_url']}")
+        lines.append(f"access_mode: {config['access_mode']}")
         lines.append(f"token_file: {config['token_file']}")
+        if config.get("access_token_file"):
+            lines.append(f"access_token_file: {config['access_token_file']}")
     for check in payload["checks"]:
         lines.append(f"- {check['name']}: {check['status']} ({check['detail']})")
     return "\n".join(lines)

@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 import webbrowser
+from pathlib import Path
 from typing import Any
 
 from . import __version__
@@ -14,6 +15,7 @@ from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .release import collect_release_check, render_release_check
 from .server import serve
+from .tokens import check_gateway_access_token_file, create_gateway_access_token, default_access_token_path
 
 
 def _config_with_overrides(config: GatewayConfig, bind: str | None, port: int | None) -> GatewayConfig:
@@ -68,6 +70,16 @@ def main(argv: list[str] | None = None) -> int:
     dev_parser.add_argument("--bind", default=None, help="gateway bind address allowed by config policy")
     dev_parser.add_argument("--port", type=int, default=None, help="gateway port")
     dev_parser.add_argument("--no-open", action="store_true", help="do not open the browser")
+    token_parser = sub.add_parser("token", help="manage the separate gateway access token")
+    token_sub = token_parser.add_subparsers(dest="token_command")
+    token_create = token_sub.add_parser("create", help="create a gateway access token file")
+    token_create.add_argument("--path", default=None, help="token file path; defaults to ~/.config/lai-gateway/access-token")
+    token_create.add_argument("--force", action="store_true", help="overwrite an existing token file")
+    token_create.add_argument("--show", action="store_true", help="print the token once for pairing")
+    token_create.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    token_check = token_sub.add_parser("check", help="validate gateway access token file permissions")
+    token_check.add_argument("--path", default=None, help="token file path; defaults to ~/.config/lai-gateway/access-token")
+    token_check.add_argument("--json", action="store_true", help="print machine-readable JSON")
     sessions_parser = sub.add_parser("sessions", help="manage harness sessions without creating runs")
     sessions_sub = sessions_parser.add_subparsers(dest="sessions_command")
     sessions_list = sessions_sub.add_parser("list", help="list harness sessions")
@@ -105,6 +117,30 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "dev":
             config = _config_with_overrides(config, args.bind, args.port)
             return _run_dev_stack(config, open_browser=not args.no_open)
+        if args.command == "token":
+            path = Path(args.path).expanduser() if getattr(args, "path", None) else default_access_token_path()
+            if args.token_command == "create":
+                payload = create_gateway_access_token(path, force=args.force, include_token=args.show)
+                if args.json:
+                    print(json.dumps(payload, indent=2, sort_keys=True))
+                else:
+                    print(f"created: {payload['path']}")
+                    print(f"mode: {payload['mode']}")
+                    print(f"token_length: {payload['token_length']}")
+                    if args.show:
+                        print(f"token: {payload['token']}")
+                return 0
+            if args.token_command == "check":
+                payload = check_gateway_access_token_file(path)
+                if args.json:
+                    print(json.dumps(payload, indent=2, sort_keys=True))
+                else:
+                    print(f"ok: {payload['path']}")
+                    print(f"mode: {payload['mode']}")
+                    print(f"token_length: {payload['token_length']}")
+                return 0
+            token_parser.print_help()
+            return 0
         payload: dict[str, Any]
         client = HarnessClient(config)
         if args.command == "config":
