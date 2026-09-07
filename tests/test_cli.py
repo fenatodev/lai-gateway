@@ -8,6 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import tests.fake_harness as fake
+
 from lai_gateway import __version__
 
 from .fake_harness import TOKEN, fake_harness
@@ -32,7 +34,7 @@ class CliTest(unittest.TestCase):
                 env=env,
             )
             payload = json.loads(result.stdout)
-            self.assertEqual(payload["version"], "0.4.2")
+            self.assertEqual(payload["version"], "0.4.5")
             self.assertNotIn(TOKEN, result.stdout)
             self.assertEqual(result.stderr, "")
 
@@ -48,8 +50,8 @@ class CliTest(unittest.TestCase):
             for args, expected_key in (
                 (["sessions", "list", "--limit", "5"], "sessions"),
                 (["sessions", "create"], "session"),
-                (["sessions", "get", "s_test"], "session"),
-                (["sessions", "delete", "s_test"], "deleted"),
+                (["sessions", "get", "cs-1234567890abcdef"], "session"),
+                (["sessions", "delete", "cs-1234567890abcdef"], "session"),
             ):
                 result = subprocess.run(
                     [sys.executable, "-m", "lai_gateway", *args],
@@ -65,6 +67,84 @@ class CliTest(unittest.TestCase):
                 self.assertEqual(result.stderr, "")
 
 
+    def test_cli_mcp_redacts_secret_shaped_upstream_fields(self):
+        fake.MCP_SECRET_LEAK = True
+        try:
+            with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+                token_file = Path(tmp) / "token"
+                token_file.write_text(TOKEN, encoding="utf-8")
+                env = dict(os.environ)
+                env.update({
+                    "LAI_GATEWAY_HARNESS_URL": harness.url,
+                    "LAI_GATEWAY_TOKEN_FILE": str(token_file),
+                })
+
+                result = subprocess.run(
+                    [sys.executable, "-m", "lai_gateway", "mcp", "status"],
+                    env=env,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=True,
+                    timeout=10,
+                )
+        finally:
+            fake.MCP_SECRET_LEAK = False
+
+        self.assertIn("[redacted-mcp-secret]", result.stdout)
+        self.assertNotIn("Bearer leaked-harness-token", result.stdout)
+        self.assertNotIn("leaked-model-secret", result.stdout)
+        self.assertNotIn("leaked-model-secret", result.stderr)
+
+    def test_cli_mcp_requires_subcommand(self):
+        result = subprocess.run(
+            [sys.executable, "-m", "lai_gateway", "mcp"],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=10,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("usage: lai-gateway mcp", result.stderr)
+        self.assertEqual(result.stdout, "")
+
+    def test_cli_mcp_commands_proxy_without_printing_token(self):
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            env = {
+                **os.environ,
+                "LAI_GATEWAY_HARNESS_URL": harness.url,
+                "LAI_GATEWAY_TOKEN_FILE": str(token_file),
+            }
+            commands = (
+                (["mcp", "status"], "overall"),
+                (["mcp", "tools"], "servers"),
+                ([
+                    "mcp",
+                    "policy-check",
+                    "--operation",
+                    "call-tool",
+                    "--server",
+                    "desktop-commander",
+                    "--tool",
+                    "start_process",
+                ], "decision"),
+            )
+            for args, expected_key in commands:
+                result = subprocess.run(
+                    [sys.executable, "-m", "lai_gateway", *args],
+                    text=True,
+                    capture_output=True,
+                    check=True,
+                    timeout=10,
+                    env=env,
+                )
+                payload = json.loads(result.stdout)
+                self.assertIn(expected_key, payload)
+                self.assertNotIn(TOKEN, result.stdout)
+                self.assertEqual(result.stderr, "")
+
     def test_cli_runs_commands_proxy_read_only_without_printing_token(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
             token_file = Path(tmp) / "token"
@@ -77,7 +157,7 @@ class CliTest(unittest.TestCase):
             commands = (
                 (["runs", "list", "--limit", "5"], "runs"),
                 (["runs", "create", "--mode", "plan", "--task", "Summarize."], "run"),
-                (["runs", "get", "cr_test"], "run"),
+                (["runs", "get", "cr-1234567890abcdef"], "run"),
             )
             for args, expected_key in commands:
                 result = subprocess.run(
@@ -207,10 +287,29 @@ class CliTest(unittest.TestCase):
         payload = json.loads(proc.stdout)
         self.assertEqual(payload["product"], "lai-gateway")
         self.assertEqual(payload["target_version"], __version__)
+        self.assertEqual(payload["validation_command"], "make check; make milestone-gate")
+        self.assertEqual(payload["validation_commands"], ["make check", "make milestone-gate"])
         self.assertEqual(payload["expected_tag"], f"v{__version__}")
         self.assertIn(payload["overall"], {"ready", "blocked"})
         self.assertNotIn("test-token", proc.stdout)
         self.assertNotIn("Bearer ", proc.stdout)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            outside = subprocess.run(
+                [sys.executable, "-m", "lai_gateway", "release-check", "--target", __version__, "--json"],
+                cwd=tmp,
+                env={**os.environ, "PYTHONPATH": str(Path(__file__).parents[1])},
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+        self.assertIn(outside.returncode, {0, 1})
+        self.assertEqual(outside.stderr, "")
+        outside_payload = json.loads(outside.stdout)
+        self.assertEqual(outside_payload["repository"], str(Path(__file__).parents[1]))
+        self.assertEqual(outside_payload["validation_commands"], ["make check", "make milestone-gate"])
+        self.assertNotIn("Bearer ", outside.stdout)
 
 
 if __name__ == "__main__":

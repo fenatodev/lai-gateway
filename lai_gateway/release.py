@@ -118,7 +118,9 @@ def collect_release_check(target: str, repo: Path | None = None) -> dict[str, An
     else:
         checks.append(Check("tag_state", "fail", f"{expected_tag} points at {tag_target}, HEAD={head}"))
 
-    checks.append(Check("validation_command", "ok", "make check"))
+    validation_commands = ["make check", "make milestone-gate"]
+    validation_command = "; ".join(validation_commands)
+    checks.append(Check("validation_command", "ok", validation_command))
     checks.append(Check("release_safety", "ok", "read-only check; no tag, push, release, or file mutation executed"))
 
     hard_fail = any(check.status == "fail" for check in checks)
@@ -153,6 +155,8 @@ def collect_release_check(target: str, repo: Path | None = None) -> dict[str, An
         "origin_main": origin,
         "tag_target": tag_target,
         "tag_ready": phase == "ready_to_tag",
+        "validation_command": validation_command,
+        "validation_commands": validation_commands,
         "overall": overall,
         "phase": phase,
         "checks": [check.as_dict() for check in checks],

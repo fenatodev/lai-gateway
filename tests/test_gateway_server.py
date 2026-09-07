@@ -11,9 +11,11 @@ from urllib.request import Request, urlopen
 
 from lai_gateway.config import GatewayConfig
 from lai_gateway.errors import ConfigError
+from lai_gateway.harness_client import MCP_REDACTED_VALUE
 from lai_gateway.server import GatewayHTTPServer
 from lai_gateway.tokens import create_gateway_access_token, create_gateway_pairing_token
 
+import tests.fake_harness as fake
 from .fake_harness import TOKEN, fake_harness, get_json
 
 
@@ -42,6 +44,25 @@ def post_json(url: str, payload: dict[str, object]) -> tuple[int, dict[str, obje
         url,
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urlopen(request, timeout=5) as response:
+        body = json.loads(response.read().decode("utf-8"))
+        return response.status, body
+
+
+def post_json_with_headers(
+    url: str,
+    payload: dict[str, object],
+    headers: dict[str, str] | None = None,
+) -> tuple[int, dict[str, object]]:
+    request_headers = {"Content-Type": "application/json"}
+    if headers:
+        request_headers.update(headers)
+    request = Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=request_headers,
         method="POST",
     )
     with urlopen(request, timeout=5) as response:
@@ -120,7 +141,7 @@ class GatewayServerTest(unittest.TestCase):
             with RunningGateway(self._config(tmp, harness.url)) as gateway:
                 self.assertEqual(get_json(f"{gateway.url}/healthz")["product"], "lai-gateway")
                 contract = get_json(f"{gateway.url}/v1/harness/gateway-contract")
-                self.assertEqual(contract["version"], "0.4.2")
+                self.assertEqual(contract["version"], "0.4.5")
                 self.assertEqual(get_json(f"{gateway.url}/v1/harness/status")["ok"], True)
                 readiness = get_json(f"{gateway.url}/v1/harness/readiness")
                 self.assertEqual(readiness["overall"], "ready")
@@ -129,38 +150,60 @@ class GatewayServerTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
             with RunningGateway(self._config(tmp, harness.url)) as gateway:
                 listed = get_json(f"{gateway.url}/v1/harness/sessions?limit=5")
-                self.assertEqual(listed["sessions"][0]["session_id"], "s_test")
+                self.assertEqual(listed["sessions"][0]["session_id"], "cs-1234567890abcdef")
 
                 request = Request(f"{gateway.url}/v1/harness/sessions", data=None, method="POST")
                 with urlopen(request, timeout=5) as response:
                     body = json.loads(response.read().decode("utf-8"))
                     self.assertEqual(response.status, HTTPStatus.CREATED)
-                self.assertEqual(body["session"]["session_id"], "s_test")
+                self.assertEqual(body["session"]["session_id"], "cs-1234567890abcdef")
                 self.assertEqual(
-                    get_json(f"{gateway.url}/v1/harness/sessions/s_test")["session"]["session_id"],
-                    "s_test",
+                    get_json(f"{gateway.url}/v1/harness/sessions/cs-1234567890abcdef")["session"]["session_id"],
+                    "cs-1234567890abcdef",
                 )
-                delete_request = Request(f"{gateway.url}/v1/harness/sessions/s_test", method="DELETE")
+                delete_request = Request(f"{gateway.url}/v1/harness/sessions/cs-1234567890abcdef", method="DELETE")
                 with urlopen(delete_request, timeout=5) as response:
                     deleted = json.loads(response.read().decode("utf-8"))
                     self.assertEqual(response.status, HTTPStatus.OK)
-                self.assertTrue(deleted["deleted"])
-                self.assertEqual(deleted["session"]["session_id"], "s_test")
+                self.assertTrue(deleted["session"]["deleted"])
+                self.assertEqual(deleted["session"]["session_id"], "cs-1234567890abcdef")
 
     def test_gateway_creates_only_read_only_runs(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
             with RunningGateway(self._config(tmp, harness.url)) as gateway:
                 listed = get_json(f"{gateway.url}/v1/harness/runs?limit=5")
-                self.assertEqual(listed["runs"][0]["control_run_id"], "cr_test")
+                self.assertEqual(listed["runs"][0]["control_run_id"], "cr-1234567890abcdef")
 
                 status, created = post_json(
                     f"{gateway.url}/v1/harness/runs",
-                    {"mode": "plan", "task": "Summarize.", "session_id": "s_test"},
+                    {"mode": "plan", "task": "Summarize.", "session_id": "cs-1234567890abcdef"},
                 )
                 self.assertEqual(status, HTTPStatus.ACCEPTED)
-                self.assertEqual(created["run"]["control_run_id"], "cr_test")
-                fetched = get_json(f"{gateway.url}/v1/harness/runs/cr_test")
+                self.assertEqual(created["run"]["control_run_id"], "cr-1234567890abcdef")
+                fetched = get_json(f"{gateway.url}/v1/harness/runs/cr-1234567890abcdef")
                 self.assertEqual(fetched["run"]["status"], "succeeded")
+
+    def test_gateway_rejects_malformed_control_run_and_session_ids_before_proxy(self):
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            with RunningGateway(self._config(tmp, harness.url)) as gateway:
+                for path in (
+                    "/v1/harness/sessions/s_test",
+                    "/v1/harness/sessions/cs-123",
+                    "/v1/harness/sessions/cs-zzzzzzzzzzzzzzzz",
+                    "/v1/harness/runs/cr_test",
+                    "/v1/harness/runs/run-1",
+                    "/v1/harness/runs/cr-123",
+                    "/v1/harness/runs/cr-zzzzzzzzzzzzzzzz",
+                ):
+                    with self.subTest(path=path):
+                        status, body = get_json_error(f"{gateway.url}{path}")
+                        self.assertEqual(status, HTTPStatus.NOT_FOUND)
+                        self.assertEqual(body["error"], "not_found")
+
+                status, body = delete_error(f"{gateway.url}/v1/harness/sessions/s_test")
+                self.assertEqual(status, HTTPStatus.NOT_FOUND)
+                self.assertEqual(body["error"], "not_found")
+
 
     def test_gateway_blocks_write_modes_and_malformed_run_bodies(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
@@ -222,6 +265,48 @@ class GatewayServerTest(unittest.TestCase):
                 )
                 self.assertEqual(status, HTTPStatus.OK)
                 self.assertEqual(body["overall"], "ready")
+
+
+
+    def test_private_mode_requires_gateway_auth_for_mcp_proxy(self):
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            access_file = Path(tmp) / "gateway-access"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            create_gateway_access_token(access_file)
+            access_token = access_file.read_text(encoding="utf-8").strip()
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                private_bind_enabled=True,
+                access_token_file=access_file,
+            )
+            with RunningGateway(config) as gateway:
+                status, body = get_json_error(f"{gateway.url}/v1/harness/mcp/status")
+                self.assertEqual(status, HTTPStatus.UNAUTHORIZED)
+                self.assertEqual(body["error"], "gateway_auth_required")
+
+                status, body = get_json_error(
+                    f"{gateway.url}/v1/harness/mcp/status",
+                    {"Authorization": "Bearer wrong-token"},
+                )
+                self.assertEqual(status, HTTPStatus.FORBIDDEN)
+                self.assertEqual(body["error"], "gateway_auth_failed")
+
+                status, body = get_json_with_headers(
+                    f"{gateway.url}/v1/harness/mcp/status",
+                    {"Authorization": f"Bearer {access_token}"},
+                )
+                self.assertEqual(status, HTTPStatus.OK)
+                self.assertEqual(body["overall"], "ready")
+
+                status, policy = post_json_with_headers(
+                    f"{gateway.url}/v1/harness/mcp/policy-check",
+                    {"operation": "status"},
+                    {"Authorization": f"Bearer {access_token}"},
+                )
+                self.assertEqual(status, HTTPStatus.OK)
+                self.assertEqual(policy["decision"], "ALLOW")
 
 
     def test_private_mode_exchanges_pair_token_for_mobile_session(self):
@@ -400,6 +485,56 @@ class GatewayServerTest(unittest.TestCase):
                 )
                 self.assertEqual(status, HTTPStatus.TOO_MANY_REQUESTS)
                 self.assertEqual(body["error"], "gateway_auth_rate_limited")
+
+
+    def test_gateway_proxies_mcp_broker_foundation_without_tool_execution(self):
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            with RunningGateway(self._config(tmp, harness.url)) as gateway:
+                status = get_json(f"{gateway.url}/v1/harness/mcp/status")
+                tools = get_json(f"{gateway.url}/v1/harness/mcp/tools")
+
+                self.assertEqual(status["overall"], "ready")
+                self.assertFalse(status["security"]["executes_tools"])
+                self.assertEqual(tools["servers"][0]["name"], "desktop-commander")
+
+                http_status, policy = post_json(
+                    f"{gateway.url}/v1/harness/mcp/policy-check",
+                    {
+                        "operation": "call-tool",
+                        "server": "desktop-commander",
+                        "tool": "start_process",
+                    },
+                )
+                self.assertEqual(http_status, HTTPStatus.OK)
+                self.assertEqual(policy["decision"], "DENY")
+                self.assertFalse(policy["executed"])
+                self.assertIn("MCP tool execution is not enabled", policy["reason"])
+
+                bad_status, bad_body = post_json_error(
+                    f"{gateway.url}/v1/harness/mcp/policy-check",
+                    {"operation": "call-tool", "unexpected": True},
+                )
+                self.assertEqual(bad_status, HTTPStatus.BAD_REQUEST)
+                self.assertEqual(bad_body["error"], "unsupported_mcp_policy_fields")
+
+    def test_gateway_redacts_secret_shaped_mcp_upstream_fields(self):
+        fake.MCP_SECRET_LEAK = True
+        try:
+            with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+                with RunningGateway(self._config(tmp, harness.url)) as gateway:
+                    status = get_json(f"{gateway.url}/v1/harness/mcp/status")
+                    stdout = json.dumps(status, sort_keys=True)
+
+                    self.assertEqual(status["authorization"], MCP_REDACTED_VALUE)
+                    self.assertEqual(
+                        status["servers"][0]["env"]["LAI_GATEWAY_MODEL_API_KEY"],
+                        MCP_REDACTED_VALUE,
+                    )
+                    self.assertEqual(status["servers"][0]["env"]["NORMAL_SETTING"], "safe")
+                    self.assertNotIn("leaked-harness-token", stdout)
+                    self.assertNotIn("leaked-model-secret", stdout)
+        finally:
+            fake.MCP_SECRET_LEAK = False
 
     def test_gateway_mvp_does_not_expose_raw_run_creation(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

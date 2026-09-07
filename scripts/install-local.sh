@@ -54,5 +54,12 @@ exec "\$repo_dir/scripts/launch-daily.sh" "\$@"
 EOF
 chmod 755 "$bin_dir/lai-gateway-daily"
 
+cat > "$bin_dir/lai-gateway-stack-check" <<EOF
+#!/usr/bin/env sh
+repo_dir='$repo_dir'
+exec "\$repo_dir/scripts/stack-check.sh" "\$@"
+EOF
+chmod 755 "$bin_dir/lai-gateway-stack-check"
+
 printf 'installed lai-gateway wrappers in %s\n' "$bin_dir"
 "$bin_dir/lai-gateway" --version

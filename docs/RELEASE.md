@@ -9,7 +9,8 @@ Before tagging a release:
 1. Merge changes through a pull request into protected `main`.
 2. Wait for required GitHub checks to pass on `main`.
 3. Run `make check` locally from a clean checkout.
-4. Run `python3 -m lai_gateway release-check --target X.Y.Z --json`.
+4. Run `make milestone-gate HARNESS_REPO=/path/to/lai-local-agent TARGET_GATEWAY=X.Y.Z TARGET_HARNESS=0.4.5` for Gateway/Harness compatibility.
+5. Run `python3 -m lai_gateway release-check --target X.Y.Z --json`.
 5. Create an annotated tag only when the release check reports `phase=ready_to_tag`.
 6. Push the tag and verify tag CI.
 7. Create a stable GitHub release with `prerelease=false`.

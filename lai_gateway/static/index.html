@@ -16,6 +16,7 @@
         <span id="readiness-pill" class="pill muted">readiness unknown</span>
         <span id="ops-pill" class="pill muted">ops unknown</span>
         <span id="model-pill" class="pill muted">model unknown</span>
+        <span id="mcp-pill" class="pill muted">mcp unknown</span>
         <span id="active-session-pill" class="pill muted">no active session</span>
         <span id="active-run-pill" class="pill muted">no active run</span>
       </div>
@@ -33,6 +34,7 @@
         <li id="check-session" class="check muted">No active session selected.</li>
         <li id="check-run" class="check muted">No read-only run selected.</li>
         <li id="check-model" class="check muted">Model status not loaded.</li>
+        <li id="check-mcp" class="check muted">MCP broker status not loaded.</li>
       </ol>
     </section>
 
@@ -106,6 +108,25 @@
           <button data-action="refresh-model-runs">Show model runs</button>
         </div>
         <pre id="model-output" aria-live="polite">Not loaded.</pre>
+      </article>
+
+      <article class="card">
+        <h2>MCP Broker</h2>
+        <p class="muted">Read-only MCP broker visibility. Status and tool listing are allowed; tool execution remains denied.</p>
+        <div class="actions">
+          <button data-action="refresh-mcp-status">Refresh MCP status</button>
+          <button data-action="refresh-mcp-tools">List MCP tools</button>
+          <button data-action="check-mcp-call-tool">Check call-tool denial</button>
+        </div>
+        <div class="form-row">
+          <label>MCP server
+            <input id="mcp-server" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="desktop-commander">
+          </label>
+          <label>MCP tool
+            <input id="mcp-tool" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="start_process">
+          </label>
+        </div>
+        <pre id="mcp-output" aria-live="polite">Not loaded.</pre>
       </article>
 
       <article class="card">

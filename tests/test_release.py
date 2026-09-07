@@ -45,6 +45,10 @@ class ReleaseCheckTest(unittest.TestCase):
             self.assertFalse(payload["tag_ready"])
             self.assertTrue(any(c["name"] == "git_status" and c["status"] == "fail" for c in payload["checks"]))
             self.assertIsNone(payload["tag_target"])
+            self.assertEqual(payload["validation_command"], "make check; make milestone-gate")
+            self.assertEqual(payload["validation_commands"], ["make check", "make milestone-gate"])
+            checks = {check["name"]: check for check in payload["checks"]}
+            self.assertEqual(checks["validation_command"]["detail"], payload["validation_command"])
 
     def test_release_check_candidate_branch_is_ready_for_integration(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

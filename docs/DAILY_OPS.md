@@ -4,9 +4,9 @@ This runbook starts the published local LAI path without exposing secrets.
 
 ## Current proven path
 
-- `lai harness` 0.4.4 runs the control plane on `127.0.0.1:8765` during local dogfood.
-- `llama-server.exe` serves the validated Ministral baseline on `172.29.192.1:8080` with `--api-key-file`.
-- `lai-gateway` 0.1.30 serves the mobile UI on `172.29.193.62:8787` during local dogfood.
+- `lai harness` 0.4.5 runs the control plane on `127.0.0.1:8765` during local dogfood.
+- `llama-server.exe` serves the validated Ministral baseline on `<wsl-default-gateway>:8080` with `--api-key-file`.
+- `lai-gateway` 0.1.31 serves the mobile UI on `<wsl-gateway-ip>:8787` during local dogfood.
 - Phone access uses the Tailscale Serve MagicDNS URL when the mobile proxy is active.
 
 ## Start the model server
@@ -14,7 +14,7 @@ This runbook starts the published local LAI path without exposing secrets.
 From the Harness checkout:
 
 ```bash
-cd /home/fenato/dev/projects/lai-local-agent
+cd ../lai-local-agent
 lai-server-start
 ```
 
@@ -23,7 +23,7 @@ This is idempotent. If the authenticated model server is already running, it exi
 ## Start the Harness control plane
 
 ```bash
-cd /home/fenato/dev/projects/lai-local-agent
+cd ../lai-local-agent
 lai serve
 ```
 
@@ -38,9 +38,9 @@ http://127.0.0.1:8765
 From the gateway checkout:
 
 ```bash
-cd /home/fenato/dev/projects/lai-gateway
+cd .
 export LAI_GATEWAY_TELEGRAM_ENABLE_SEND=1
-lai-gateway-mobile --candidate-ip 172.29.193.62 --port 8787 --telegram-notify
+lai-gateway-mobile --candidate-ip <wsl-gateway-ip> --port 8787 --telegram-notify
 ```
 
 The launcher is idempotent. It checks the current state, repairs pair tokens when needed, and starts `mobile-serve` only when no listener is active.
@@ -48,7 +48,7 @@ The launcher is idempotent. It checks the current state, repairs pair tokens whe
 ## Check the Windows/Tailscale bridge
 
 ```bash
-lai-gateway mobile-bridge --listen-ip 100.107.179.6 --connect-ip 172.29.193.62 --port 8787 --check
+lai-gateway mobile-bridge --listen-ip <tailnet-ip> --connect-ip <wsl-gateway-ip> --port 8787 --check
 ```
 
 Expected result when the phone route is fully reachable:
@@ -64,7 +64,7 @@ If `listen_target` fails but `wsl_target` passes, the gateway is alive in WSL an
 Generate a short-lived pair token only in your local terminal:
 
 ```bash
-lai-gateway mobile-repair --candidate-ip 172.29.193.62 --port 8787 --prepare --show-pair
+lai-gateway mobile-repair --candidate-ip <wsl-gateway-ip> --port 8787 --prepare --show-pair
 ```
 
 Paste the pair token into the phone UI only. Do not paste it into chat, GitHub, notes, logs, or screenshots.
@@ -73,7 +73,7 @@ Paste the pair token into the phone UI only. Do not paste it into chat, GitHub, 
 
 ```bash
 LAI_GATEWAY_TELEGRAM_ENABLE_SEND=1 \
-  lai-gateway telegram notify-mobile --candidate-ip 172.29.193.62 --port 8787
+  lai-gateway telegram notify-mobile --candidate-ip <wsl-gateway-ip> --port 8787
 ```
 
 The Telegram message contains the mobile URL and bridge guidance only. It does not include pair, gateway, Harness, Telegram, or model API secrets.
@@ -82,7 +82,7 @@ The Telegram message contains the mobile URL and bridge guidance only. It does n
 
 ```bash
 LAI_GATEWAY_TELEGRAM_ENABLE_SEND=1 \
-  lai-gateway ops-status --candidate-ip 172.29.193.62 --port 8787
+  lai-gateway ops-status --candidate-ip <wsl-gateway-ip> --port 8787
 ```
 
 Expected operational state:
@@ -92,14 +92,17 @@ harness_model: ready
 mobile: ready
 telegram: ready
 gateway_model_probe: needs_model_config or ready
+mcp_broker: no_config or ready
 ```
+
+`mcp_broker` reports the Harness MCP broker foundation state. `no_config` is acceptable when no MCP server configuration exists yet; `call-tool` remains denied and non-executing in this milestone.
 
 `gateway_model_probe` is a direct endpoint diagnostic. The normal product path uses the model behind the Harness, so `harness_model: ready` is the important daily signal.
 
 ## Mobile Tailscale proxy
 
 ```bash
-lai-gateway-mobile-proxy --target-host 172.29.193.62 --target-port 8787
+lai-gateway-mobile-proxy --target-host <wsl-gateway-ip> --target-port 8787
 ```
 
 Point Tailscale Serve at `http://127.0.0.1:18787` and open the MagicDNS URL on the phone.
@@ -110,7 +113,7 @@ Once Tailscale Serve points at `http://127.0.0.1:18787`, the daily wrapper can v
 
 ```bash
 lai-gateway daily-config set \
-  --candidate-ip 172.29.193.62 \
+  --candidate-ip <wsl-gateway-ip> \
   --phone-url http://<your-device>.<your-tailnet>.ts.net:8787/
 
 lai-gateway-daily --show-pair
@@ -121,7 +124,7 @@ The wrapper keeps token values out of logs unless `--show-pair` is passed. It ch
 For a dry plan without starting services:
 
 ```bash
-lai-gateway-daily --candidate-ip 172.29.193.62 --check-only
+lai-gateway-daily --candidate-ip <wsl-gateway-ip> --check-only
 ```
 
 
@@ -131,7 +134,7 @@ Use `daily-config` to save the local WSL/mobile IP and the phone URL without sto
 
 ```bash
 lai-gateway daily-config set \
-  --candidate-ip 172.29.193.62 \
+  --candidate-ip <wsl-gateway-ip> \
   --phone-url http://<your-device>.<your-tailnet>.ts.net:8787/
 ```
 

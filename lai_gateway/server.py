@@ -18,7 +18,13 @@ from .ops import collect_ops_status
 from .config import GatewayConfig, read_gateway_access_token, validate_gateway_bind
 from .tokens import read_valid_gateway_pairing_token
 from .errors import ConfigError, GatewayError, HarnessHTTPError
-from .harness_client import READ_ONLY_RUN_MODES, HarnessClient, build_read_only_run_body
+from .harness_client import (
+    READ_ONLY_RUN_MODES,
+    HarnessClient,
+    build_read_only_run_body,
+    is_control_run_id,
+    is_control_session_id,
+)
 from .model import collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_status, collect_model_task
 
 _REQUEST_BODY_MAX_BYTES = 64 * 1024
@@ -155,6 +161,16 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 return
             self._proxy(lambda: self.server.client.gateway_contract())
             return
+        if parsed.path == "/v1/harness/mcp/status":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            self._proxy(lambda: self.server.client.mcp_status())
+            return
+        if parsed.path == "/v1/harness/mcp/tools":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            self._proxy(lambda: self.server.client.mcp_tools())
+            return
         if parsed.path == "/v1/harness/sessions":
             if not self._authorize_gateway_api(parsed.path):
                 return
@@ -167,7 +183,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             if not self._authorize_gateway_api(parsed.path):
                 return
             session_id = parsed.path.removeprefix("/v1/harness/sessions/")
-            if "/" in session_id or not session_id:
+            if "/" in session_id or not is_control_session_id(session_id):
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
                 return
             self._proxy(lambda: self.server.client.get_session(session_id))
@@ -184,7 +200,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             if not self._authorize_gateway_api(parsed.path):
                 return
             run_id = parsed.path.removeprefix("/v1/harness/runs/")
-            if "/" in run_id or not run_id:
+            if "/" in run_id or not is_control_run_id(run_id):
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
                 return
             self._proxy(lambda: self.server.client.get_run(run_id))
@@ -204,6 +220,18 @@ class GatewayHandler(BaseHTTPRequestHandler):
             if not self._require_empty_body():
                 return
             self._proxy(lambda: self.server.client.create_session(), success=HTTPStatus.CREATED)
+            return
+        if parsed.path == "/v1/harness/mcp/policy-check":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            body = self._read_mcp_policy_body()
+            if body is None:
+                return
+            self._proxy(lambda: self.server.client.mcp_policy_check(
+                operation=body["operation"] or "",
+                server=body["server"],
+                tool=body["tool"],
+            ))
             return
         if parsed.path == "/v1/harness/runs":
             if not self._authorize_gateway_api(parsed.path):
@@ -234,7 +262,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             if not self._authorize_gateway_api(parsed.path):
                 return
             session_id = parsed.path.removeprefix("/v1/harness/sessions/")
-            if "/" in session_id or not session_id:
+            if "/" in session_id or not is_control_session_id(session_id):
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
                 return
             self._proxy(lambda: self.server.client.delete_session(session_id))
@@ -540,7 +568,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             return False
         return True
 
-    def _read_run_body(self) -> dict[str, str] | None:
+    def _read_body(self) -> bytes | None:
         raw_length = self.headers.get("Content-Length", "0")
         try:
             length = int(raw_length)
@@ -550,7 +578,17 @@ class GatewayHandler(BaseHTTPRequestHandler):
         if length <= 0 or length > _REQUEST_BODY_MAX_BYTES:
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_request_body_size"})
             return None
-        raw = self.rfile.read(length)
+        return self.rfile.read(length)
+
+    def _read_json_object(
+        self,
+        *,
+        allowed_keys: set[str] | None = None,
+        unsupported_error: str = "unsupported_json_fields",
+    ) -> dict[str, Any] | None:
+        raw = self._read_body()
+        if raw is None:
+            return None
         try:
             payload = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -559,9 +597,38 @@ class GatewayHandler(BaseHTTPRequestHandler):
         if not isinstance(payload, dict):
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_json_object"})
             return None
-        allowed_keys = {"mode", "task", "session_id"}
-        if set(payload) - allowed_keys:
-            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "unsupported_run_fields"})
+        if allowed_keys is not None and set(payload) - allowed_keys:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": unsupported_error})
+            return None
+        return payload
+
+    def _read_mcp_policy_body(self) -> dict[str, str | None] | None:
+        payload = self._read_json_object(
+            allowed_keys={"operation", "server", "tool"},
+            unsupported_error="unsupported_mcp_policy_fields",
+        )
+        if payload is None:
+            return None
+        operation = payload.get("operation")
+        server = payload.get("server")
+        tool = payload.get("tool")
+        if not isinstance(operation, str):
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_mcp_policy_body"})
+            return None
+        if server is not None and not isinstance(server, str):
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_mcp_policy_body"})
+            return None
+        if tool is not None and not isinstance(tool, str):
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_mcp_policy_body"})
+            return None
+        return {"operation": operation, "server": server, "tool": tool}
+
+    def _read_run_body(self) -> dict[str, str] | None:
+        payload = self._read_json_object(
+            allowed_keys={"mode", "task", "session_id"},
+            unsupported_error="unsupported_run_fields",
+        )
+        if payload is None:
             return None
         mode = payload.get("mode")
         task = payload.get("task")

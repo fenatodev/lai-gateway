@@ -6,7 +6,8 @@ from typing import Any
 from . import __version__
 from .config import GatewayConfig
 from .doctor import collect_doctor
-from .errors import GatewayError
+from .errors import ConfigError, GatewayError
+from .harness_client import HarnessClient
 from .mobile import collect_mobile_status
 from .model import collect_model_runs, collect_model_status
 from .telegram import collect_telegram_preflight
@@ -46,7 +47,8 @@ def collect_ops_status(
     )
     model = collect_model_status()
     model_runs = collect_model_runs(limit=5)
-    overall = _ops_overall(doctor=doctor, mobile=mobile, telegram=telegram)
+    mcp = _collect_mcp_broker(resolved_config)
+    overall = _ops_overall(doctor=doctor, mobile=mobile, telegram=telegram, mcp=mcp)
     return {
         "product": "lai-gateway",
         "version": __version__,
@@ -65,7 +67,14 @@ def collect_ops_status(
         "telegram": telegram,
         "model": model,
         "model_runs": model_runs,
-        "next_steps": _ops_next_steps(doctor=doctor, mobile=mobile, telegram=telegram, model_runs=model_runs),
+        "mcp_broker": mcp,
+        "next_steps": _ops_next_steps(
+            doctor=doctor,
+            mobile=mobile,
+            telegram=telegram,
+            mcp=mcp,
+            model_runs=model_runs,
+        ),
         "security": {
             "prints_tokens": False,
             "starts_server": False,
@@ -91,6 +100,7 @@ def render_ops_status(payload: dict[str, Any]) -> str:
         f"harness_model: {_harness_model_status(doctor)}",
         f"mobile: {mobile['overall']}",
         f"telegram: {telegram['overall']}",
+        f"mcp_broker: {payload.get('mcp_broker', {}).get('overall', 'unknown')}",
         f"gateway_model_probe: {model.get('overall', 'unknown')}",
         f"model_runs: {model_runs.get('count', 0)}",
     ]
@@ -131,20 +141,37 @@ def _harness_model_status(doctor: dict[str, Any]) -> str:
     return "unknown"
 
 
-def _ops_overall(*, doctor: dict[str, Any], mobile: dict[str, Any], telegram: dict[str, Any]) -> str:
+def _ops_overall(*, doctor: dict[str, Any], mobile: dict[str, Any], telegram: dict[str, Any], mcp: dict[str, Any] | None = None) -> str:
     if doctor.get("overall") == "blocked" or mobile.get("overall") == "blocked":
         return "blocked"
+    mcp_overall = (mcp or {}).get("overall")
+    if mcp_overall == "blocked":
+        return "blocked"
+    if mcp_overall not in {None, "ready", "no_config"}:
+        return "warn"
     if doctor.get("overall") == "warn" or mobile.get("overall") != "ready" or telegram.get("overall") != "ready":
         return "warn"
     return "ready"
 
 
-def _ops_next_steps(*, doctor: dict[str, Any], mobile: dict[str, Any], telegram: dict[str, Any], model_runs: dict[str, Any] | None = None) -> list[str]:
+def _ops_next_steps(
+    *,
+    doctor: dict[str, Any],
+    mobile: dict[str, Any],
+    telegram: dict[str, Any],
+    mcp: dict[str, Any] | None = None,
+    model_runs: dict[str, Any] | None = None,
+) -> list[str]:
     steps: list[str] = []
     for check in doctor.get("checks", []):
         if check.get("status") == "fail":
             steps.append(f"Fix doctor check `{check.get('name')}`: {check.get('detail')}")
     steps.extend(str(step) for step in mobile.get("next_steps", []))
+    mcp_overall = (mcp or {}).get("overall")
+    if mcp_overall == "blocked":
+        steps.append("Fix blocked MCP broker config: lai-gateway mcp status")
+    elif mcp_overall not in {None, "ready", "no_config"}:
+        steps.append("Inspect MCP broker status: lai-gateway mcp status")
     if (model_runs or {}).get("count", 0) == 0:
         steps.append("Run local model evaluation metrics: lai-gateway-model --eval --record")
     if telegram.get("overall") != "ready":
@@ -170,3 +197,18 @@ def _dedupe(items: list[str]) -> list[str]:
 
 def _has_check(payload: dict[str, Any], name: str) -> bool:
     return any(check.get("name") == name for check in payload.get("checks", []))
+
+def _collect_mcp_broker(config: GatewayConfig | None) -> dict[str, Any]:
+    if config is None:
+        return {"overall": "unknown", "detail": "gateway config unavailable", "execution_enabled": False}
+    try:
+        payload = HarnessClient(config).mcp_status()
+    except (GatewayError, ConfigError) as exc:
+        return {"overall": "unknown", "detail": str(exc), "execution_enabled": False}
+    return {
+        "overall": payload.get("overall", "unknown"),
+        "version": payload.get("version"),
+        "server_count": payload.get("server_count", 0),
+        "execution_enabled": bool(payload.get("security", {}).get("executes_tools", False)),
+        "issues": payload.get("issues", []),
+    }

@@ -11,3 +11,19 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+*.whl
+*.vsix
+htmlcov/
+# Local runtime/private state
+.secrets/
+state/
+metrics/
+audit/
+events.jsonl
+current-context.*
+api-key*
+*.key
+*.log
+*.gguf
+*.sqlite
+*.sqlite3

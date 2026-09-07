@@ -13,9 +13,16 @@ REQUIRED_ROUTES = {
     ("GET", "/v1/gateway-contract"),
     ("GET", "/v1/status"),
     ("GET", "/v1/readiness"),
+    ("GET", "/v1/sessions?limit=N"),
     ("POST", "/v1/sessions"),
+    ("GET", "/v1/sessions/{session_id}"),
     ("DELETE", "/v1/sessions/{session_id}"),
+    ("GET", "/v1/mcp/status"),
+    ("GET", "/v1/mcp/tools"),
+    ("POST", "/v1/mcp/policy-check"),
+    ("GET", "/v1/runs?limit=N"),
     ("POST", "/v1/runs"),
+    ("GET", "/v1/runs/{control_run_id}"),
 }
 SECRET_FIELD_TERMS = ("secret", "api_key", "password", "authorization")
 ALLOWED_DOCUMENTATION_FIELDS = {"auth", "token_handling"}
@@ -59,6 +66,10 @@ def validate_gateway_contract(payload: dict[str, Any]) -> dict[str, Any]:
         raise ConfigError("gateway contract must deny shell execution")
     if capabilities.get("direct_llama_proxy") is not False:
         raise ConfigError("gateway contract must deny direct llama proxy exposure")
+    if capabilities.get("mcp_broker_foundation") is not True:
+        raise ConfigError("gateway contract must expose the non-executing MCP broker foundation")
+    if capabilities.get("mcp_tool_execution") is not False:
+        raise ConfigError("gateway contract must deny MCP tool execution")
     return payload
 
 

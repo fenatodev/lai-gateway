@@ -84,6 +84,15 @@ class GatewayUITest(unittest.TestCase):
                 self.assertIn('id="active-session-pill"', html)
                 self.assertIn('id="active-run-pill"', html)
                 self.assertIn('id="model-pill"', html)
+                self.assertIn('id="mcp-pill"', html)
+                self.assertIn('id="mcp-output"', html)
+                self.assertIn('id="check-mcp"', html)
+                self.assertIn('id="mcp-server"', html)
+                self.assertIn('id="mcp-tool"', html)
+                self.assertIn('data-action="refresh-mcp-status"', html)
+                self.assertIn('data-action="refresh-mcp-tools"', html)
+                self.assertIn('data-action="check-mcp-call-tool"', html)
+                self.assertIn('MCP Broker', html)
                 self.assertIn('id="auth-banner"', html)
                 self.assertIn('id="gateway-auth-result"', html)
                 self.assertIn('Pair this phone', html)
@@ -140,7 +149,13 @@ class GatewayUITest(unittest.TestCase):
         self.assertIn("/v1/gateway/model-task", js)
         self.assertIn("/v1/gateway/model-eval", js)
         self.assertIn("/v1/gateway/model-runs", js)
+        self.assertIn("/v1/harness/mcp/status", js)
+        self.assertIn("/v1/harness/mcp/tools", js)
+        self.assertIn("/v1/harness/mcp/policy-check", js)
         self.assertIn("setOpsStatus", js)
+        self.assertIn("setMcpStatus", js)
+        self.assertIn("mcpPolicyBody", js)
+        self.assertIn("check-mcp-call-tool", js)
         self.assertIn("setModelStatus", js)
         self.assertIn("data:image/svg+xml", js)
         self.assertIn("setMobileQr", js)
@@ -152,6 +167,7 @@ class GatewayUITest(unittest.TestCase):
         self.assertIn("/v1/harness/sessions", js)
         self.assertIn('method: "DELETE"', js)
         self.assertIn("/v1/harness/runs", js)
+        self.assertIn("run.control_run_id || run.run_id", js)
         self.assertIn("window.setInterval", js)
         self.assertIn("window.clearInterval", js)
         self.assertIn("navigator.clipboard.writeText", js)
@@ -182,6 +198,28 @@ class GatewayUITest(unittest.TestCase):
         for forbidden in (TOKEN, "localStorage", "sessionStorage", "innerHTML", "http://", "https://"):
             self.assertNotIn(forbidden, js)
 
+
+
+    def test_gateway_mcp_ui_routes_are_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with RunningGateway(config) as gateway:
+                status, headers, body = read_url(f"{gateway.url}/v1/harness/mcp/status")
+                tools_status, _tool_headers, tools_body = read_url(f"{gateway.url}/v1/harness/mcp/tools")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        payload = json.loads(body)
+        tools = json.loads(tools_body)
+        self.assertEqual(payload["overall"], "ready")
+        self.assertFalse(payload["security"]["executes_tools"])
+        self.assertEqual(tools_status, 200)
+        self.assertEqual(tools["execution_enabled"], False)
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
+        self.assertNotIn(TOKEN, tools_body)
+        self.assertNotIn("Bearer", tools_body)
 
     def test_gateway_mobile_access_endpoint_returns_local_qr_without_tokens(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

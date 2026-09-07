@@ -27,7 +27,7 @@ lai-gateway model-status --probe-openai
 - No model download is performed by `lai-gateway`.
 - No benchmark result is claimed until a runtime and model are actually installed.
 
-For Fenato's 8 GB GPU target, the next practical step is to install or expose one local runtime first, then test one small/quantized code model through the harness path instead of adding a raw model proxy.
+For an 8 GB GPU target, the next practical step is to install or expose one local runtime first, then test one small/quantized code model through the harness path instead of adding a raw model proxy.
 
 ## Safe endpoint probing
 
@@ -82,7 +82,7 @@ On WSL with Windows llama.cpp available, the recommended command keeps the raw m
 
 ## Proven Windows llama.cpp route from WSL
 
-For this machine, Windows llama.cpp was reachable from WSL when bound to the Windows vEthernet gateway, not Windows loopback and not the WSL DNS proxy:
+On WSL, Windows llama.cpp is commonly reachable through the Windows vEthernet gateway, not Windows loopback and not the WSL DNS proxy:
 
 ```bash
 ip route | awk '/default via/ {print $3; exit}'
@@ -91,11 +91,11 @@ ip route | awk '/default via/ {print $3; exit}'
 Use the generated `model-files` recommendation. The validated shape is:
 
 ```bash
-lai-gateway model-key-create --path '/mnt/c/Users/fenat/.config/lai-gateway/model-api-key' --force
-llama-server.exe --host <wsl-default-gateway> --port 18082 --model '<recommended-windows-gguf-path>' --ctx-size 4096 --threads 8 --n-gpu-layers 0 --api-key-file 'C:\Users\fenat\.config\lai-gateway\model-api-key' --cors-origins localhost --no-cors-credentials
+lai-gateway model-key-create --path './.secrets/model-api-key' --force
+llama-server.exe --host <wsl-default-gateway> --port 18082 --model '<recommended-windows-gguf-path>' --ctx-size 4096 --threads 8 --n-gpu-layers 0 --api-key-file 'C:\Path\To\model-api-key' --cors-origins localhost --no-cors-credentials
 export LAI_GATEWAY_MODEL_BASE_URL='http://<wsl-default-gateway>:18082'
 export LAI_GATEWAY_MODEL_NAME='<recommended-model-name>'
-export LAI_GATEWAY_MODEL_API_KEY_FILE='/mnt/c/Users/fenat/.config/lai-gateway/model-api-key'
+export LAI_GATEWAY_MODEL_API_KEY_FILE='./.secrets/model-api-key'
 lai-gateway model-status --probe-openai
 ```
 
@@ -141,9 +141,9 @@ lai-gateway model-smoke
 Use it after:
 
 ```bash
-export LAI_GATEWAY_MODEL_BASE_URL='http://172.29.192.1:18082'
+export LAI_GATEWAY_MODEL_BASE_URL='http://<wsl-default-gateway>:18082'
 export LAI_GATEWAY_MODEL_NAME='mistralai/Ministral-3-8B-Instruct-2512-GGUF:Q4_K_M'
-export LAI_GATEWAY_MODEL_API_KEY_FILE='/mnt/c/Users/fenat/.config/lai-gateway/model-api-key'
+export LAI_GATEWAY_MODEL_API_KEY_FILE='./.secrets/model-api-key'
 lai-gateway model-status --probe-openai
 lai-gateway model-smoke
 ```
