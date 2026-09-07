@@ -1,4 +1,9 @@
-## [0.1.34] - Unreleased
+## [Unreleased]
+
+### Fixed
+- Make `model-smoke` use an explicit local connectivity health-check prompt so the validated Ministral baseline returns the fixed marker instead of refusing a bare marker request.
+
+## [0.1.34] - 2026-09-07
 
 ### Changed
 - Add `AGENTS.md` and `docs/OPERATING-MODE.md` to codify the Gateway product-progress decision gate, local-first milestone batching, and capability-based Harness compatibility policy.

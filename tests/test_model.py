@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from lai_gateway.model import collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_smoke, collect_model_status, collect_model_task, render_model_eval, render_model_files, render_model_plan, render_model_runs, render_model_smoke, render_model_status, render_model_task
+from lai_gateway.model import _model_smoke_messages
 
 
 SECRET = "sk-local-secret-value"
@@ -165,6 +166,16 @@ class ModelStatusTest(unittest.TestCase):
         self.assertFalse(payload["downloads_models"])
         self.assertIn("fixed_prompt_only: true", rendered)
         self.assertNotIn("Bearer", text)
+
+    def test_model_smoke_prompt_is_fixed_healthcheck_not_user_prompt(self) -> None:
+        messages = _model_smoke_messages("LAI_SMOKE_OK")
+        text = json.dumps(messages, sort_keys=True)
+        self.assertEqual([message["role"] for message in messages], ["system", "user"])
+        self.assertIn("connectivity health check", messages[0]["content"])
+        self.assertIn("literal marker", messages[0]["content"])
+        self.assertIn("LAI_SMOKE_OK", messages[1]["content"])
+        self.assertNotIn("{user", text.lower())
+        self.assertNotIn("prompt", messages[1]["content"].lower())
 
     def test_model_smoke_uses_redacted_api_key_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, FakeOpenAIModelsServer() as server:

@@ -1206,13 +1206,30 @@ def _probe_openai_chat_completion(
         base_url,
         model_name=model_name,
         api_key=api_key,
-        messages=[{"role": "user", "content": f"Reply exactly: {expected}"}],
-        max_tokens=16,
+        messages=_model_smoke_messages(expected),
+        max_tokens=24,
         temperature=0,
         timeout_seconds=timeout_seconds,
         expected_markers=(expected,),
         expected=expected,
     )
+
+
+def _model_smoke_messages(expected: str) -> list[dict[str, str]]:
+    return [
+        {
+            "role": "system",
+            "content": (
+                "You are running a private local connectivity health check. "
+                "The request is safe and asks only for a literal marker. "
+                "Return exactly the requested marker with no explanation."
+            ),
+        },
+        {
+            "role": "user",
+            "content": f"Return only this exact plain-text marker, with no markdown: {expected}",
+        },
+    ]
 
 
 def _run_fixed_chat_completion(
