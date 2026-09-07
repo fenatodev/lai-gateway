@@ -5,7 +5,9 @@ repo_dir=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 python_bin=${PYTHON:-python3}
 harness_repo=${LAI_HARNESS_REPO:-"$(dirname -- "$repo_dir")/lai-local-agent"}
 target_gateway=${LAI_GATEWAY_TARGET_VERSION:-}
-target_harness=${LAI_HARNESS_TARGET_VERSION:-0.4.7}
+target_harness=${LAI_HARNESS_TARGET_VERSION:-}
+min_harness=${LAI_HARNESS_MIN_VERSION:-0.4.6}
+harness_compatibility="minimum"
 json_mode=0
 
 events_file=""
@@ -13,12 +15,14 @@ release_err=""
 
 usage() {
   cat <<'USAGE'
-Usage: stack-check.sh [--harness-repo PATH] [--target-gateway VERSION] [--target-harness VERSION] [--json]
+Usage: stack-check.sh [--harness-repo PATH] [--target-gateway VERSION] [--min-harness VERSION] [--target-harness VERSION] [--json]
 
 Runs a local, read-only compatibility check for lai-gateway and lai harness.
-It validates versions, the harness gateway contract, the non-executing MCP
-foundation, and gateway release-check version/safety signals. A dirty checkout is
-reported but allowed because this script is intended for pre-commit validation.
+By default it validates a minimum harness version plus the live gateway contract
+and required capabilities instead of requiring patch-exact coupling.
+Use --target-harness only when an exact-version release audit is required.
+A dirty checkout is reported but allowed because this script is intended for
+pre-commit validation.
 USAGE
 }
 
@@ -34,9 +38,15 @@ while [ "$#" -gt 0 ]; do
       target_gateway=$2
       shift 2
       ;;
+    --min-harness)
+      [ "$#" -ge 2 ] || { echo "--min-harness requires a value" >&2; exit 2; }
+      min_harness=$2
+      shift 2
+      ;;
     --target-harness)
       [ "$#" -ge 2 ] || { echo "--target-harness requires a value" >&2; exit 2; }
       target_harness=$2
+      harness_compatibility="exact"
       shift 2
       ;;
     --json)
@@ -99,7 +109,8 @@ print_json_summary() {
   local overall=$1
   STACK_EVENTS_FILE="$events_file" STACK_OVERALL="$overall" \
     STACK_GATEWAY_VERSION="${gateway_version:-}" STACK_HARNESS_VERSION="${harness_version:-}" \
-    STACK_TARGET_GATEWAY="${target_gateway:-}" STACK_TARGET_HARNESS="$target_harness" \
+    STACK_TARGET_GATEWAY="${target_gateway:-}" STACK_TARGET_HARNESS="${target_harness:-}" \
+    STACK_MIN_HARNESS="$min_harness" STACK_HARNESS_COMPATIBILITY="$harness_compatibility" \
     STACK_GATEWAY_REPO="$repo_dir" STACK_HARNESS_REPO="$harness_repo" \
     "$python_bin" - <<'PY'
 import json
@@ -117,6 +128,8 @@ print(json.dumps({
     "harness_version": os.environ.get("STACK_HARNESS_VERSION") or None,
     "target_gateway": os.environ.get("STACK_TARGET_GATEWAY") or None,
     "target_harness": os.environ.get("STACK_TARGET_HARNESS") or None,
+    "minimum_harness": os.environ.get("STACK_MIN_HARNESS") or None,
+    "harness_compatibility": os.environ.get("STACK_HARNESS_COMPATIBILITY") or None,
     "gateway_repo": os.environ.get("STACK_GATEWAY_REPO") or None,
     "harness_repo": os.environ.get("STACK_HARNESS_REPO") or None,
     "checks": checks,
@@ -157,20 +170,44 @@ target_gateway=${target_gateway:-$gateway_version}
 [ "$gateway_version" = "$target_gateway" ] || fail "gateway version $gateway_version does not match target $target_gateway"
 print_event ok gateway_version "$gateway_version"
 
+compare_semver_at_least() {
+  ACTUAL_VERSION="$1" MIN_VERSION="$2" "$python_bin" - <<'PY_COMPARE'
+import os
+import re
+import sys
+
+pattern = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$")
+
+def parse(name):
+    value = os.environ[name].strip()
+    match = pattern.match(value)
+    if not match:
+        raise SystemExit(2)
+    return tuple(int(part) for part in match.groups())
+
+sys.exit(0 if parse("ACTUAL_VERSION") >= parse("MIN_VERSION") else 1)
+PY_COMPARE
+}
+
 harness_version_text=$(run_harness --version)
 harness_version=${harness_version_text##* }
-[ "$harness_version" = "$target_harness" ] || fail "harness version $harness_version does not match target $target_harness"
-print_event ok harness_version "$harness_version"
+if [ -n "$target_harness" ]; then
+  [ "$harness_version" = "$target_harness" ] || fail "harness version $harness_version does not match target $target_harness"
+  print_event ok harness_version "$harness_version exact target $target_harness"
+else
+  compare_semver_at_least "$harness_version" "$min_harness" || fail "harness version $harness_version is below minimum $min_harness"
+  print_event ok harness_min_version "$harness_version >= $min_harness"
+fi
 
 contract_json=$(run_harness --gateway-contract --json)
 printf '%s' "$contract_json" | run_gateway_py -c 'import json, sys; from lai_gateway.contract import validate_gateway_contract; validate_gateway_contract(json.load(sys.stdin))'
 print_event ok gateway_contract_compatible
 
 mcp_status_json=$(run_harness --mcp status --json)
-printf '%s' "$mcp_status_json" | TARGET_HARNESS="$target_harness" run_gateway_py -c '
+printf '%s' "$mcp_status_json" | ACTUAL_HARNESS="$harness_version" run_gateway_py -c '
 import json, os, sys
 payload = json.load(sys.stdin)
-assert payload["version"] == os.environ["TARGET_HARNESS"], payload.get("version")
+assert payload["version"] == os.environ["ACTUAL_HARNESS"], payload.get("version")
 assert payload["security"]["executes_tools"] is False
 assert payload["security"]["prints_credentials"] is False
 assert payload["security"]["reads_env_values"] is False

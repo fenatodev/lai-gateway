@@ -21,6 +21,6 @@ Run:
 
 ```bash
 make check
-make milestone-gate HARNESS_REPO=../lai-local-agent TARGET_GATEWAY=0.1.34 TARGET_HARNESS=0.4.7
+make milestone-gate HARNESS_REPO=../lai-local-agent TARGET_GATEWAY=0.1.34 MIN_HARNESS=0.4.6
 lai-gateway-stack-check --json
 ```

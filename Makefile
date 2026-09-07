@@ -1,7 +1,8 @@
 PYTHON ?= python3
 HARNESS_REPO ?= ../lai-local-agent
 TARGET_GATEWAY ?= 0.1.34
-TARGET_HARNESS ?= 0.4.7
+MIN_HARNESS ?= 0.4.6
+TARGET_HARNESS ?=
 
 .PHONY: help test check milestone-gate smoke
 
@@ -27,7 +28,7 @@ check:
 	git diff --check
 
 milestone-gate: check
-	PYTHON="$(PYTHON)" bash scripts/stack-check.sh --harness-repo "$(HARNESS_REPO)" --target-gateway "$(TARGET_GATEWAY)" --target-harness "$(TARGET_HARNESS)" --json | $(PYTHON) -c 'import json, sys; payload = json.load(sys.stdin); assert payload["overall"] == "ready_for_local_commit", payload; print("lai-gateway milestone-gate: ready_for_local_commit")'
+	PYTHON="$(PYTHON)" bash scripts/stack-check.sh --harness-repo "$(HARNESS_REPO)" --target-gateway "$(TARGET_GATEWAY)" --min-harness "$(MIN_HARNESS)" $(if $(TARGET_HARNESS),--target-harness "$(TARGET_HARNESS)",) --json | $(PYTHON) -c 'import json, sys; payload = json.load(sys.stdin); assert payload["overall"] == "ready_for_local_commit", payload; print("lai-gateway milestone-gate: ready_for_local_commit")'
 
 smoke:
 	$(PYTHON) -m lai_gateway --help >/dev/null

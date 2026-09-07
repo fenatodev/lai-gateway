@@ -1,11 +1,11 @@
 ## [0.1.34] - Unreleased
 
 ### Changed
-- Update the default Gateway/Harness stack target to `lai harness` 0.4.7 and bump the Gateway package to 0.1.34.
-- Refresh current stack documentation and test fixtures for the Harness v0.4.7 control-run event timeline baseline.
+- Replace patch-exact Harness targeting with a default minimum Harness 0.4.6 plus contract/capability validation, while retaining `--target-harness` for exact release audits.
+- Refresh current stack documentation and test fixtures for the Harness v0.4.7 verified baseline without requiring future Gateway releases for compatible Harness patch bumps.
 
 ### Validation
-- Stack-check defaults must pass against installed `lai-gateway` 0.1.34 and `lai harness` 0.4.7.
+- Stack-check defaults must pass against installed `lai-gateway` 0.1.34 and any compatible `lai harness` >=0.4.6 exposing the required contract/capabilities; Harness 0.4.7 is the verified baseline.
 
 ## [0.1.33] - 2026-09-07
 

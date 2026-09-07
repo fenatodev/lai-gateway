@@ -286,8 +286,8 @@ class ScriptTest(unittest.TestCase):
                     str(harness_repo),
                     "--target-gateway",
                     __version__,
-                    "--target-harness",
-                    "0.4.7",
+                    "--min-harness",
+                    "0.4.6",
                 ],
                 cwd=repo,
                 env=env,
@@ -314,8 +314,8 @@ class ScriptTest(unittest.TestCase):
                     str(harness_repo),
                     "--target-gateway",
                     __version__,
-                    "--target-harness",
-                    "0.4.7",
+                    "--min-harness",
+                    "0.4.6",
                     "--json",
                 ],
                 cwd=repo,
@@ -331,6 +331,9 @@ class ScriptTest(unittest.TestCase):
             self.assertEqual(json_payload["overall"], "ready_for_local_commit")
             self.assertEqual(json_payload["gateway_version"], __version__)
             self.assertEqual(json_payload["harness_version"], "0.4.7")
+            self.assertEqual(json_payload["minimum_harness"], "0.4.6")
+            self.assertIsNone(json_payload["target_harness"])
+            self.assertEqual(json_payload["harness_compatibility"], "minimum")
             self.assertIn(
                 "gateway_release_check_version_and_safety",
                 {check["name"] for check in json_payload["checks"]},
@@ -351,8 +354,8 @@ class ScriptTest(unittest.TestCase):
                     str(harness_repo),
                     "--target-gateway",
                     __version__,
-                    "--target-harness",
-                    "0.4.7",
+                    "--min-harness",
+                    "0.4.6",
                     "--json",
                 ],
                 cwd=tmp,
@@ -370,6 +373,56 @@ class ScriptTest(unittest.TestCase):
             self.assertNotIn("Bearer", non_repo_combined)
             self.assertNotIn(TOKEN, non_repo_combined)
             self.assertNotIn("API_KEY", non_repo_combined)
+
+            too_new_minimum = subprocess.run(
+                [
+                    "bash",
+                    "scripts/stack-check.sh",
+                    "--harness-repo",
+                    str(harness_repo),
+                    "--target-gateway",
+                    __version__,
+                    "--min-harness",
+                    "0.4.8",
+                ],
+                cwd=repo,
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=20,
+            )
+            too_new_combined = too_new_minimum.stdout + too_new_minimum.stderr
+            self.assertNotEqual(too_new_minimum.returncode, 0)
+            self.assertIn("is below minimum", too_new_minimum.stderr)
+            self.assertNotIn("Bearer", too_new_combined)
+            self.assertNotIn(TOKEN, too_new_combined)
+
+            exact_target = subprocess.run(
+                [
+                    "bash",
+                    "scripts/stack-check.sh",
+                    "--harness-repo",
+                    str(harness_repo),
+                    "--target-gateway",
+                    __version__,
+                    "--target-harness",
+                    "0.4.7",
+                    "--json",
+                ],
+                cwd=repo,
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=20,
+            )
+            exact_payload = json.loads(exact_target.stdout)
+            self.assertEqual(exact_payload["harness_compatibility"], "exact")
+            self.assertEqual(exact_payload["target_harness"], "0.4.7")
+            self.assertEqual(exact_payload["minimum_harness"], "0.4.6")
 
             wrong_target = subprocess.run(
                 [

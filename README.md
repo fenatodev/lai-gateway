@@ -76,11 +76,11 @@ python3 -m lai_gateway mcp tools
 python3 -m lai_gateway mcp policy-check --operation call-tool --server desktop-commander --tool start_process
 
 # Validate the local Gateway/Harness stack without publishing anything
-bash scripts/stack-check.sh --harness-repo ../lai-local-agent --target-gateway 0.1.34 --target-harness 0.4.7
+bash scripts/stack-check.sh --harness-repo ../lai-local-agent --target-gateway 0.1.34 --min-harness 0.4.6
 # Machine-readable form for automation:
-bash scripts/stack-check.sh --harness-repo ../lai-local-agent --target-gateway 0.1.34 --target-harness 0.4.7 --json
+bash scripts/stack-check.sh --harness-repo ../lai-local-agent --target-gateway 0.1.34 --min-harness 0.4.6 --json
 # Full local milestone gate: make check + stack compatibility JSON validation
-make milestone-gate HARNESS_REPO=../lai-local-agent TARGET_GATEWAY=0.1.34 TARGET_HARNESS=0.4.7
+make milestone-gate HARNESS_REPO=../lai-local-agent TARGET_GATEWAY=0.1.34 MIN_HARNESS=0.4.6
 python3 -m lai_gateway doctor
 python3 -m lai_gateway mcp status
 python3 -m lai_gateway mcp tools
@@ -124,7 +124,7 @@ python3 -m lai_gateway runs events <control_run_id>
 
 ## MCP broker foundation
 
-Gateway 0.1.34 expects the Harness 0.4.7 contract. MCP support remains metadata-only: the gateway can read MCP broker status, list declared MCP servers/tools, and ask the harness to classify an MCP operation. It does not execute MCP tools.
+Gateway 0.1.34 validates Harness 0.4.6+ plus required contract capabilities; Harness 0.4.7 is the current verified baseline. MCP support remains metadata-only: the gateway can read MCP broker status, list declared MCP servers/tools, and ask the harness to classify an MCP operation. It does not execute MCP tools.
 
 ```bash
 lai-gateway mcp status
