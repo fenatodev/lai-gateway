@@ -15,6 +15,7 @@ from urllib.request import Request, urlopen
 
 from . import __version__
 from .errors import ConfigError, GatewayError
+from .harness_client import HarnessClient
 from .tokens import token_file_mode
 
 DEFAULT_TELEGRAM_TOKEN_FILE = "~/.config/lai-gateway/telegram-bot-token"
@@ -499,6 +500,7 @@ def build_gateway_status_telegram_text(config: GatewayConfig) -> str:
         f"overall: {doctor.get('overall')}",
         f"harness: {config.harness_url}",
         f"access: {config.access_mode}",
+        _mcp_status_line(config),
     ]
     for check in checks[:8]:
         name = check.get("name", "check")
@@ -509,6 +511,17 @@ def build_gateway_status_telegram_text(config: GatewayConfig) -> str:
         lines.append(f"- {name}: {status} {detail}".strip())
     return "\n".join(lines)[:_MAX_MESSAGE_CHARS]
 
+
+
+def _mcp_status_line(config: GatewayConfig) -> str:
+    try:
+        payload = HarnessClient(config).mcp_status()
+    except GatewayError as exc:
+        return f"mcp_broker: unknown {str(exc)[:120]}"
+    overall = payload.get("overall", "unknown")
+    server_count = payload.get("server_count", 0)
+    executes = bool(payload.get("security", {}).get("executes_tools", False))
+    return f"mcp_broker: {overall} servers={server_count} executes_tools={str(executes).lower()}"
 
 def notify_gateway_status(
     *,

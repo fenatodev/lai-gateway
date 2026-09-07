@@ -639,6 +639,12 @@ class ModelStatusTest(unittest.TestCase):
         self.assertNotIn("Bearer", rendered)
         self.assertNotIn("secret", rendered.lower())
 
+    def test_model_files_default_windows_roots_are_generic(self) -> None:
+        source = Path(__file__).parents[1] / "lai_gateway" / "model.py"
+        text = source.read_text(encoding="utf-8")
+        self.assertIn("/mnt/c/Users/*/Downloads", text)
+        self.assertNotIn("/mnt/c/Users/fenat", text)
+
     def test_model_files_groups_split_and_prefers_validated_baseline(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

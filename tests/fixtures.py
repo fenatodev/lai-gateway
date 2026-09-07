@@ -3,7 +3,7 @@ from __future__ import annotations
 CONTRACT = {
     "schema_version": 1,
     "product": "lai harness",
-    "version": "0.4.2",
+    "version": "0.4.5",
     "repository": "/tmp/lai-local-agent",
     "transport": {
         "server": "lai serve",
@@ -25,6 +25,8 @@ CONTRACT = {
         "source_repository_write": False,
         "shell_execution": False,
         "direct_llama_proxy": False,
+        "mcp_broker_foundation": True,
+        "mcp_tool_execution": False,
     },
     "limits": {
         "request_body_max_bytes": 65536,
@@ -61,10 +63,15 @@ CONTRACT = {
         {"method": "GET", "path": "/v1/gateway-contract", "auth_required": True, "purpose": "discover this contract"},
         {"method": "GET", "path": "/v1/status", "auth_required": True, "purpose": "read status"},
         {"method": "GET", "path": "/v1/readiness", "auth_required": True, "purpose": "read readiness"},
+        {"method": "GET", "path": "/v1/mcp/status", "auth_required": True, "purpose": "read MCP broker status without executing tools"},
+        {"method": "GET", "path": "/v1/mcp/tools", "auth_required": True, "purpose": "list declared MCP servers/tools without execution"},
+        {"method": "POST", "path": "/v1/mcp/policy-check", "auth_required": True, "purpose": "classify MCP broker operation without execution"},
         {"method": "GET", "path": "/v1/runs?limit=N", "auth_required": True, "purpose": "list runs"},
         {"method": "POST", "path": "/v1/runs", "auth_required": True, "purpose": "enqueue run"},
+        {"method": "GET", "path": "/v1/runs/{control_run_id}", "auth_required": True, "purpose": "read run"},
         {"method": "POST", "path": "/v1/sessions", "auth_required": True, "purpose": "create session"},
         {"method": "GET", "path": "/v1/sessions?limit=N", "auth_required": True, "purpose": "list sessions"},
+        {"method": "GET", "path": "/v1/sessions/{session_id}", "auth_required": True, "purpose": "read session"},
         {"method": "DELETE", "path": "/v1/sessions/{session_id}", "auth_required": True, "purpose": "delete session"},
         {"method": "POST", "path": "/v1/policy-check", "auth_required": True, "purpose": "classify"},
     ],

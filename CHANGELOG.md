@@ -1,3 +1,35 @@
+## [0.1.31] - 2026-09-07
+
+### Added
+- Add Gateway proxy support for the Harness 0.4.5 MCP broker foundation: `lai-gateway mcp status`, `lai-gateway mcp tools`, `lai-gateway mcp policy-check`, and `/v1/harness/mcp/*`.
+- Surface `mcp_broker` in `ops-status` so daily diagnostics include the MCP foundation state.
+- Add MCP-focused coverage for the harness client, contract validation, CLI, server proxy, private-mode auth, and ops status rendering.
+- Add `scripts/stack-check.sh`, the `lai-gateway-stack-check` wrapper, and `make milestone-gate` for local Gateway/Harness compatibility validation before commit or publication, with human-readable and `--json` output that works from any current directory.
+- Add `scripts/publication-scan.sh` and wire it into `make check` to block private local path, known local IP, or blocked release-prose leakage from public release surfaces.
+- Harden `.gitignore` for local private/runtime/build artifacts, with regression coverage for caches, logs, keys, VSIX, SQLite, GGUF, and `.secrets/`.
+- Declare explicit setuptools build metadata and package discovery in `pyproject.toml`, with regression coverage for the build backend, console script, `lai_gateway*` package inclusion, test/docs/scripts exclusion, and static UI package data.
+
+### Changed
+- Expose top-level `validation_command` and `validation_commands` fields in `release-check --json` while retaining the compatibility check entry for existing parsers.
+- Strengthen the stack compatibility gate to require the release-check JSON validation command fields used by automation.
+- Align fake-harness persistent-session delete fixtures and tests with the real Harness `session.deleted` response shape.
+- Dogfood installed private HTTP Gateway session-bound read-only run creation, polling, list lookup, session persistence, and deletion against a real temporary `lai serve` Harness.
+- Align fake-harness run IDs with the real `cr-<16 hex>` control-run shape.
+- Normalize legacy Harness run-list records that expose `run_id` by adding `control_run_id` for Gateway CLI/UI compatibility.
+- Validate control-run and control-session identifiers against the Harness `cr-<16 hex>` and `cs-<16 hex>` shapes before proxying run/session requests.
+- Require every Harness run/session route used by the Gateway in contract validation, including list and read endpoints, not only create/delete.
+- Make `lai-gateway release-check --json` resolve the Gateway checkout when the installed wrapper is launched from outside the repository.
+- Centralize HTTP request-body parsing with `_read_body` and `_read_json_object`, then reuse it for read-only run creation and MCP policy checks.
+- Update Gateway contract fixtures and local dogfood expectations to the Harness 0.4.5 MCP contract shape.
+
+### Security
+- Preserve the non-executing MCP boundary: `call-tool` policy checks are proxied as classification only, return `executed: false`, and do not expose MCP tool execution through the gateway.
+- Dogfood installed `lai-gateway` session lifecycle against a real temporary `lai serve` Harness, using temporary token/data homes and redacted session evidence.
+- Dogfood installed private HTTP Gateway session lifecycle against a real temporary `lai serve`, confirming static UI access, protected `/v1/harness/*` auth, and `session.deleted` delete evidence.
+- Defensively redact secret-shaped fields from MCP status/tool/policy payloads before they reach CLI, API, UI, ops-status, or Telegram surfaces.
+- Replace local machine-specific documentation paths, IPs, and blocked release-prose phrases with generic checkout examples.
+- Generalize Windows/WSL model discovery roots instead of shipping a machine-specific user profile path.
+
 ## [0.1.30] - 2026-09-06
 
 - Added mobile session exchange so short-lived pair tokens unlock longer page-memory sessions without storing permanent tokens on the phone. Pair tokens are now accepted only for session exchange, not direct protected API access; forgetting a mobile session revokes it from server memory.

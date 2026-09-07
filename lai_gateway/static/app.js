@@ -48,7 +48,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pair this phone first, then refresh this panel.";
-  for (const id of ["ops-output", "status-output", "model-output", "sessions-output", "runs-output"]) {
+  for (const id of ["ops-output", "status-output", "model-output", "mcp-output", "sessions-output", "runs-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -91,6 +91,29 @@ function setModelStatus(payload) {
   const state = overall === "ready" ? "ready" : overall === "blocked" ? "danger" : "running";
   show("model-output", payload);
   setCheck("check-model", `Model ${overall}.`, state);
+}
+
+function setMcpStatus(payload) {
+  const overall = payload.overall || payload.mcp_overall || "unknown";
+  const state = overall === "ready" ? "ready" : overall === "blocked" ? "danger" : "running";
+  const serverCount = Number.isInteger(payload.server_count) ? payload.server_count : 0;
+  const executionEnabled = Boolean(
+    payload.execution_enabled || (payload.security && payload.security.executes_tools)
+  );
+  setPill("mcp-pill", `mcp ${overall}${serverCount ? ` · ${serverCount}` : ""}`, executionEnabled ? "danger" : state);
+  setCheck(
+    "check-mcp",
+    executionEnabled ? "MCP tool execution is enabled." : `MCP ${overall}; tool execution denied.`,
+    executionEnabled ? "danger" : state,
+  );
+  clearPairRequiredOutput("mcp-output");
+  show("mcp-output", payload);
+}
+
+function mcpPolicyBody() {
+  const server = byId("mcp-server").value.trim() || "desktop-commander";
+  const tool = byId("mcp-tool").value.trim() || "start_process";
+  return { operation: "call-tool", server, tool };
 }
 
 function setOpsStatus(payload) {
@@ -273,18 +296,19 @@ function setSessionFromPayload(payload) {
 }
 
 function summarizeRun(run) {
-  const id = run.control_run_id || "unknown";
+  const id = run.control_run_id || run.run_id || "unknown";
   const status = run.status || "unknown";
   const mode = run.mode || "unknown";
   return `${id} · ${mode} · ${status}`;
 }
 
 function recordRun(run) {
-  if (!run || !run.control_run_id) return;
-  const existing = runHistory.findIndex((item) => item.control_run_id === run.control_run_id);
+  const runId = run && (run.control_run_id || run.run_id);
+  if (!runId) return;
+  const existing = runHistory.findIndex((item) => item.control_run_id === runId);
   if (existing >= 0) runHistory.splice(existing, 1);
   runHistory.unshift({
-    control_run_id: run.control_run_id,
+    control_run_id: runId,
     mode: run.mode || "unknown",
     status: run.status || "unknown",
     finished_at: run.finished_at || "",
@@ -309,8 +333,9 @@ function renderRunHistory() {
 
 function setRunFromPayload(payload) {
   const run = payload.run || (payload.runs && payload.runs[0]);
-  if (run && run.control_run_id) {
-    byId("run-id").value = run.control_run_id;
+  const runId = run && (run.control_run_id || run.run_id);
+  if (runId) {
+    byId("run-id").value = runId;
     lastRunPayload = payload;
     const state = TERMINAL_STATUSES.has(run.status) ? (run.status === "succeeded" ? "ready" : "danger") : "running";
     setPill("active-run-pill", summarizeRun(run), state);
@@ -432,6 +457,17 @@ async function runAction(action) {
     } else if (action === "refresh-ops-status") {
       clearPairRequiredOutput("ops-output");
       setOpsStatus(await requestJson("/v1/gateway/ops-status"));
+    } else if (action === "refresh-mcp-status") {
+      setMcpStatus(await requestJson("/v1/harness/mcp/status"));
+    } else if (action === "refresh-mcp-tools") {
+      setMcpStatus(await requestJson("/v1/harness/mcp/tools"));
+    } else if (action === "check-mcp-call-tool") {
+      const payload = await requestJson("/v1/harness/mcp/policy-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify(mcpPolicyBody()),
+      });
+      setMcpStatus(payload);
     } else if (action === "refresh-model-status") {
       setModelStatus(await requestJson("/v1/gateway/model-status"));
     } else if (action === "refresh-model-plan") {
@@ -531,6 +567,8 @@ async function runAction(action) {
       ? "sessions-output"
       : action.includes("run") || action === "copy-run-output"
         ? "runs-output"
+        : action.includes("mcp")
+          ? "mcp-output"
         : action.includes("ops")
           ? "ops-output"
         : action.includes("model")
@@ -564,6 +602,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (isLoopbackHost()) {
     setAuthBanner("Loopback access does not need phone pairing.", "ready");
     runAction("refresh-model-status");
+    runAction("refresh-mcp-status");
     runAction("refresh-readiness");
     runAction("refresh-ops-status");
   } else {

@@ -11,7 +11,10 @@ from urllib.error import HTTPError
 from pathlib import Path
 
 from lai_gateway.config import GatewayConfig
+from .fake_harness import TOKEN, fake_harness
+
 from lai_gateway.telegram import (
+    build_gateway_status_telegram_text,
     build_mobile_access_telegram_text,
     collect_telegram_preflight,
     discover_telegram_chats,
@@ -387,6 +390,22 @@ class TelegramTest(unittest.TestCase):
         self.assertNotIn("pair_token", text)
         self.assertNotIn("Bearer", text)
 
+
+
+    def test_gateway_status_text_includes_mcp_broker_without_tokens(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            harness_token = Path(tmp) / "harness-token"
+            harness_token.write_text(TOKEN, encoding="utf-8")
+            os.chmod(harness_token, 0o600)
+            config = GatewayConfig.from_env({
+                "LAI_GATEWAY_TOKEN_FILE": str(harness_token),
+                "LAI_GATEWAY_HARNESS_URL": harness.url,
+            })
+            text = build_gateway_status_telegram_text(config)
+        self.assertIn("mcp_broker: ready", text)
+        self.assertIn("executes_tools=false", text)
+        self.assertNotIn(TOKEN, text)
+        self.assertNotIn("Bearer", text)
 
     def test_notify_status_sends_doctor_summary_without_tokens(self) -> None:
         captured = {}

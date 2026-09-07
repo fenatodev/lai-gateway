@@ -9,9 +9,9 @@ It is intentionally a separate project. The harness owns local coding authority 
 The current gateway provides:
 
 - a dependency-free Python client for the harness control plane;
-- validation of the `lai harness v0.4.3` gateway contract;
-- a local CLI for `config`, `contract`, `status`, `readiness`, `doctor`, `open-ui`, `sessions`, and `runs`;
-- an HTTP gateway exposing harness status, readiness, contract, session, and read-only run routes, loopback by default with opt-in private LAN binding;
+- validation of the `lai harness v0.4.5` gateway contract, including the MCP broker foundation;
+- a local CLI for `config`, `contract`, `status`, `readiness`, `doctor`, `open-ui`, `mcp`, `sessions`, and `runs`;
+- an HTTP gateway exposing harness status, readiness, contract, MCP metadata, session, and read-only run routes, loopback by default with opt-in private LAN binding;
 - read-only run creation for `diagnose`, `plan`, `release`, `review`, and `security`.
 
 It does **not** expose write-capable run modes such as `implement`, `fix`, `refactor`, or `ci-fix`.
@@ -19,7 +19,7 @@ It does **not** expose write-capable run modes such as `implement`, `fix`, `refa
 ## Requirements
 
 - Python 3.11+
-- `lai harness` installed at `0.4.3+`
+- `lai harness` installed at `0.4.5+`
 - `lai serve` running on loopback from the target harness repository directory
 - a local LAI control token file
 
@@ -52,7 +52,7 @@ lai-gateway pair check
 
 The token file is created with `0600` permissions and the token is not printed by default. Prefer `lai-gateway pair create --show` for phone pairing; it creates a short-lived pairing token instead of exposing the permanent gateway token. For LAN access, set `LAI_GATEWAY_PRIVATE_BIND=1`, bind to a concrete private IP address, and create a separate gateway access token file. Do not use `0.0.0.0`; the gateway rejects wildcard and public binds. The browser UI may hold the gateway access token in page memory, but it still never receives the LAI harness control token. Repeated failed API auth attempts are rate-limited in memory. Pairing tokens are stored separately, expire automatically, and can be revoked with `lai-gateway pair revoke`.
 
-Never commit a real token. Humanity has made many mistakes; do not add this one.
+Never commit a real token.
 
 ## CLI
 
@@ -71,7 +71,20 @@ python3 -m lai_gateway config
 python3 -m lai_gateway contract
 python3 -m lai_gateway status
 python3 -m lai_gateway readiness
+python3 -m lai_gateway mcp status
+python3 -m lai_gateway mcp tools
+python3 -m lai_gateway mcp policy-check --operation call-tool --server desktop-commander --tool start_process
+
+# Validate the local Gateway/Harness stack without publishing anything
+bash scripts/stack-check.sh --harness-repo ../lai-local-agent --target-gateway 0.1.31 --target-harness 0.4.5
+# Machine-readable form for automation:
+bash scripts/stack-check.sh --harness-repo ../lai-local-agent --target-gateway 0.1.31 --target-harness 0.4.5 --json
+# Full local milestone gate: make check + stack compatibility JSON validation
+make milestone-gate HARNESS_REPO=../lai-local-agent TARGET_GATEWAY=0.1.31 TARGET_HARNESS=0.4.5
 python3 -m lai_gateway doctor
+python3 -m lai_gateway mcp status
+python3 -m lai_gateway mcp tools
+python3 -m lai_gateway mcp policy-check --operation call-tool --server desktop-commander --tool start_process
 python3 -m lai_gateway open-ui --print-only
 python3 -m lai_gateway lan-info --port 8787
 python3 -m lai_gateway mobile-access --port 8787
@@ -107,6 +120,24 @@ python3 -m lai_gateway runs get <control_run_id>
 ```
 
 
+## MCP broker foundation
+
+Gateway 0.1.31 expects the Harness 0.4.5 MCP foundation contract. This is metadata-only: the gateway can read MCP broker status, list declared MCP servers/tools, and ask the harness to classify an MCP operation. It does not execute MCP tools.
+
+```bash
+lai-gateway mcp status
+lai-gateway mcp tools
+lai-gateway mcp policy-check --operation call-tool --server desktop-commander --tool start_process
+```
+
+Expected safety signal for a `call-tool` check:
+
+```text
+decision: DENY
+executed: false
+```
+
+When the harness has no MCP config, `mcp status` and `mcp tools` may report `overall: no_config` with exit code 0. That means the broker foundation is reachable, not that any MCP server has been enabled. See [docs/MCP_OPS.md](docs/MCP_OPS.md).
 
 ## Local install and launcher
 
@@ -126,7 +157,7 @@ lai-gateway dev --bind 127.0.0.1 --port 8787
 scripts/launch-local.sh --bind 127.0.0.1 --port 8787
 ```
 
-The installer writes wrapper scripts to `$HOME/.local/bin` by default. Override that with `LAI_GATEWAY_INSTALL_BIN=/path/to/bin`. The wrappers point at this checkout and do not copy or print the LAI control token. The `dev` command runs `doctor` first and refuses to serve when the harness is not reachable or the local contract checks fail.
+The installer writes wrapper scripts to `$HOME/.local/bin` by default, including `lai-gateway-stack-check` for local Gateway/Harness compatibility validation with human-readable or `--json` output. Use `make milestone-gate` to run `make check` and then validate the Gateway/Harness stack through that same JSON contract. Model file discovery uses generic WSL Windows-user globs rather than a checked-in local profile path. Override that with `LAI_GATEWAY_INSTALL_BIN=/path/to/bin`. The wrappers point at this checkout and do not copy or print the LAI control token. The `dev` command runs `doctor` first and refuses to serve when the harness is not reachable or the local contract checks fail.
 
 ## Local UI
 
@@ -136,7 +167,7 @@ Start the harness and gateway, then open:
 http://127.0.0.1:8787/
 ```
 
-The UI is intentionally local-first and phone-friendly. It can refresh readiness/status, show a local QR code for mobile access, guide mobile pairing with an in-memory checklist, create, inspect, and delete sessions, create read-only runs, poll selected runs, stop polling, keep a compact in-memory run history, fill read-only task presets, count task characters, and copy run output. Use `lai-gateway lan-info` to print private LAN URL candidates and safe startup commands without starting a server. Use `lai-gateway mobile-access` to show WSL/Windows/Tailscale phone URLs, QR data, and portproxy hints. Use `lai-gateway mobile-start --prepare` to create missing token files and refresh the short-lived pair token before opening the UI on a phone. Use `lai-gateway mobile-serve --candidate-ip <private-ip>` only when you intentionally want to prepare tokens and start the private LAN gateway in one foreground command. The phone UI keeps token state only in memory and exposes a Forget token control. In private mode, paste either the permanent gateway token or a short-lived pair token into the Gateway access card. Pair tokens are printed only from interactive terminals, then exchanged for temporary page-memory mobile sessions; the pair token is consumed and cannot directly access protected APIs. Forget token revokes the mobile session from server memory when possible and clears token state from the page. It does not receive the harness control token, does not use external CDN assets, and does not use browser storage. Tiny mercy in a world full of tracking pixels.
+The UI is intentionally local-first and phone-friendly. It can refresh readiness/status, show a local QR code for mobile access, guide mobile pairing with an in-memory checklist, create, inspect, and delete sessions, create read-only runs, select listed runs by `control_run_id`, poll selected runs, stop polling, keep a compact in-memory run history, fill read-only task presets, count task characters, and copy run output. Use `lai-gateway lan-info` to print private LAN URL candidates and safe startup commands without starting a server. Use `lai-gateway mobile-access` to show WSL/Windows/Tailscale phone URLs, QR data, and portproxy hints. Use `lai-gateway mobile-start --prepare` to create missing token files and refresh the short-lived pair token before opening the UI on a phone. Use `lai-gateway mobile-serve --candidate-ip <private-ip>` only when you intentionally want to prepare tokens and start the private LAN gateway in one foreground command. The phone UI keeps token state only in memory and exposes a Forget token control. In private mode, paste either the permanent gateway token or a short-lived pair token into the Gateway access card. Pair tokens are printed only from interactive terminals, then exchanged for temporary page-memory mobile sessions; the pair token is consumed and cannot directly access protected APIs. Forget token revokes the mobile session from server memory when possible and clears token state from the page. It does not receive the harness control token, does not use external CDN assets, and does not use browser storage.
 
 
 ## Private LAN preview
@@ -156,7 +187,7 @@ LAI_GATEWAY_PAIR_TOKEN_FILE="$HOME/.config/lai-gateway/pair-token.json" \
 lai-gateway dev --no-open
 ```
 
-When private mode is enabled, `/v1/harness/*` requires a permanent gateway access token or a temporary mobile session created from a one-shot pair token. Static UI files and `/healthz` remain secret-free. The UI keeps token state only in page memory, and Forget token revokes the mobile session before clearing the page when possible. The harness control token stays server-side. Token files must be `0600`, pairing tokens expire, launchers refuse to print pair tokens into pipes/logs, and repeated failed API auth attempts return `429 gateway_auth_rate_limited`. Humanity gets one less obvious way to leak credentials.
+When private mode is enabled, `/v1/harness/*` requires a permanent gateway access token or a temporary mobile session created from a one-shot pair token. Static UI files and `/healthz` remain secret-free. The UI keeps token state only in page memory, and Forget token revokes the mobile session before clearing the page when possible. The harness control token stays server-side. Token files must be `0600`, pairing tokens expire, launchers refuse to print pair tokens into pipes/logs, and repeated failed API auth attempts return `429 gateway_auth_rate_limited`.
 
 ## Telegram outbound notifications
 
@@ -168,7 +199,7 @@ LAI_GATEWAY_TELEGRAM_CHAT_ID=CHAT_ID_FROM_DISCOVER lai-gateway telegram prefligh
 LAI_GATEWAY_TELEGRAM_ENABLE_SEND=1 LAI_GATEWAY_TELEGRAM_CHAT_ID=CHAT_ID_FROM_DISCOVER lai-gateway telegram send-message --text "lai-gateway ready"
 ```
 
-The token value is never printed by `preflight` or `send-message`. Tiny outbreak of restraint.
+The token value is never printed by `preflight` or `send-message`.
 
 ## Gateway server MVP
 
@@ -183,6 +214,9 @@ GET /healthz
 GET /v1/harness/status
 GET /v1/harness/readiness
 GET /v1/harness/gateway-contract
+GET /v1/harness/mcp/status
+GET /v1/harness/mcp/tools
+POST /v1/harness/mcp/policy-check
 GET /v1/harness/sessions?limit=N
 POST /v1/harness/sessions
 GET /v1/harness/sessions/{session_id}
@@ -192,7 +226,7 @@ POST /v1/harness/runs
 GET /v1/harness/runs/{control_run_id}
 ```
 
-Session routes can create, inspect, and delete persistent harness sessions. Run routes can create only read-only harness runs. `POST /v1/runs` remains blocked as a raw shortcut, and write modes remain rejected at the gateway boundary. That distinction matters unless your threat model was written on a napkin.
+MCP routes expose only broker status, declared tools, and non-executing policy checks. Session routes can create, inspect, and delete persistent harness sessions. Run routes can create only read-only harness runs. `POST /v1/runs` remains blocked as a raw shortcut, and write modes remain rejected at the gateway boundary. That distinction matters unless your threat model was written on a napkin.
 
 The gateway refuses wildcard and public bind addresses. Private-network/mobile exposure remains opt-in, private-token protected, and intentionally narrow.
 
@@ -222,14 +256,14 @@ For the full daily startup path after the published Harness and Gateway releases
 ### Mobile Tailscale proxy
 
 ```bash
-lai-gateway-mobile-proxy --target-host 172.29.193.62 --target-port 8787
+lai-gateway-mobile-proxy --target-host <wsl-gateway-ip> --target-port 8787
 ```
 
 For daily startup, use the wrapper that checks the published path end to end:
 
 ```bash
 lai-gateway daily-config set \
-  --candidate-ip 172.29.193.62 \
+  --candidate-ip <wsl-gateway-ip> \
   --phone-url http://<your-device>.<your-tailnet>.ts.net:8787/
 
 lai-gateway-daily --show-pair

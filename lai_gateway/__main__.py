@@ -111,6 +111,13 @@ def _run_dev_stack(config: GatewayConfig, *, open_browser: bool) -> int:
     return 0
 
 
+
+def _release_check_repo() -> Path:
+    cwd = Path.cwd().resolve()
+    if (cwd / "pyproject.toml").exists():
+        return cwd
+    return Path(__file__).resolve().parents[1]
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="lai-gateway")
     parser.add_argument("--version", action="store_true", help="print gateway version and exit")
@@ -353,6 +360,14 @@ def main(argv: list[str] | None = None) -> int:
     telegram_status.add_argument("--token-file", default=None, help="telegram bot token file; defaults to ~/.config/lai-gateway/telegram-bot-token")
     telegram_status.add_argument("--chat-id", default=None, help="telegram chat id; defaults to LAI_GATEWAY_TELEGRAM_CHAT_ID")
     telegram_status.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    mcp_parser = sub.add_parser("mcp", help="inspect the harness MCP broker foundation without executing MCP tools")
+    mcp_sub = mcp_parser.add_subparsers(dest="mcp_command")
+    mcp_sub.add_parser("status", help="read MCP broker status from the harness")
+    mcp_sub.add_parser("tools", help="list declared MCP servers without starting them")
+    mcp_policy = mcp_sub.add_parser("policy-check", help="classify an MCP operation without execution")
+    mcp_policy.add_argument("--operation", required=True, choices=["status", "list-tools", "call-tool"], help="MCP broker operation to classify")
+    mcp_policy.add_argument("--server", default=None, help="declared MCP server name")
+    mcp_policy.add_argument("--tool", default=None, help="MCP tool name for call-tool checks")
     sessions_parser = sub.add_parser("sessions", help="manage harness sessions without creating runs")
     sessions_sub = sessions_parser.add_subparsers(dest="sessions_command")
     sessions_list = sessions_sub.add_parser("list", help="list harness sessions")
@@ -867,6 +882,16 @@ def main(argv: list[str] | None = None) -> int:
                 opened = webbrowser.open(url, new=2)
                 print(json.dumps({"product": "lai-gateway", "version": __version__, "url": url, "opened": opened}, indent=2, sort_keys=True))
             return 0
+        elif args.command == "mcp":
+            if args.mcp_command == "status":
+                payload = client.mcp_status()
+            elif args.mcp_command == "tools":
+                payload = client.mcp_tools()
+            elif args.mcp_command == "policy-check":
+                payload = client.mcp_policy_check(operation=args.operation, server=args.server, tool=args.tool)
+            else:
+                mcp_parser.print_help(sys.stderr)
+                return 2
         elif args.command == "sessions":
             if args.sessions_command == "list":
                 payload = client.list_sessions(args.limit)
@@ -894,7 +919,7 @@ def main(argv: list[str] | None = None) -> int:
                 runs_parser.print_help()
                 return 0
         elif args.command == "release-check":
-            payload = collect_release_check(args.target)
+            payload = collect_release_check(args.target, _release_check_repo())
             if not args.json:
                 print(render_release_check(payload))
                 return 0 if payload["overall"] == "ready" else 1

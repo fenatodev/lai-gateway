@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import glob
 import json
 import os
 import re
@@ -34,11 +35,11 @@ _SECRET_ENV_PARTS = ("TOKEN", "KEY", "SECRET", "PASSWORD", "AUTH", "BEARER")
 _MODEL_FILE_DEFAULT_ROOTS = (
     "~/models",
     "~/.cache/huggingface",
-    "/mnt/c/Users/fenat/Downloads",
-    "/mnt/c/Users/fenat/Documents",
-    "/mnt/c/Users/fenat/.cache/huggingface",
-    "/mnt/c/Users/fenat/.lmstudio/models",
-    "/mnt/c/Users/fenat/AppData/Local/nomic.ai/GPT4All",
+    "/mnt/c/Users/*/Downloads",
+    "/mnt/c/Users/*/Documents",
+    "/mnt/c/Users/*/.cache/huggingface",
+    "/mnt/c/Users/*/.lmstudio/models",
+    "/mnt/c/Users/*/AppData/Local/nomic.ai/GPT4All",
 )
 _SPLIT_GGUF_RE = re.compile(r"^(?P<stem>.+)-(?P<idx>\d{5})-of-(?P<total>\d{5})\.gguf$", re.IGNORECASE)
 
@@ -826,16 +827,18 @@ def _model_file_roots(*, paths: list[str] | None, values: dict[str, str]) -> lis
     for raw in raw_roots:
         if not raw:
             continue
-        path = Path(raw).expanduser()
-        try:
-            resolved = path.resolve()
-        except OSError:
-            resolved = path
-        key = str(resolved)
-        if key in seen or not path.exists() or not path.is_dir():
-            continue
-        seen.add(key)
-        roots.append(path)
+        expanded = glob.glob(os.path.expanduser(raw)) if glob.has_magic(raw) else [os.path.expanduser(raw)]
+        for candidate in sorted(expanded):
+            path = Path(candidate)
+            try:
+                resolved = path.resolve()
+            except OSError:
+                resolved = path
+            key = str(resolved)
+            if key in seen or not path.exists() or not path.is_dir():
+                continue
+            seen.add(key)
+            roots.append(path)
     return roots
 
 

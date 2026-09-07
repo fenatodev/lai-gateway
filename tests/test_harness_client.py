@@ -7,7 +7,12 @@ from pathlib import Path
 import tests.fake_harness as fake
 from lai_gateway.config import GatewayConfig
 from lai_gateway.errors import ConfigError, HarnessHTTPError
-from lai_gateway.harness_client import HarnessClient
+from lai_gateway.harness_client import (
+    HarnessClient,
+    MCP_REDACTED_VALUE,
+    normalize_run_list_payload,
+    sanitize_mcp_payload,
+)
 
 from .fake_harness import TOKEN, fake_harness
 
@@ -19,15 +24,15 @@ class HarnessClientTest(unittest.TestCase):
             token_file.write_text(TOKEN, encoding="utf-8")
             client = HarnessClient(GatewayConfig(harness_url=harness.url, token_file=token_file))
             contract = client.gateway_contract()
-            self.assertEqual(contract["version"], "0.4.2")
+            self.assertEqual(contract["version"], "0.4.5")
             self.assertEqual(client.status()["product"], "lai harness")
             self.assertEqual(client.readiness()["overall"], "ready")
-            self.assertEqual(client.list_sessions()["sessions"][0]["session_id"], "s_test")
-            self.assertEqual(client.create_session()["session"]["session_id"], "s_test")
-            self.assertEqual(client.get_session("s_test")["session"]["session_id"], "s_test")
-            deleted = client.delete_session("s_test")
-            self.assertTrue(deleted["deleted"])
-            self.assertEqual(deleted["session"]["session_id"], "s_test")
+            self.assertEqual(client.list_sessions()["sessions"][0]["session_id"], "cs-1234567890abcdef")
+            self.assertEqual(client.create_session()["session"]["session_id"], "cs-1234567890abcdef")
+            self.assertEqual(client.get_session("cs-1234567890abcdef")["session"]["session_id"], "cs-1234567890abcdef")
+            deleted = client.delete_session("cs-1234567890abcdef")
+            self.assertTrue(deleted["session"]["deleted"])
+            self.assertEqual(deleted["session"]["session_id"], "cs-1234567890abcdef")
 
     def test_fetches_and_creates_read_only_runs_with_bounded_body(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
@@ -39,18 +44,101 @@ class HarnessClientTest(unittest.TestCase):
             created = client.create_read_only_run(
                 mode="plan",
                 task="Summarize current state.",
-                session_id="s_test",
+                session_id="cs-1234567890abcdef",
             )
-            fetched = client.get_run("cr_test")
+            fetched = client.get_run("cr-1234567890abcdef")
 
-            self.assertEqual(listed["runs"][0]["control_run_id"], "cr_test")
-            self.assertEqual(created["run"]["control_run_id"], "cr_test")
+            self.assertEqual(listed["runs"][0]["control_run_id"], "cr-1234567890abcdef")
+            self.assertEqual(created["run"]["control_run_id"], "cr-1234567890abcdef")
             self.assertEqual(fetched["run"]["status"], "succeeded")
             self.assertEqual(fake.LAST_RUN_BODY, {
                 "mode": "plan",
-                "session_id": "s_test",
+                "session_id": "cs-1234567890abcdef",
                 "task": "Summarize current state.",
             })
+
+    def test_rejects_malformed_control_run_and_session_ids_before_network(self):
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            client = HarnessClient(GatewayConfig(harness_url=harness.url, token_file=token_file))
+
+            for session_id in ("s_test", "cs-123", "cs-zzzzzzzzzzzzzzzz", "cs-1234567890abcdef/extra"):
+                with self.subTest(session_id=session_id):
+                    with self.assertRaises(ConfigError):
+                        client.get_session(session_id)
+                    with self.assertRaises(ConfigError):
+                        client.delete_session(session_id)
+                    with self.assertRaises(ConfigError):
+                        client.create_read_only_run(mode="plan", task="x", session_id=session_id)
+
+            for run_id in ("cr_test", "run-1", "cr-123", "cr-zzzzzzzzzzzzzzzz", "cr-1234567890abcdef/extra"):
+                with self.subTest(run_id=run_id):
+                    with self.assertRaises(ConfigError):
+                        client.get_run(run_id)
+
+    def test_run_list_normalizer_only_promotes_control_run_shaped_legacy_ids(self):
+        payload = {
+            "runs": [
+                {"run_id": "cr-1234567890abcdef", "status": "queued"},
+                {"run_id": "1788786034784-598834", "status": "observed"},
+            ]
+        }
+
+        normalized = normalize_run_list_payload(payload)
+
+        self.assertEqual(normalized["runs"][0]["control_run_id"], "cr-1234567890abcdef")
+        self.assertNotIn("control_run_id", normalized["runs"][1])
+
+
+
+    def test_fetches_mcp_broker_metadata_and_policy_without_execution(self):
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            client = HarnessClient(GatewayConfig(harness_url=harness.url, token_file=token_file))
+
+            status = client.mcp_status()
+            tools = client.mcp_tools()
+            policy = client.mcp_policy_check(
+                operation="call-tool",
+                server="desktop-commander",
+                tool="start_process",
+            )
+
+            self.assertEqual(status["overall"], "ready")
+            self.assertEqual(status["server_count"], 1)
+            self.assertFalse(status["security"]["executes_tools"])
+            self.assertEqual(tools["servers"][0]["name"], "desktop-commander")
+            self.assertEqual(policy["decision"], "DENY")
+            self.assertFalse(policy["executed"])
+            self.assertIn("MCP tool execution is not enabled", policy["reason"])
+
+            with self.assertRaises(ConfigError):
+                client.mcp_policy_check(operation="execute-tool")
+
+    def test_redacts_secret_shaped_mcp_payload_fields(self):
+        payload = sanitize_mcp_payload({
+            "overall": "ready",
+            "security": {
+                "executes_tools": False,
+                "prints_credentials": False,
+                "authorization": "Bearer harness-secret-value",
+            },
+            "servers": [{
+                "name": "desktop-commander",
+                "env": {
+                    "LAI_GATEWAY_MODEL_API_KEY": "model-secret-value",
+                    "NORMAL_SETTING": "safe",
+                },
+            }],
+        })
+
+        self.assertFalse(payload["security"]["executes_tools"])
+        self.assertFalse(payload["security"]["prints_credentials"])
+        self.assertEqual(payload["security"]["authorization"], MCP_REDACTED_VALUE)
+        self.assertEqual(payload["servers"][0]["env"]["LAI_GATEWAY_MODEL_API_KEY"], MCP_REDACTED_VALUE)
+        self.assertEqual(payload["servers"][0]["env"]["NORMAL_SETTING"], "safe")
 
     def test_rejects_write_modes_before_contacting_harness(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
