@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import socket
 import subprocess
@@ -127,6 +128,7 @@ class ScriptTest(unittest.TestCase):
             stderr=subprocess.PIPE,
             check=False,
             timeout=10,
+            env={**os.environ, "LAI_GATEWAY_DAILY_CONFIG": str(repo / ".missing-daily-config"), "PYTHON": sys.executable},
         )
         env = {**os.environ, "LAI_GATEWAY_PHONE_URL": "http://example.tailnet.ts.net:8787/", "PYTHON": sys.executable}
         check_only = subprocess.run(
@@ -152,11 +154,110 @@ class ScriptTest(unittest.TestCase):
         combined = help_result.stdout + help_result.stderr + missing.stdout + missing.stderr + check_only.stdout + check_only.stderr
         self.assertIn("lai-gateway-daily", help_result.stdout)
         self.assertEqual(missing.returncode, 2)
-        self.assertIn("--candidate-ip is required", missing.stderr)
+        self.assertIn("daily-config set", missing.stderr)
         self.assertIn("check_only: true", check_only.stdout)
         self.assertIn("phone_url: http://example.tailnet.ts.net:8787/", check_only.stdout)
         self.assertNotIn("Bearer", combined)
         self.assertNotIn(TOKEN, combined)
+
+    def test_launch_daily_uses_daily_config_defaults(self) -> None:
+        repo = Path(__file__).parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "daily.json"
+            set_result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "lai_gateway",
+                    "daily-config",
+                    "set",
+                    "--candidate-ip",
+                    "172.29.193.62",
+                    "--phone-url",
+                    "http://example.tailnet.ts.net:8787/",
+                    "--harness-repo",
+                    str(repo),
+                    "--path",
+                    str(config_path),
+                    "--json",
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=10,
+            )
+            payload = json.loads(set_result.stdout)
+            self.assertEqual(payload["overall"], "ready")
+            self.assertEqual(config_path.stat().st_mode & 0o777, 0o600)
+            env_result = subprocess.run(
+                [sys.executable, "-m", "lai_gateway", "daily-config", "env", "--path", str(config_path)],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=10,
+            )
+            self.assertIn("LAI_GATEWAY_MOBILE_IP=172.29.193.62", env_result.stdout)
+            self.assertIn("LAI_GATEWAY_PHONE_URL=http://example.tailnet.ts.net:8787/", env_result.stdout)
+            env = {**os.environ, "LAI_GATEWAY_DAILY_CONFIG": str(config_path), "PYTHON": sys.executable}
+            env.pop("LAI_GATEWAY_MOBILE_IP", None)
+            check_only = subprocess.run(
+                ["bash", "scripts/launch-daily.sh", "--check-only"],
+                cwd=repo,
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=10,
+            )
+            self.assertIn("daily_config: loaded", check_only.stdout)
+            self.assertIn("mobile_target: 172.29.193.62:8787", check_only.stdout)
+            self.assertIn("phone_url: http://example.tailnet.ts.net:8787/", check_only.stdout)
+            combined = set_result.stdout + set_result.stderr + env_result.stdout + env_result.stderr + check_only.stdout + check_only.stderr
+            self.assertNotIn("Bearer", combined)
+            self.assertNotIn(TOKEN, combined)
+
+    def test_daily_config_rejects_unsafe_values(self) -> None:
+        repo = Path(__file__).parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            bad_public_ip = subprocess.run(
+                [sys.executable, "-m", "lai_gateway", "daily-config", "set", "--candidate-ip", "8.8.8.8", "--path", str(Path(tmp) / "daily.json")],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=10,
+            )
+            bad_url = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "lai_gateway",
+                    "daily-config",
+                    "set",
+                    "--candidate-ip",
+                    "172.29.193.62",
+                    "--phone-url",
+                    "https://example.tailnet.ts.net:8787/",
+                    "--path",
+                    str(Path(tmp) / "daily.json"),
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=10,
+            )
+        self.assertNotEqual(bad_public_ip.returncode, 0)
+        self.assertIn("private non-loopback", bad_public_ip.stderr)
+        self.assertNotEqual(bad_url.returncode, 0)
+        self.assertIn("http://", bad_url.stderr)
 
     def test_launch_mobile_help_and_missing_candidate_are_secret_free(self) -> None:
         repo = Path(__file__).parents[1]

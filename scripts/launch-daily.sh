@@ -3,6 +3,29 @@ set -euo pipefail
 
 repo_dir=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 python_bin=${PYTHON:-python3}
+daily_config_loaded=0
+# Explicit environment must win over persisted defaults. The config loader prints
+# token-free shell exports, but those exports are only defaults, not a dictator.
+had_mobile_ip=${LAI_GATEWAY_MOBILE_IP+x}; original_mobile_ip=${LAI_GATEWAY_MOBILE_IP:-}
+had_mobile_port=${LAI_GATEWAY_MOBILE_PORT+x}; original_mobile_port=${LAI_GATEWAY_MOBILE_PORT:-}
+had_proxy_port=${LAI_GATEWAY_MOBILE_PROXY_PORT+x}; original_proxy_port=${LAI_GATEWAY_MOBILE_PROXY_PORT:-}
+had_phone_url=${LAI_GATEWAY_PHONE_URL+x}; original_phone_url=${LAI_GATEWAY_PHONE_URL:-}
+had_harness_repo=${LAI_HARNESS_REPO_DIR+x}; original_harness_repo=${LAI_HARNESS_REPO_DIR:-}
+daily_config_env=""
+if [ -n "${LAI_GATEWAY_DAILY_CONFIG:-}" ]; then
+  daily_config_env=$("$python_bin" -m lai_gateway daily-config env --path "$LAI_GATEWAY_DAILY_CONFIG" 2>/dev/null || true)
+else
+  daily_config_env=$("$python_bin" -m lai_gateway daily-config env 2>/dev/null || true)
+fi
+if [ -n "$daily_config_env" ]; then
+  eval "$daily_config_env"
+  daily_config_loaded=1
+fi
+if [ -n "$had_mobile_ip" ]; then export LAI_GATEWAY_MOBILE_IP="$original_mobile_ip"; fi
+if [ -n "$had_mobile_port" ]; then export LAI_GATEWAY_MOBILE_PORT="$original_mobile_port"; fi
+if [ -n "$had_proxy_port" ]; then export LAI_GATEWAY_MOBILE_PROXY_PORT="$original_proxy_port"; fi
+if [ -n "$had_phone_url" ]; then export LAI_GATEWAY_PHONE_URL="$original_phone_url"; fi
+if [ -n "$had_harness_repo" ]; then export LAI_HARNESS_REPO_DIR="$original_harness_repo"; fi
 candidate_ip=${LAI_GATEWAY_MOBILE_IP:-}
 port=${LAI_GATEWAY_MOBILE_PORT:-8787}
 proxy_listen_host=${LAI_GATEWAY_MOBILE_PROXY_LISTEN_HOST:-127.0.0.1}
@@ -19,7 +42,7 @@ check_only=0
 
 usage() {
   cat <<USAGE
-usage: lai-gateway-daily --candidate-ip <private-ip> [options]
+usage: lai-gateway-daily [--candidate-ip <private-ip>] [options]
 
 Start or validate the daily local LAI workflow:
   1. model server through lai-server-start
@@ -29,7 +52,7 @@ Start or validate the daily local LAI workflow:
   5. final ops-status summary
 
 Options:
-  --candidate-ip IP       WSL/private IP where mobile gateway binds
+  --candidate-ip IP       WSL/private IP where mobile gateway binds; defaults to daily-config
   --port PORT             mobile gateway target port, default 8787
   --proxy-port PORT       loopback proxy port, default 18787
   --harness-repo PATH     lai harness repo, default ~/dev/projects/lai-local-agent
@@ -40,6 +63,7 @@ Options:
   --skip-mobile           do not start/check mobile gateway
   --skip-proxy            do not start/check mobile proxy
   --check-only            print the planned workflow without starting services
+  LAI_GATEWAY_DAILY_CONFIG can point to an alternate daily config file.
   -h, --help              show this help
 
 Token values are never printed unless --show-pair is passed explicitly.
@@ -105,7 +129,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 if [ -z "$candidate_ip" ]; then
-  echo "error: --candidate-ip is required, or set LAI_GATEWAY_MOBILE_IP" >&2
+  echo "error: --candidate-ip is required, or set LAI_GATEWAY_MOBILE_IP, or run lai-gateway daily-config set" >&2
   exit 2
 fi
 
@@ -233,6 +257,7 @@ wait_proxy() {
 
 say "lai-gateway-daily: starting"
 say "version: $("$python_bin" -m lai_gateway --version | awk '{print $2}')"
+say "daily_config: $([ "$daily_config_loaded" = "1" ] && printf loaded || printf none)"
 say "mobile_target: ${candidate_ip}:${port}"
 say "proxy: http://${proxy_listen_host}:${proxy_listen_port}/ -> http://${candidate_ip}:${port}/"
 say "tailscale_serve_target: http://${proxy_listen_host}:${proxy_listen_port}"

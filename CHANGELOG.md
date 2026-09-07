@@ -1,3 +1,8 @@
+## [0.1.29] - 2026-09-06
+
+- Added `daily-config` for storing the local daily mobile IP, phone URL, proxy port, and harness repo without tokens.
+- Updated `lai-gateway-daily` to load safe persisted daily defaults so routine startup can run without repeating IP and URL arguments.
+
 ## [0.1.28] - 2026-09-06
 
 - Add `lai-gateway-daily` to orchestrate the published daily local workflow: model/Harness readiness, private mobile gateway, loopback mobile proxy, and ops status without printing secrets.

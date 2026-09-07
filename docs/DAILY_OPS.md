@@ -109,7 +109,11 @@ Point Tailscale Serve at `http://127.0.0.1:18787` and open the MagicDNS URL on t
 Once Tailscale Serve points at `http://127.0.0.1:18787`, the daily wrapper can validate and start the local path:
 
 ```bash
-lai-gateway-daily --candidate-ip 172.29.193.62 --show-pair
+lai-gateway daily-config set \
+  --candidate-ip 172.29.193.62 \
+  --phone-url http://<your-device>.<your-tailnet>.ts.net:8787/
+
+lai-gateway-daily --show-pair
 ```
 
 The wrapper keeps token values out of logs unless `--show-pair` is passed. It checks or starts `lai-server-start`, the harness control plane, `lai-gateway-mobile`, `lai-gateway-mobile-proxy`, and a final `ops-status` snapshot.
@@ -119,3 +123,23 @@ For a dry plan without starting services:
 ```bash
 lai-gateway-daily --candidate-ip 172.29.193.62 --check-only
 ```
+
+
+## Persist daily defaults
+
+Use `daily-config` to save the local WSL/mobile IP and the phone URL without storing tokens:
+
+```bash
+lai-gateway daily-config set \
+  --candidate-ip 172.29.193.62 \
+  --phone-url http://<your-device>.<your-tailnet>.ts.net:8787/
+```
+
+Then daily startup can be reduced to:
+
+```bash
+lai-gateway-daily --show-pair
+```
+
+The config file is stored with `0600` permissions and does not contain access tokens or pair tokens.
+Use `LAI_GATEWAY_DAILY_CONFIG=/path/to/daily.json` when testing alternate profiles.
