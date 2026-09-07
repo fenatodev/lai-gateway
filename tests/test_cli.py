@@ -34,7 +34,7 @@ class CliTest(unittest.TestCase):
                 env=env,
             )
             payload = json.loads(result.stdout)
-            self.assertEqual(payload["version"], "0.4.6")
+            self.assertEqual(payload["version"], "0.4.7")
             self.assertNotIn(TOKEN, result.stdout)
             self.assertEqual(result.stderr, "")
 

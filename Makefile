@@ -1,7 +1,7 @@
 PYTHON ?= python3
 HARNESS_REPO ?= ../lai-local-agent
-TARGET_GATEWAY ?= 0.1.33
-TARGET_HARNESS ?= 0.4.6
+TARGET_GATEWAY ?= 0.1.34
+TARGET_HARNESS ?= 0.4.7
 
 .PHONY: help test check milestone-gate smoke
 

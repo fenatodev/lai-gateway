@@ -5,7 +5,7 @@ repo_dir=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 python_bin=${PYTHON:-python3}
 harness_repo=${LAI_HARNESS_REPO:-"$(dirname -- "$repo_dir")/lai-local-agent"}
 target_gateway=${LAI_GATEWAY_TARGET_VERSION:-}
-target_harness=${LAI_HARNESS_TARGET_VERSION:-0.4.6}
+target_harness=${LAI_HARNESS_TARGET_VERSION:-0.4.7}
 json_mode=0
 
 events_file=""

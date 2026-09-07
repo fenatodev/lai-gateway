@@ -28,15 +28,15 @@ class FakeHarnessHandler(BaseHTTPRequestHandler):
             self._send(HTTPStatus.OK, CONTRACT)
             return
         if self.path == "/v1/status":
-            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.6", "ok": True})
+            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.7", "ok": True})
             return
         if self.path == "/v1/readiness":
-            self._send(HTTPStatus.OK, {"overall": "ready", "version": "0.4.6"})
+            self._send(HTTPStatus.OK, {"overall": "ready", "version": "0.4.7"})
             return
         if self.path == "/v1/mcp/status":
             payload: dict[str, Any] = {
                 "product": "lai harness",
-                "version": "0.4.6",
+                "version": "0.4.7",
                 "overall": "ready",
                 "server_count": 1,
                 "servers": [{"name": "desktop-commander", "status": "configured"}],
@@ -54,7 +54,7 @@ class FakeHarnessHandler(BaseHTTPRequestHandler):
         if self.path == "/v1/mcp/tools":
             self._send(HTTPStatus.OK, {
                 "product": "lai harness",
-                "version": "0.4.6",
+                "version": "0.4.7",
                 "overall": "ready",
                 "server_count": 1,
                 "execution_enabled": False,
@@ -68,18 +68,18 @@ class FakeHarnessHandler(BaseHTTPRequestHandler):
             })
             return
         if self.path.startswith("/v1/sessions?"):
-            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.6", "sessions": [{"session_id": "cs-1234567890abcdef", "turn_count": 0}]})
+            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.7", "sessions": [{"session_id": "cs-1234567890abcdef", "turn_count": 0}]})
             return
         if self.path.startswith("/v1/runs?"):
-            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.6", "runs": [{"run_id": "cr-1234567890abcdef", "status": "queued", "mode": "plan"}]})
+            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.7", "runs": [{"run_id": "cr-1234567890abcdef", "status": "queued", "mode": "plan"}]})
             return
         if self.path == "/v1/runs/cr-1234567890abcdef":
-            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.6", "run": {"control_run_id": "cr-1234567890abcdef", "status": "succeeded", "mode": "plan"}})
+            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.7", "run": {"control_run_id": "cr-1234567890abcdef", "status": "succeeded", "mode": "plan"}})
             return
         if self.path == "/v1/runs/cr-1234567890abcdef/events":
             self._send(HTTPStatus.OK, {
                 "product": "lai harness",
-                "version": "0.4.6",
+                "version": "0.4.7",
                 "control_run_id": "cr-1234567890abcdef",
                 "mode": "plan",
                 "status": "succeeded",
@@ -94,7 +94,7 @@ class FakeHarnessHandler(BaseHTTPRequestHandler):
             })
             return
         if self.path == "/v1/sessions/cs-1234567890abcdef":
-            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.6", "session": {"session_id": "cs-1234567890abcdef", "turn_count": 0, "turns": []}})
+            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.7", "session": {"session_id": "cs-1234567890abcdef", "turn_count": 0, "turns": []}})
             return
         self._send(HTTPStatus.NOT_FOUND, {"error": "not_found"})
 
@@ -105,7 +105,7 @@ class FakeHarnessHandler(BaseHTTPRequestHandler):
         if self.path == "/v1/sessions/cs-1234567890abcdef":
             self._send(HTTPStatus.OK, {
                 "product": "lai harness",
-                "version": "0.4.6",
+                "version": "0.4.7",
                 "session": {"session_id": "cs-1234567890abcdef", "deleted": True, "turn_count": 0},
             })
             return
@@ -117,7 +117,7 @@ class FakeHarnessHandler(BaseHTTPRequestHandler):
             self._send(HTTPStatus.UNAUTHORIZED, {"error": "auth_required"})
             return
         if self.path == "/v1/sessions":
-            self._send(HTTPStatus.CREATED, {"product": "lai harness", "version": "0.4.6", "session": {"session_id": "cs-1234567890abcdef", "turn_count": 0, "turns": []}})
+            self._send(HTTPStatus.CREATED, {"product": "lai harness", "version": "0.4.7", "session": {"session_id": "cs-1234567890abcdef", "turn_count": 0, "turns": []}})
             return
         if self.path == "/v1/mcp/policy-check":
             length = int(self.headers.get("Content-Length", "0"))
@@ -141,7 +141,7 @@ class FakeHarnessHandler(BaseHTTPRequestHandler):
                 }
             response.update({
                 "product": "lai harness",
-                "version": "0.4.6",
+                "version": "0.4.7",
                 "operation": operation,
                 "executed": False,
                 "server": server or None,
@@ -152,7 +152,7 @@ class FakeHarnessHandler(BaseHTTPRequestHandler):
         if self.path == "/v1/runs":
             length = int(self.headers.get("Content-Length", "0"))
             LAST_RUN_BODY = json.loads(self.rfile.read(length).decode("utf-8"))
-            self._send(HTTPStatus.ACCEPTED, {"product": "lai harness", "version": "0.4.6", "run": {"control_run_id": "cr-1234567890abcdef", "status": "queued", "mode": LAST_RUN_BODY.get("mode"), "session_id": LAST_RUN_BODY.get("session_id")}})
+            self._send(HTTPStatus.ACCEPTED, {"product": "lai harness", "version": "0.4.7", "run": {"control_run_id": "cr-1234567890abcdef", "status": "queued", "mode": LAST_RUN_BODY.get("mode"), "session_id": LAST_RUN_BODY.get("session_id")}})
             return
         self._send(HTTPStatus.NOT_FOUND, {"error": "not_found"})
 

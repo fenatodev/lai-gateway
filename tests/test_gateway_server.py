@@ -141,7 +141,7 @@ class GatewayServerTest(unittest.TestCase):
             with RunningGateway(self._config(tmp, harness.url)) as gateway:
                 self.assertEqual(get_json(f"{gateway.url}/healthz")["product"], "lai-gateway")
                 contract = get_json(f"{gateway.url}/v1/harness/gateway-contract")
-                self.assertEqual(contract["version"], "0.4.6")
+                self.assertEqual(contract["version"], "0.4.7")
                 self.assertEqual(get_json(f"{gateway.url}/v1/harness/status")["ok"], True)
                 readiness = get_json(f"{gateway.url}/v1/harness/readiness")
                 self.assertEqual(readiness["overall"], "ready")

@@ -260,7 +260,7 @@ class ScriptTest(unittest.TestCase):
                 f"CONTRACT = {CONTRACT!r}\n"
                 "args = sys.argv[1:]\n"
                 "if args == ['--version']:\n"
-                "    print('lai harness 0.4.6')\n"
+                "    print('lai harness 0.4.7')\n"
                 "elif args == ['--gateway-contract', '--json']:\n"
                 "    print(json.dumps(CONTRACT, sort_keys=True))\n"
                 "elif args[:2] == ['--mcp', 'status'] and args[2:] == ['--help']:\n"
@@ -270,9 +270,9 @@ class ScriptTest(unittest.TestCase):
                 "elif args[:2] == ['--mcp', 'policy-check'] and args[2:] == ['--help']:\n"
                 "    print('Usage: lai mcp policy-check --operation status|list-tools|call-tool [--server NAME] [--tool NAME] [--json]')\n"
                 "elif args[:2] == ['--mcp', 'status'] and '--json' in args:\n"
-                "    print(json.dumps({'product': 'lai harness', 'version': '0.4.6', 'overall': 'no_config', 'server_count': 0, 'config_files': [], 'servers': [], 'issues': [], 'security': {'executes_tools': False, 'prints_credentials': False, 'reads_env_values': False}}, sort_keys=True))\n"
+                "    print(json.dumps({'product': 'lai harness', 'version': '0.4.7', 'overall': 'no_config', 'server_count': 0, 'config_files': [], 'servers': [], 'issues': [], 'security': {'executes_tools': False, 'prints_credentials': False, 'reads_env_values': False}}, sort_keys=True))\n"
                 "elif args[:2] == ['--mcp', 'policy-check'] and '--json' in args:\n"
-                "    print(json.dumps({'product': 'lai harness', 'version': '0.4.6', 'decision': 'DENY', 'reason': 'MCP tool execution is not enabled in this foundation milestone', 'executed': False}, sort_keys=True))\n"
+                "    print(json.dumps({'product': 'lai harness', 'version': '0.4.7', 'decision': 'DENY', 'reason': 'MCP tool execution is not enabled in this foundation milestone', 'executed': False}, sort_keys=True))\n"
                 "else:\n"
                 "    raise SystemExit(2)\n",
                 encoding="utf-8",
@@ -287,7 +287,7 @@ class ScriptTest(unittest.TestCase):
                     "--target-gateway",
                     __version__,
                     "--target-harness",
-                    "0.4.6",
+                    "0.4.7",
                 ],
                 cwd=repo,
                 env=env,
@@ -315,7 +315,7 @@ class ScriptTest(unittest.TestCase):
                     "--target-gateway",
                     __version__,
                     "--target-harness",
-                    "0.4.6",
+                    "0.4.7",
                     "--json",
                 ],
                 cwd=repo,
@@ -330,7 +330,7 @@ class ScriptTest(unittest.TestCase):
             json_combined = json_result.stdout + json_result.stderr
             self.assertEqual(json_payload["overall"], "ready_for_local_commit")
             self.assertEqual(json_payload["gateway_version"], __version__)
-            self.assertEqual(json_payload["harness_version"], "0.4.6")
+            self.assertEqual(json_payload["harness_version"], "0.4.7")
             self.assertIn(
                 "gateway_release_check_version_and_safety",
                 {check["name"] for check in json_payload["checks"]},
@@ -352,7 +352,7 @@ class ScriptTest(unittest.TestCase):
                     "--target-gateway",
                     __version__,
                     "--target-harness",
-                    "0.4.6",
+                    "0.4.7",
                     "--json",
                 ],
                 cwd=tmp,

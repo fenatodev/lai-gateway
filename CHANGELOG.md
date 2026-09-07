@@ -1,4 +1,13 @@
-## [0.1.33] - Unreleased
+## [0.1.34] - Unreleased
+
+### Changed
+- Update the default Gateway/Harness stack target to `lai harness` 0.4.7 and bump the Gateway package to 0.1.34.
+- Refresh current stack documentation and test fixtures for the Harness v0.4.7 control-run event timeline baseline.
+
+### Validation
+- Stack-check defaults must pass against installed `lai-gateway` 0.1.34 and `lai harness` 0.4.7.
+
+## [0.1.33] - 2026-09-07
 
 ### Added
 - Add a Gateway UI run timeline panel that reads `GET /v1/harness/runs/{control_run_id}/events` and displays metadata-only progress while a selected run is polled.

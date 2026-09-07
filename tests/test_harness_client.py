@@ -25,7 +25,7 @@ class HarnessClientTest(unittest.TestCase):
             token_file.write_text(TOKEN, encoding="utf-8")
             client = HarnessClient(GatewayConfig(harness_url=harness.url, token_file=token_file))
             contract = client.gateway_contract()
-            self.assertEqual(contract["version"], "0.4.6")
+            self.assertEqual(contract["version"], "0.4.7")
             self.assertEqual(client.status()["product"], "lai harness")
             self.assertEqual(client.readiness()["overall"], "ready")
             self.assertEqual(client.list_sessions()["sessions"][0]["session_id"], "cs-1234567890abcdef")
