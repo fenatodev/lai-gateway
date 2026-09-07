@@ -104,11 +104,27 @@ Historical Qwen2.5-Coder smoke tests proved availability only. Later model-evalu
 
 ## Daily launcher
 
-Use `lai-gateway-model` to start the recommended Windows llama.cpp runtime from WSL without copying long GGUF paths manually.
+Use `lai-gateway-model` for local model verification without copying long GGUF paths manually. If a persisted healthy endpoint already exists, the routine smoke path reuses it and does not start another model process:
+
+```bash
+lai-gateway-model --smoke
+```
+
+Use `--create-key` when intentionally provisioning a dedicated Gateway model runtime for the first time:
 
 ```bash
 lai-gateway-model --create-key --smoke
 ```
+
+For one-shot diagnostics or evaluation, prefer ephemeral mode so a second llama.cpp runtime does not remain resident after validation:
+
+```bash
+lai-gateway-model --smoke --ephemeral
+```
+
+`--ephemeral` stops only a model server started by that invocation. If the configured endpoint was already running, the launcher probes it and leaves it untouched.
+Without explicit runtime overrides, the launcher also reuses any persisted healthy local endpoint before model discovery or startup. This lets the Gateway diagnostics share the Harness model server instead of keeping a second GGUF resident in RAM.
+Use `--create-key` only when preparing a dedicated Gateway runtime that does not already have a valid key file; routine diagnostics against a shared healthy endpoint do not need it.
 
 For a dry run that prints the selected host, model, key-file path, and base URL without starting the runtime:
 

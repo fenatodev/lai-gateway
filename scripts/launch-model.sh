@@ -16,17 +16,28 @@ force_key=0
 plan_only=0
 probe_only=0
 foreground=0
+ephemeral=0
 run_smoke=0
 run_task=0
 run_eval=0
 run_record=0
 task_name=code-mini
+explicit_runtime=0
+for runtime_var in \
+  LAI_GATEWAY_MODEL_HOST LAI_GATEWAY_MODEL_PORT LAI_GATEWAY_MODEL_PATH \
+  LAI_GATEWAY_MODEL_NAME LAI_GATEWAY_MODEL_API_KEY_FILE \
+  LAI_GATEWAY_MODEL_THREADS LAI_GATEWAY_MODEL_CTX_SIZE LAI_GATEWAY_MODEL_GPU_LAYERS; do
+  if [ -n "${!runtime_var:-}" ]; then
+    explicit_runtime=1
+  fi
+done
 
 usage() {
   cat <<USAGE
-usage: lai-gateway-model [--host <windows-wsl-ip>] [--port 18082] [--model-path <gguf>] [--model-name <name>] [--key-file <path>] [--create-key] [--force-key] [--plan-only] [--probe-only] [--smoke] [--task [code-mini]] [--eval] [--record] [--foreground]
+usage: lai-gateway-model [--host <windows-wsl-ip>] [--port 18082] [--model-path <gguf>] [--model-name <name>] [--key-file <path>] [--create-key] [--force-key] [--plan-only] [--probe-only] [--smoke] [--task [code-mini]] [--eval] [--record] [--foreground] [--ephemeral]
 
 Idempotent local model launcher for Windows llama.cpp from WSL:
+  - reuses an already configured healthy local endpoint when no runtime override is requested
   - discovers the recommended local GGUF when --model-path is omitted
   - creates/verifies a local model API key file without printing the key
   - starts llama-server.exe bound to a private WSL-reachable Windows IP
@@ -36,6 +47,7 @@ Idempotent local model launcher for Windows llama.cpp from WSL:
   - with --task, also runs a fixed local model task such as code-mini
   - with --eval, runs the fixed smoke + task evaluation suite
   - with --record, writes prompt-free local model metrics for smoke/task/eval
+  - with --ephemeral, stops only a model server started by this invocation after validation
 
 No model downloads are performed. No API key values are printed.
 USAGE
@@ -44,42 +56,52 @@ USAGE
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --host)
+      explicit_runtime=1
       host=${2:?--host requires a value}
       shift 2
       ;;
     --port)
+      explicit_runtime=1
       port=${2:?--port requires a value}
       shift 2
       ;;
     --model-path)
+      explicit_runtime=1
       model_path=${2:?--model-path requires a value}
       shift 2
       ;;
     --model-name)
+      explicit_runtime=1
       model_name=${2:?--model-name requires a value}
       shift 2
       ;;
     --key-file)
+      explicit_runtime=1
       key_file=${2:?--key-file requires a value}
       shift 2
       ;;
     --threads)
+      explicit_runtime=1
       threads=${2:?--threads requires a value}
       shift 2
       ;;
     --ctx-size)
+      explicit_runtime=1
       ctx_size=${2:?--ctx-size requires a value}
       shift 2
       ;;
     --gpu-layers)
+      explicit_runtime=1
       gpu_layers=${2:?--gpu-layers requires a value}
       shift 2
       ;;
     --create-key)
+      explicit_runtime=1
       create_key=1
       shift
       ;;
     --force-key)
+      explicit_runtime=1
       create_key=1
       force_key=1
       shift
@@ -114,7 +136,12 @@ while [ "$#" -gt 0 ]; do
       fi
       ;;
     --foreground)
+      explicit_runtime=1
       foreground=1
+      shift
+      ;;
+    --ephemeral)
+      ephemeral=1
       shift
       ;;
     -h|--help)
@@ -128,6 +155,11 @@ while [ "$#" -gt 0 ]; do
       ;;
   esac
 done
+
+if [ "$foreground" = "1" ] && [ "$ephemeral" = "1" ]; then
+  echo "error: --foreground and --ephemeral cannot be combined" >&2
+  exit 2
+fi
 
 cd "$repo_dir"
 
@@ -145,6 +177,33 @@ for part in sys.argv[1].split('.'):
 print('' if cur is None else cur)
 PYCODE
 }
+
+run_configured_validations() {
+  "$python_bin" -m lai_gateway model-status --probe-openai
+  record_args=()
+  if [ "$run_record" = "1" ]; then
+    record_args+=(--record)
+  fi
+  if [ "$run_eval" = "1" ]; then
+    "$python_bin" -m lai_gateway model-eval "${record_args[@]}"
+    return
+  fi
+  if [ "$run_smoke" = "1" ]; then
+    "$python_bin" -m lai_gateway model-smoke "${record_args[@]}"
+  fi
+  if [ "$run_task" = "1" ]; then
+    "$python_bin" -m lai_gateway model-task --task "$task_name" "${record_args[@]}"
+  fi
+}
+
+if [ "$explicit_runtime" = "0" ] && [ "$plan_only" = "0" ]; then
+  configured_status=$("$python_bin" -m lai_gateway model-status --probe-openai --json 2>/dev/null || true)
+  if [ "$(json_get "$configured_status" overall)" = "ready" ]; then
+    echo "lai-gateway-model: reusing configured ready endpoint"
+    run_configured_validations
+    exit 0
+  fi
+fi
 
 if [ -z "$host" ]; then
   host=$("$python_bin" - <<'PYCODE'
@@ -249,22 +308,25 @@ except Exception:
 PYCODE
 }
 
+windows_listener_pid() {
+  if ! command -v powershell.exe >/dev/null 2>&1; then
+    return 0
+  fi
+  powershell.exe -NoProfile -Command     '$portNumber=[int]$args[0]; $hostName=$args[1]; $connection=Get-NetTCPConnection -State Listen -LocalPort $portNumber -ErrorAction SilentlyContinue | Where-Object { $_.LocalAddress -eq $hostName } | Select-Object -First 1; if ($connection) { [Console]::Out.Write($connection.OwningProcess) }'     "$port" "$host" 2>/dev/null | tr -d '\r\n'
+}
+
+stop_windows_listener_pid() {
+  local target_pid=${1:-}
+  if [ -z "$target_pid" ] || ! command -v powershell.exe >/dev/null 2>&1; then
+    return 0
+  fi
+  powershell.exe -NoProfile -Command \
+    '$target=[int]$args[0]; Stop-Process -Id $target -Force -ErrorAction SilentlyContinue' \
+    "$target_pid" >/dev/null 2>&1 || true
+}
+
 run_validations() {
-  "$python_bin" -m lai_gateway model-status --probe-openai
-  record_args=()
-  if [ "$run_record" = "1" ]; then
-    record_args+=(--record)
-  fi
-  if [ "$run_eval" = "1" ]; then
-    "$python_bin" -m lai_gateway model-eval "${record_args[@]}"
-    return
-  fi
-  if [ "$run_smoke" = "1" ]; then
-    "$python_bin" -m lai_gateway model-smoke "${record_args[@]}"
-  fi
-  if [ "$run_task" = "1" ]; then
-    "$python_bin" -m lai_gateway model-task --task "$task_name" "${record_args[@]}"
-  fi
+  run_configured_validations
 }
 
 if [ "$probe_only" = "1" ]; then
@@ -317,6 +379,19 @@ llama-server.exe \
   --cors-origins localhost \
   --no-cors-credentials >"$log_file" 2>&1 &
 pid=$!
+windows_pid=""
+cleanup_started_model() {
+  if kill -0 "$pid" 2>/dev/null; then
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+  fi
+  if [ -n "${windows_pid:-}" ]; then
+    stop_windows_listener_pid "$windows_pid"
+  fi
+}
+if [ "$ephemeral" = "1" ]; then
+  trap cleanup_started_model EXIT INT TERM
+fi
 echo "lai-gateway-model: starting"
 echo "pid: $pid"
 echo "base_url: $base_url"
@@ -344,4 +419,13 @@ if [ "$ready" != "1" ]; then
   exit 1
 fi
 
+if [ "$ephemeral" = "1" ]; then
+  windows_pid=$(windows_listener_pid || true)
+fi
+
 run_validations
+if [ "$ephemeral" = "1" ]; then
+  cleanup_started_model
+  trap - EXIT INT TERM
+  echo "lai-gateway-model: stopped ephemeral server"
+fi
