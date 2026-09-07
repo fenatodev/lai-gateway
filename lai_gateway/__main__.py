@@ -14,6 +14,7 @@ from .access import collect_mobile_access, render_mobile_access
 from .config import GatewayConfig
 from .contract import summarize_contract
 from .doctor import collect_doctor, render_doctor
+from .daily_config import collect_daily_config, read_daily_config, render_daily_config, shell_exports, validate_daily_config, write_daily_config
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .lan import collect_lan_info, render_lan_info
@@ -169,6 +170,23 @@ def main(argv: list[str] | None = None) -> int:
     model_key_check_parser = sub.add_parser("model-key-check", help="check a local model API key file without printing the key")
     model_key_check_parser.add_argument("--path", default=None, help="model API key file path")
     model_key_check_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    daily_config_parser = sub.add_parser("daily-config", help="store or inspect token-free daily startup defaults")
+    daily_config_sub = daily_config_parser.add_subparsers(dest="daily_config_command")
+    daily_config_set = daily_config_sub.add_parser("set", help="write token-free daily startup defaults with 0600 permissions")
+    daily_config_set.add_argument("--candidate-ip", required=True, help="WSL/private IP where mobile gateway binds")
+    daily_config_set.add_argument("--phone-url", default=None, help="MagicDNS/Tailscale Serve URL opened on the phone")
+    daily_config_set.add_argument("--port", type=int, default=8787, help="mobile gateway port")
+    daily_config_set.add_argument("--proxy-port", type=int, default=18787, help="loopback proxy port for Tailscale Serve")
+    daily_config_set.add_argument("--harness-repo", default=None, help="lai harness checkout directory")
+    daily_config_set.add_argument("--path", default=None, help="daily config file path; defaults to ~/.config/lai-gateway/daily.json")
+    daily_config_set.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    daily_config_show = daily_config_sub.add_parser("show", help="show token-free daily startup defaults")
+    daily_config_show.add_argument("--path", default=None, help="daily config file path; defaults to ~/.config/lai-gateway/daily.json")
+    daily_config_show.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    daily_config_env = daily_config_sub.add_parser("env", help="print shell exports for launchers; contains no token values")
+    daily_config_env.add_argument("--path", default=None, help="daily config file path; defaults to ~/.config/lai-gateway/daily.json")
+    daily_config_env.add_argument("--json", action="store_true", help="print machine-readable JSON instead of shell exports")
+
     service_plan_parser = sub.add_parser("service-plan", help="plan a token-free systemd user service for mobile serving")
     service_plan_parser.add_argument("--candidate-ip", required=True, help="private LAN IP for mobile serving")
     service_plan_parser.add_argument("--port", type=int, default=None, help="gateway/mobile port")
@@ -364,6 +382,41 @@ def main(argv: list[str] | None = None) -> int:
         print(f"lai-gateway {__version__}")
         return 0
     try:
+        if args.command == "daily-config":
+            if args.daily_config_command == "set":
+                daily = validate_daily_config(
+                    candidate_ip=args.candidate_ip,
+                    phone_url=args.phone_url,
+                    port=args.port,
+                    proxy_port=args.proxy_port,
+                    harness_repo=args.harness_repo,
+                    path=Path(args.path).expanduser() if args.path else None,
+                )
+                target = write_daily_config(daily, path=args.path, force=True)
+                payload = collect_daily_config(path=target)
+                payload["actions"] = [{"name": "daily_config_written", "path": str(target)}]
+                if args.json:
+                    print(json.dumps(payload, indent=2, sort_keys=True))
+                else:
+                    print(render_daily_config(payload))
+                return 0 if payload["overall"] == "ready" else 1
+            if args.daily_config_command == "show":
+                payload = collect_daily_config(path=args.path)
+                if args.json:
+                    print(json.dumps(payload, indent=2, sort_keys=True))
+                else:
+                    print(render_daily_config(payload))
+                return 0 if payload["overall"] in {"ready", "needs_config"} else 1
+            if args.daily_config_command == "env":
+                payload = collect_daily_config(path=args.path)
+                if args.json:
+                    print(json.dumps(payload, indent=2, sort_keys=True))
+                    return 0 if payload["overall"] == "ready" else 1
+                daily = read_daily_config(path=args.path)
+                print(shell_exports(daily), end="")
+                return 0
+            daily_config_parser.print_help()
+            return 0
         config = GatewayConfig.from_env()
         if args.command == "ops-status":
             payload = collect_ops_status(
