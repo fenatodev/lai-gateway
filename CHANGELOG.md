@@ -1,3 +1,12 @@
+## [0.1.32] - Unreleased
+
+### Added
+- Add read-only Harness run-event timeline support with `lai-gateway runs events <control_run_id>` and `GET /v1/harness/runs/{control_run_id}/events`.
+- Sanitize run-event payloads defensively so stdout, stderr, task text, turns, and transcripts are stripped before reaching CLI or Gateway API clients.
+
+### Changed
+- Update the default Gateway/Harness stack target to `lai harness` 0.4.6 and bump the Gateway package to 0.1.32.
+
 ## [0.1.31] - 2026-09-07
 
 ### Added

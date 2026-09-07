@@ -1,6 +1,6 @@
 # MCP Operations
 
-This runbook covers the Gateway 0.1.31 integration with the Harness 0.4.5 MCP broker foundation.
+This runbook covers the Gateway 0.1.32 integration with the Harness 0.4.6 MCP broker foundation.
 
 ## Boundary
 
@@ -70,10 +70,10 @@ For this milestone, safe states are `ready` or `no_config`. A blocked MCP state 
 Use the local stack gate before committing or publishing coordinated Gateway/Harness work:
 
 ```bash
-bash scripts/stack-check.sh --harness-repo ../lai-local-agent --target-gateway 0.1.31 --target-harness 0.4.5
-bash scripts/stack-check.sh --harness-repo ../lai-local-agent --target-gateway 0.1.31 --target-harness 0.4.5 --json
-lai-gateway-stack-check --harness-repo ../lai-local-agent --target-gateway 0.1.31 --target-harness 0.4.5 --json
-make milestone-gate HARNESS_REPO=../lai-local-agent TARGET_GATEWAY=0.1.31 TARGET_HARNESS=0.4.5
+bash scripts/stack-check.sh --harness-repo ../lai-local-agent --target-gateway 0.1.31 --target-harness 0.4.6
+bash scripts/stack-check.sh --harness-repo ../lai-local-agent --target-gateway 0.1.31 --target-harness 0.4.6 --json
+lai-gateway-stack-check --harness-repo ../lai-local-agent --target-gateway 0.1.31 --target-harness 0.4.6 --json
+make milestone-gate HARNESS_REPO=../lai-local-agent TARGET_GATEWAY=0.1.32 TARGET_HARNESS=0.4.6
 ```
 
 The gate validates the Gateway version, Harness version, Harness gateway contract, MCP status safety flags, `call-tool` denial, MCP help output, and Gateway release-check version/safety signals. The stack gate also asserts the release-check JSON validation command fields used by automation. A dirty checkout is reported but allowed because this gate is intended for pre-commit validation. The installed wrapper resolves the Gateway checkout before release checks, so it can be launched from outside the repository.

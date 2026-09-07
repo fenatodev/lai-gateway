@@ -10,12 +10,12 @@ from .fixtures import CONTRACT
 
 
 class ContractTest(unittest.TestCase):
-    def test_validates_and_summarizes_v045_contract(self):
+    def test_validates_and_summarizes_v046_contract(self):
         payload = validate_gateway_contract(copy.deepcopy(CONTRACT))
         summary = summarize_contract(payload)
         self.assertEqual(summary["schema_version"], 1)
         self.assertEqual(summary["product"], "lai harness")
-        self.assertEqual(summary["version"], "0.4.5")
+        self.assertEqual(summary["version"], "0.4.6")
         self.assertGreaterEqual(summary["route_count"], 12)
         self.assertGreaterEqual(summary["forbidden_count"], 3)
         routes = {(route["method"], route["path"]) for route in payload["routes"]}

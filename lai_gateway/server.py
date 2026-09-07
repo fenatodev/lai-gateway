@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import re
 import secrets
 import threading
 import time
@@ -195,6 +196,12 @@ class GatewayHandler(BaseHTTPRequestHandler):
             if limit is None:
                 return
             self._proxy(lambda: self.server.client.list_runs(limit))
+            return
+        run_events_match = re.fullmatch(r"/v1/harness/runs/(cr-[0-9a-f]{16})/events", parsed.path)
+        if run_events_match:
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            self._proxy(lambda: self.server.client.get_run_events(run_events_match.group(1)))
             return
         if parsed.path.startswith("/v1/harness/runs/"):
             if not self._authorize_gateway_api(parsed.path):

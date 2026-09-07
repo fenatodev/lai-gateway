@@ -34,7 +34,7 @@ class CliTest(unittest.TestCase):
                 env=env,
             )
             payload = json.loads(result.stdout)
-            self.assertEqual(payload["version"], "0.4.5")
+            self.assertEqual(payload["version"], "0.4.6")
             self.assertNotIn(TOKEN, result.stdout)
             self.assertEqual(result.stderr, "")
 
@@ -65,6 +65,37 @@ class CliTest(unittest.TestCase):
                 self.assertIn(expected_key, payload)
                 self.assertNotIn(TOKEN, result.stdout)
                 self.assertEqual(result.stderr, "")
+
+
+    def test_cli_runs_events_proxy_without_printing_output_or_token(self):
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            env = {
+                **os.environ,
+                "LAI_GATEWAY_HARNESS_URL": harness.url,
+                "LAI_GATEWAY_TOKEN_FILE": str(token_file),
+            }
+            result = subprocess.run(
+                [sys.executable, "-m", "lai_gateway", "runs", "events", "cr-1234567890abcdef"],
+                text=True,
+                capture_output=True,
+                check=True,
+                timeout=10,
+                env=env,
+            )
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["control_run_id"], "cr-1234567890abcdef")
+            self.assertEqual([event["event"] for event in payload["events"]], ["queued", "started", "finished"])
+            self.assertNotIn(TOKEN, result.stdout)
+            self.assertNotIn("leaked fake response", result.stdout)
+            self.assertNotIn("leaked task text", result.stdout)
+            self.assertNotIn("leaked stderr", result.stdout)
+            self.assertNotIn("stdout", result.stdout)
+            self.assertNotIn("stderr", result.stdout)
+            self.assertNotIn("task", result.stdout)
+            self.assertEqual(result.stderr, "")
+
 
 
     def test_cli_mcp_redacts_secret_shaped_upstream_fields(self):
