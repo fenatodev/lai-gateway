@@ -360,6 +360,8 @@ def main(argv: list[str] | None = None) -> int:
     sessions_sub.add_parser("create", help="create a harness session")
     sessions_get = sessions_sub.add_parser("get", help="read one harness session")
     sessions_get.add_argument("session_id", help="session id returned by sessions create/list")
+    sessions_delete = sessions_sub.add_parser("delete", help="delete one harness session")
+    sessions_delete.add_argument("session_id", help="session id returned by sessions create/list")
     runs_parser = sub.add_parser("runs", help="manage read-only harness runs")
     runs_sub = runs_parser.add_subparsers(dest="runs_command")
     runs_list = runs_sub.add_parser("list", help="list harness runs")
@@ -872,6 +874,8 @@ def main(argv: list[str] | None = None) -> int:
                 payload = client.create_session()
             elif args.sessions_command == "get":
                 payload = client.get_session(args.session_id)
+            elif args.sessions_command == "delete":
+                payload = client.delete_session(args.session_id)
             else:
                 sessions_parser.print_help()
                 return 0

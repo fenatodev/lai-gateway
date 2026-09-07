@@ -25,6 +25,9 @@ class HarnessClientTest(unittest.TestCase):
             self.assertEqual(client.list_sessions()["sessions"][0]["session_id"], "s_test")
             self.assertEqual(client.create_session()["session"]["session_id"], "s_test")
             self.assertEqual(client.get_session("s_test")["session"]["session_id"], "s_test")
+            deleted = client.delete_session("s_test")
+            self.assertTrue(deleted["deleted"])
+            self.assertEqual(deleted["session"]["session_id"], "s_test")
 
     def test_fetches_and_creates_read_only_runs_with_bounded_body(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

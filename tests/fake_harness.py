@@ -45,6 +45,20 @@ class FakeHarnessHandler(BaseHTTPRequestHandler):
             return
         self._send(HTTPStatus.NOT_FOUND, {"error": "not_found"})
 
+    def do_DELETE(self) -> None:  # noqa: N802
+        if self.headers.get("Authorization") != f"Bearer {TOKEN}":
+            self._send(HTTPStatus.UNAUTHORIZED, {"error": "auth_required"})
+            return
+        if self.path == "/v1/sessions/s_test":
+            self._send(HTTPStatus.OK, {
+                "product": "lai harness",
+                "version": "0.4.4",
+                "deleted": True,
+                "session": {"session_id": "s_test", "turn_count": 0},
+            })
+            return
+        self._send(HTTPStatus.NOT_FOUND, {"error": "not_found"})
+
     def do_POST(self) -> None:  # noqa: N802
         global LAST_RUN_BODY
         if self.headers.get("Authorization") != f"Bearer {TOKEN}":

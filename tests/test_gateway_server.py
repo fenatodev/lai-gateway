@@ -140,6 +140,12 @@ class GatewayServerTest(unittest.TestCase):
                     get_json(f"{gateway.url}/v1/harness/sessions/s_test")["session"]["session_id"],
                     "s_test",
                 )
+                delete_request = Request(f"{gateway.url}/v1/harness/sessions/s_test", method="DELETE")
+                with urlopen(delete_request, timeout=5) as response:
+                    deleted = json.loads(response.read().decode("utf-8"))
+                    self.assertEqual(response.status, HTTPStatus.OK)
+                self.assertTrue(deleted["deleted"])
+                self.assertEqual(deleted["session"]["session_id"], "s_test")
 
     def test_gateway_creates_only_read_only_runs(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

@@ -49,6 +49,7 @@ class CliTest(unittest.TestCase):
                 (["sessions", "list", "--limit", "5"], "sessions"),
                 (["sessions", "create"], "session"),
                 (["sessions", "get", "s_test"], "session"),
+                (["sessions", "delete", "s_test"], "deleted"),
             ):
                 result = subprocess.run(
                     [sys.executable, "-m", "lai_gateway", *args],

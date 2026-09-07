@@ -230,6 +230,15 @@ class GatewayHandler(BaseHTTPRequestHandler):
         if parsed.path == "/v1/gateway/mobile-session":
             self._revoke_mobile_session()
             return
+        if parsed.path.startswith("/v1/harness/sessions/"):
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            session_id = parsed.path.removeprefix("/v1/harness/sessions/")
+            if "/" in session_id or not session_id:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
+                return
+            self._proxy(lambda: self.server.client.delete_session(session_id))
+            return
         self._send_json(HTTPStatus.METHOD_NOT_ALLOWED, {"error": "delete_not_supported"})
 
     def _serve_static(self, path: str) -> bool:

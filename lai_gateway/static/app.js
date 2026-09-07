@@ -477,6 +477,13 @@ async function runAction(action) {
       const payload = await requestJson(`/v1/harness/sessions/${encodeURIComponent(sessionId)}`);
       setSessionFromPayload(payload);
       show("sessions-output", payload);
+    } else if (action === "delete-session") {
+      const sessionId = byId("session-id").value.trim();
+      if (!sessionId) throw new Error("session id is required");
+      if (!window.confirm(`Delete harness session ${sessionId}? This removes only the repository-scoped session record.`)) return;
+      const payload = await requestJson(`/v1/harness/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+      clearSession();
+      show("sessions-output", payload);
     } else if (action === "clear-session") {
       clearSession();
       show("sessions-output", "Session selection cleared. Existing harness sessions were not changed.");

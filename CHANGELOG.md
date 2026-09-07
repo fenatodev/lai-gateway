@@ -2,6 +2,7 @@
 
 - Added mobile session exchange so short-lived pair tokens unlock longer page-memory sessions without storing permanent tokens on the phone. Pair tokens are now accepted only for session exchange, not direct protected API access; forgetting a mobile session revokes it from server memory.
 - Prefer the validated Ministral baseline in local GGUF model discovery when it is available, after Qwen2.5-Coder dogfood failed to become decision-eligible for the LAI workflow.
+- Proxy the Harness session lifecycle delete route through CLI, API, and UI with `lai-gateway sessions delete <session_id>` and `DELETE /v1/harness/sessions/{session_id}`.
 
 ## [0.1.29] - 2026-09-06
 

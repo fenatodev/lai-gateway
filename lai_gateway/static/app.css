@@ -24,6 +24,7 @@ label { display: grid; gap: 6px; margin: 10px 0; color: #cbd3e1; }
 input, select, textarea { width: 100%; border: 1px solid rgb(255 255 255 / .18); border-radius: 12px; padding: 10px 12px; color: inherit; background: rgb(255 255 255 / .07); }
 button { border: 0; border-radius: 999px; padding: 10px 14px; cursor: pointer; color: #111318; background: #eef1f7; font-weight: 700; line-height: 1.2; }
 button:hover { filter: brightness(.92); }
+button.danger { background: #ff8d8d; color: #111318; }
 pre { min-width: 0; max-width: 100%; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 420px; min-height: 96px; padding: 14px; border-radius: 14px; background: rgb(0 0 0 / .38); border: 1px solid rgb(255 255 255 / .1); color: #dce6ff; }
 .pill { display: inline-flex; align-items: center; min-height: 32px; border-radius: 999px; padding: 6px 12px; font-size: .9rem; background: rgb(255 255 255 / .09); border: 1px solid rgb(255 255 255 / .14); }
 .pill.ready { background: rgb(64 196 125 / .18); }
