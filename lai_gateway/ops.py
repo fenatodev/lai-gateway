@@ -45,7 +45,7 @@ def collect_ops_status(
         chat_id=telegram_chat_id,
         enable_send=telegram_enable_send,
     )
-    model = collect_model_status()
+    model = collect_model_status(probe_openai=True)
     model_runs = collect_model_runs(limit=5)
     mcp = _collect_mcp_broker(resolved_config)
     overall = _ops_overall(doctor=doctor, mobile=mobile, telegram=telegram, mcp=mcp)
@@ -60,6 +60,7 @@ def collect_ops_status(
         "network_calls": {
             "harness_local": doctor.get("overall") != "blocked" or _has_check(doctor, "harness_status"),
             "telegram": False,
+            "model_local": bool(model.get("network_calls", {}).get("local_openai_probe")),
             "windows_network_mutation": False,
         },
         "doctor": doctor,
@@ -166,7 +167,8 @@ def _ops_next_steps(
     for check in doctor.get("checks", []):
         if check.get("status") == "fail":
             steps.append(f"Fix doctor check `{check.get('name')}`: {check.get('detail')}")
-    steps.extend(str(step) for step in mobile.get("next_steps", []))
+    if mobile.get("overall") != "ready":
+        steps.extend(str(step) for step in mobile.get("next_steps", []))
     mcp_overall = (mcp or {}).get("overall")
     if mcp_overall == "blocked":
         steps.append("Fix blocked MCP broker config: lai-gateway mcp status")

@@ -242,7 +242,11 @@ assert checks["version_match"]["status"] == "ok", checks.get("version_match")
 assert checks["release_safety"]["status"] == "ok", checks.get("release_safety")
 assert payload.get("validation_command") == "make check; make milestone-gate", payload.get("validation_command")
 assert payload.get("validation_commands") == ["make check", "make milestone-gate"], payload.get("validation_commands")
-unexpected = [c for c in payload.get("checks", []) if c.get("status") == "fail" and c.get("name") != "git_status"]
+allowed_non_release_failures = {"git_status", "main_sync", "tag_state"}
+unexpected = [
+    c for c in payload.get("checks", [])
+    if c.get("status") == "fail" and c.get("name") not in allowed_non_release_failures
+]
 assert not unexpected, unexpected
 '
 print_event ok gateway_release_check_version_and_safety

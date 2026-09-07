@@ -28,6 +28,8 @@ _WINDOWS_RUNTIME_COMMANDS = ("ollama.exe", "llama-server.exe", "llama-cli.exe")
 _WINDOWS_LLAMA_CPP_DEFAULT_PORT = 18082
 _DEFAULT_MODEL_API_KEY_FILE = "~/.config/lai-gateway/model-api-key"
 _DEFAULT_MODEL_RUNS_FILE = "~/.local/share/lai-gateway/model-runs.jsonl"
+_DEFAULT_MODEL_CONFIG_FILE = "~/.config/lai-gateway/model.json"
+_MODEL_CONFIG_SCHEMA_VERSION = 1
 _DEFAULT_MODEL_API_KEY_BYTES = 32
 _GPU_COMMANDS = ("rocminfo", "rocm-smi", "clinfo", "nvidia-smi")
 _SECRET_ENV_PARTS = ("TOKEN", "KEY", "SECRET", "PASSWORD", "AUTH", "BEARER")
@@ -66,7 +68,7 @@ def collect_model_status(*, env: dict[str, str] | None = None, probe_openai: boo
 
     The default path intentionally performs no model download, no server startup, and no remote calls.
     """
-    values = env if env is not None else os.environ
+    values = _model_values(env)
     commands = {name: _command_payload(name) for name in (*_MODEL_RUNTIME_COMMANDS, *_GPU_COMMANDS, "python3")}
     windows_commands = _windows_runtime_payloads(values)
     hardware = _hardware_snapshot()
@@ -211,7 +213,7 @@ def collect_model_smoke(
     runs_file: Path | None = None,
 ) -> dict[str, Any]:
     """Run a bounded fixed-prompt completion smoke test against a safe local model endpoint."""
-    values = env if env is not None else os.environ
+    values = _model_values(env)
     raw_base_url = values.get("LAI_GATEWAY_MODEL_BASE_URL", "").strip()
     model_name = values.get("LAI_GATEWAY_MODEL_NAME", "").strip()
     api_key = _model_api_key_from_env(values)
@@ -286,7 +288,7 @@ def collect_model_task(
     runs_file: Path | None = None,
 ) -> dict[str, Any]:
     """Run a bounded fixed local model task without accepting arbitrary prompts."""
-    values = env if env is not None else os.environ
+    values = _model_values(env)
     raw_base_url = values.get("LAI_GATEWAY_MODEL_BASE_URL", "").strip()
     model_name = values.get("LAI_GATEWAY_MODEL_NAME", "").strip()
     task_spec = _MODEL_TASKS.get(task)
@@ -580,6 +582,110 @@ def _model_run_summary(entries: list[dict[str, Any]]) -> dict[str, Any]:
 
 def default_model_api_key_path() -> Path:
     return Path(_DEFAULT_MODEL_API_KEY_FILE).expanduser()
+
+
+def default_model_config_path() -> Path:
+    return Path(os.environ.get("LAI_GATEWAY_MODEL_CONFIG_FILE", _DEFAULT_MODEL_CONFIG_FILE)).expanduser()
+
+
+def write_model_runtime_config(
+    *,
+    base_url: str,
+    model_name: str,
+    api_key_file: str | Path,
+    path: str | Path | None = None,
+) -> dict[str, Any]:
+    from .errors import ConfigError
+
+    normalized_base_url = (base_url or "").strip()
+    normalized_model = (model_name or "").strip()
+    if not normalized_model or "\n" in normalized_model or "\x00" in normalized_model:
+        raise ConfigError("model runtime config requires a single-line model name")
+    validation = _validate_local_model_base_url(normalized_base_url)
+    if validation["status"] != "ok":
+        raise ConfigError(validation["detail"])
+    key_path = Path(str(api_key_file)).expanduser()
+    document = {
+        "schema_version": _MODEL_CONFIG_SCHEMA_VERSION,
+        "provider": "openai-compatible",
+        "base_url": normalized_base_url,
+        "model": normalized_model,
+        "api_key_file": str(key_path),
+    }
+    target = Path(path).expanduser() if path else default_model_config_path()
+    target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    tmp = target.with_name(f".{target.name}.tmp")
+    with tmp.open("w", encoding="utf-8") as handle:
+        json.dump(document, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+    os.chmod(tmp, 0o600)
+    tmp.replace(target)
+    os.chmod(target, 0o600)
+    return {
+        "product": "lai-gateway",
+        "version": __version__,
+        "operation": "model-config",
+        "overall": "ready",
+        "path": str(target),
+        "configured": True,
+        "prints_tokens": False,
+        "stores_api_key_value": False,
+        "base_url": _redact_url(normalized_base_url),
+        "model": normalized_model,
+        "api_key_file": str(key_path),
+    }
+
+
+def read_model_runtime_config(path: str | Path | None = None) -> dict[str, str]:
+    from .errors import ConfigError
+
+    target = Path(path).expanduser() if path else default_model_config_path()
+    try:
+        raw = target.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise ConfigError(f"model runtime config file not found: {target}") from exc
+    except OSError as exc:
+        raise ConfigError(f"cannot read model runtime config file: {target}: {exc}") from exc
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ConfigError(f"model runtime config file is not valid JSON: {target}") from exc
+    if not isinstance(data, dict) or data.get("schema_version") != _MODEL_CONFIG_SCHEMA_VERSION:
+        raise ConfigError("model runtime config file has an unsupported schema_version")
+    base_url = str(data.get("base_url") or "").strip()
+    model = str(data.get("model") or "").strip()
+    api_key_file = str(data.get("api_key_file") or "").strip()
+    provider = str(data.get("provider") or "").strip()
+    validation = _validate_local_model_base_url(base_url)
+    if validation["status"] != "ok":
+        raise ConfigError(validation["detail"])
+    if not model:
+        raise ConfigError("model runtime config requires a model name")
+    if not api_key_file:
+        raise ConfigError("model runtime config requires an api_key_file path")
+    return {
+        "LAI_GATEWAY_MODEL_BASE_URL": base_url,
+        "LAI_GATEWAY_MODEL_NAME": model,
+        "LAI_GATEWAY_MODEL_API_KEY_FILE": api_key_file,
+        "LAI_GATEWAY_MODEL_PROVIDER": provider or "openai-compatible",
+    }
+
+
+def _model_values(env: dict[str, str] | None) -> dict[str, str]:
+    values = dict(env if env is not None else os.environ)
+    should_load_config = env is None or bool(values.get("LAI_GATEWAY_MODEL_CONFIG_FILE"))
+    if not should_load_config:
+        return values
+    config_path = values.get("LAI_GATEWAY_MODEL_CONFIG_FILE") or None
+    try:
+        defaults = read_model_runtime_config(config_path)
+    except Exception:
+        return values
+    for key, value in defaults.items():
+        if not values.get(key):
+            values[key] = value
+    values["LAI_GATEWAY_MODEL_CONFIG_FILE"] = str((Path(config_path).expanduser() if config_path else default_model_config_path()))
+    return values
 
 
 def create_model_api_key_file(path: Path | None = None, *, force: bool = False, include_key: bool = False) -> dict[str, Any]:
@@ -1206,13 +1312,30 @@ def _probe_openai_chat_completion(
         base_url,
         model_name=model_name,
         api_key=api_key,
-        messages=[{"role": "user", "content": f"Reply exactly: {expected}"}],
-        max_tokens=16,
+        messages=_model_smoke_messages(expected),
+        max_tokens=24,
         temperature=0,
         timeout_seconds=timeout_seconds,
         expected_markers=(expected,),
         expected=expected,
     )
+
+
+def _model_smoke_messages(expected: str) -> list[dict[str, str]]:
+    return [
+        {
+            "role": "system",
+            "content": (
+                "You are running a private local connectivity health check. "
+                "The request is safe and asks only for a literal marker. "
+                "Return exactly the requested marker with no explanation."
+            ),
+        },
+        {
+            "role": "user",
+            "content": f"Return only this exact plain-text marker, with no markdown: {expected}",
+        },
+    ]
 
 
 def _run_fixed_chat_completion(

@@ -763,6 +763,7 @@ class ScriptTest(unittest.TestCase):
         self.assertIn("--record", help_result.stdout)
         self.assertIn("--eval", help_result.stdout)
         self.assertIn("--task", help_result.stdout)
+        self.assertIn("--ephemeral", help_result.stdout)
         self.assertNotIn("Bearer", help_result.stdout + help_result.stderr + plan.stdout + plan.stderr + missing.stdout + missing.stderr)
         self.assertEqual(plan.returncode, 0)
         self.assertIn("lai-gateway-model: plan", plan.stdout)
@@ -770,6 +771,73 @@ class ScriptTest(unittest.TestCase):
         self.assertIn("key_file: /mnt/c/Users/tester/.config/lai-gateway/model-api-key", plan.stdout)
         self.assertEqual(missing.returncode, 1)
         self.assertIn("model API key file is not ready", missing.stderr)
+
+        incompatible = subprocess.run(
+            ["bash", "scripts/launch-model.sh", "--foreground", "--ephemeral"],
+            cwd=repo,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=10,
+        )
+        self.assertEqual(incompatible.returncode, 2)
+        self.assertIn("cannot be combined", incompatible.stderr)
+
+
+    def test_launch_model_ephemeral_cleanup_is_scoped_to_started_process(self) -> None:
+        repo = Path(__file__).parents[1]
+        script = (repo / "scripts" / "launch-model.sh").read_text(encoding="utf-8")
+        self.assertIn("cleanup_started_model", script)
+        self.assertIn("trap cleanup_started_model EXIT INT TERM", script)
+        self.assertIn('if [ "$ephemeral" = "1" ]; then', script)
+        self.assertIn('kill "$pid" 2>/dev/null || true', script)
+        self.assertIn("Get-NetTCPConnection -State Listen", script)
+        self.assertIn("Stop-Process -Id $target", script)
+        self.assertNotIn("Stop-Process -Name", script)
+        self.assertNotIn("pkill", script)
+        self.assertNotIn("taskkill", script.lower())
+
+
+    def test_launch_model_reuses_ready_config_before_runtime_discovery(self) -> None:
+        repo = Path(__file__).parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            marker = root / "model-files-called"
+            shim = root / "python-shim"
+            shim.write_text(
+                "#!/usr/bin/env bash\n"
+                "set -euo pipefail\n"
+                "if [ \"${1:-}\" = \"-m\" ] && [ \"${2:-}\" = \"lai_gateway\" ] && [ \"${3:-}\" = \"model-status\" ]; then\n"
+                "  case \" $* \" in *\" --json \"*) printf '%s\\n' '{\"overall\":\"ready\"}' ;; *) echo 'lai-gateway model-status: ready' ;; esac\n"
+                "  exit 0\n"
+                "fi\n"
+                "if [ \"${1:-}\" = \"-m\" ] && [ \"${2:-}\" = \"lai_gateway\" ] && [ \"${3:-}\" = \"model-files\" ]; then\n"
+                f"  touch '{marker}'\n"
+                "  exit 91\n"
+                "fi\n"
+                "exec \"$REAL_PYTHON\" \"$@\"\n",
+                encoding="utf-8",
+            )
+            shim.chmod(0o755)
+            env = {**os.environ, "PYTHON": str(shim), "REAL_PYTHON": sys.executable}
+            for name in (
+                "LAI_GATEWAY_MODEL_HOST", "LAI_GATEWAY_MODEL_PORT",
+                "LAI_GATEWAY_MODEL_PATH", "LAI_GATEWAY_MODEL_NAME",
+                "LAI_GATEWAY_MODEL_API_KEY_FILE", "LAI_GATEWAY_MODEL_THREADS",
+                "LAI_GATEWAY_MODEL_CTX_SIZE", "LAI_GATEWAY_MODEL_GPU_LAYERS",
+            ):
+                env.pop(name, None)
+            result = subprocess.run(
+                ["bash", "scripts/launch-model.sh", "--probe-only", "--ephemeral"],
+                cwd=repo, env=env, text=True, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, check=False, timeout=10,
+            )
+            model_files_called = marker.exists()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("reusing configured ready endpoint", result.stdout)
+        self.assertIn("lai-gateway model-status: ready", result.stdout)
+        self.assertFalse(model_files_called)
 
 
     def test_launch_model_does_not_put_bearer_key_in_shell_curl_arguments(self) -> None:
@@ -779,6 +847,9 @@ class ScriptTest(unittest.TestCase):
         self.assertNotIn("Authorization: Bearer $(cat", script)
         self.assertIn("probe_models_endpoint", script)
         self.assertIn("model-smoke", script)
+        self.assertIn("model_config_persisted: true", script)
+        self.assertIn("stores_api_key_value: false", script)
+        self.assertNotIn("Authorization: Bearer", script)
 
 
 if __name__ == "__main__":

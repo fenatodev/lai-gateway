@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from lai_gateway.model import collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_smoke, collect_model_status, collect_model_task, render_model_eval, render_model_files, render_model_plan, render_model_runs, render_model_smoke, render_model_status, render_model_task
+from lai_gateway.model import _model_smoke_messages, write_model_runtime_config
 
 
 SECRET = "sk-local-secret-value"
@@ -117,6 +118,35 @@ class ModelStatusTest(unittest.TestCase):
         self.assertNotIn(MODEL_API_KEY, text)
         self.assertNotIn("Bearer", text)
 
+    def test_model_status_loads_token_free_persisted_runtime_config(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, FakeOpenAIModelsServer() as server:
+            base = Path(tmp)
+            key_file = base / "model-api-key"
+            config_file = base / "model.json"
+            key_file.write_text(MODEL_API_KEY + "\n", encoding="utf-8")
+            key_file.chmod(0o600)
+            written = write_model_runtime_config(
+                base_url=server.url + "/auth",
+                model_name="auth-local-code-model",
+                api_key_file=key_file,
+                path=config_file,
+            )
+            payload = collect_model_status(
+                env={"LAI_GATEWAY_MODEL_CONFIG_FILE": str(config_file)},
+                probe_openai=True,
+            )
+            mode = config_file.stat().st_mode & 0o777
+        text = json.dumps(payload, sort_keys=True) + json.dumps(written, sort_keys=True)
+        self.assertEqual(written["operation"], "model-config")
+        self.assertEqual(written["overall"], "ready")
+        self.assertFalse(written["stores_api_key_value"])
+        self.assertEqual(mode, 0o600)
+        self.assertEqual(payload["overall"], "ready")
+        self.assertEqual(payload["openai_probe"]["status"], "ready")
+        self.assertTrue(payload["openai_probe"]["auth_used"])
+        self.assertNotIn(MODEL_API_KEY, text)
+        self.assertNotIn("Bearer", text)
+
     def test_cli_model_key_create_and_check_are_secret_free(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             key_file = Path(tmp) / "model-api-key"
@@ -165,6 +195,16 @@ class ModelStatusTest(unittest.TestCase):
         self.assertFalse(payload["downloads_models"])
         self.assertIn("fixed_prompt_only: true", rendered)
         self.assertNotIn("Bearer", text)
+
+    def test_model_smoke_prompt_is_fixed_healthcheck_not_user_prompt(self) -> None:
+        messages = _model_smoke_messages("LAI_SMOKE_OK")
+        text = json.dumps(messages, sort_keys=True)
+        self.assertEqual([message["role"] for message in messages], ["system", "user"])
+        self.assertIn("connectivity health check", messages[0]["content"])
+        self.assertIn("literal marker", messages[0]["content"])
+        self.assertIn("LAI_SMOKE_OK", messages[1]["content"])
+        self.assertNotIn("{user", text.lower())
+        self.assertNotIn("prompt", messages[1]["content"].lower())
 
     def test_model_smoke_uses_redacted_api_key_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, FakeOpenAIModelsServer() as server:
