@@ -1,3 +1,7 @@
+## [0.1.30] - 2026-09-06
+
+- Added mobile session exchange so short-lived pair tokens unlock longer page-memory sessions without storing permanent tokens on the phone. Pair tokens are now accepted only for session exchange, not direct protected API access; forgetting a mobile session revokes it from server memory.
+
 ## [0.1.29] - 2026-09-06
 
 - Added `daily-config` for storing the local daily mobile IP, phone URL, proxy port, and harness repo without tokens.

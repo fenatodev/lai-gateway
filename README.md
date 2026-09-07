@@ -234,3 +234,10 @@ lai-gateway-daily --show-pair
 ```
 
 Use this loopback proxy when Tailscale Serve needs to reach a WSL-bound mobile gateway through `http://127.0.0.1:18787`.
+
+
+### Mobile pairing sessions
+
+`lai-gateway-daily --show-pair` prints a short-lived pair token. The mobile UI
+exchanges that token for a temporary page-memory session; no permanent gateway token
+is stored on the phone.
