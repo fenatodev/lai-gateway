@@ -31,6 +31,7 @@ pre { min-width: 0; max-width: 100%; overflow: auto; white-space: pre-wrap; over
 .pill.running { background: rgb(120 168 255 / .18); }
 .pill.danger { background: rgb(255 106 106 / .18); }
 .history { display: grid; gap: 8px; margin: 0; padding-left: 22px; }
+#run-events-output { min-height: 120px; }
 .history li { cursor: pointer; padding: 8px 10px; border-radius: 10px; background: rgb(255 255 255 / .06); }
 .history li:hover { filter: brightness(1.12); }
 @media (max-width: 780px) {

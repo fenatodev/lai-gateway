@@ -1,4 +1,12 @@
-## [0.1.32] - Unreleased
+## [0.1.33] - Unreleased
+
+### Added
+- Add a Gateway UI run timeline panel that reads `GET /v1/harness/runs/{control_run_id}/events` and displays metadata-only progress while a selected run is polled.
+
+### Changed
+- Keep read-only run polling focused on status plus sanitized event metadata, without adding write modes, browser automation, MCP execution, or persistent token storage.
+
+## [0.1.32] - 2026-09-07
 
 ### Added
 - Add read-only Harness run-event timeline support with `lai-gateway runs events <control_run_id>` and `GET /v1/harness/runs/{control_run_id}/events`.
