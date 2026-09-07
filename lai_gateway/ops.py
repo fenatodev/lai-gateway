@@ -45,7 +45,7 @@ def collect_ops_status(
         chat_id=telegram_chat_id,
         enable_send=telegram_enable_send,
     )
-    model = collect_model_status()
+    model = collect_model_status(probe_openai=True)
     model_runs = collect_model_runs(limit=5)
     mcp = _collect_mcp_broker(resolved_config)
     overall = _ops_overall(doctor=doctor, mobile=mobile, telegram=telegram, mcp=mcp)
@@ -60,6 +60,7 @@ def collect_ops_status(
         "network_calls": {
             "harness_local": doctor.get("overall") != "blocked" or _has_check(doctor, "harness_status"),
             "telegram": False,
+            "model_local": bool(model.get("network_calls", {}).get("local_openai_probe")),
             "windows_network_mutation": False,
         },
         "doctor": doctor,

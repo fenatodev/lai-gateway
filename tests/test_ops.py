@@ -44,7 +44,7 @@ class OpsStatusTest(unittest.TestCase):
 
             runs_file = Path(tmp) / "model-runs.jsonl"
             runs_file.write_text('{"operation":"model-eval","overall":"ready","elapsed_ms":42.0}\n', encoding="utf-8")
-            with patch.dict(os.environ, {"LAI_GATEWAY_MODEL_RUNS_FILE": str(runs_file)}, clear=False), patch("lai_gateway.mobile._tcp_connects", return_value=True):
+            with patch.dict(os.environ, {"LAI_GATEWAY_MODEL_RUNS_FILE": str(runs_file), "LAI_GATEWAY_MODEL_CONFIG_FILE": str(Path(tmp) / "missing-model.json")}, clear=False), patch("lai_gateway.mobile._tcp_connects", return_value=True), patch("lai_gateway.ops.collect_model_status", return_value={"overall": "ready", "network_calls": {"local_openai_probe": True}}) as model_status:
                 payload = collect_ops_status(
                     config=config,
                     mobile_candidate_ip="192.168.7.62",
@@ -56,6 +56,9 @@ class OpsStatusTest(unittest.TestCase):
             stdout = json.dumps(payload, sort_keys=True) + rendered
 
             self.assertEqual(payload["overall"], "ready")
+            model_status.assert_called_once_with(probe_openai=True)
+            self.assertEqual(payload["model"]["overall"], "ready")
+            self.assertTrue(payload["network_calls"]["model_local"])
             self.assertEqual(payload["model_runs"]["count"], 1)
             self.assertEqual(payload["mcp_broker"]["overall"], "ready")
             self.assertEqual(payload["mcp_broker"]["server_count"], 1)
@@ -77,7 +80,7 @@ class OpsStatusTest(unittest.TestCase):
             token_file.write_text(TOKEN, encoding="utf-8")
             config = GatewayConfig(harness_url=harness.url, token_file=token_file)
 
-            with patch.dict(os.environ, {"LAI_GATEWAY_MODEL_RUNS_FILE": str(Path(tmp) / "missing-model-runs.jsonl")}):
+            with patch.dict(os.environ, {"LAI_GATEWAY_MODEL_RUNS_FILE": str(Path(tmp) / "missing-model-runs.jsonl"), "LAI_GATEWAY_MODEL_CONFIG_FILE": str(Path(tmp) / "missing-model.json")}):
                 payload = collect_ops_status(
                     config=config,
                     mobile_candidate_ip="192.168.7.63",
@@ -113,7 +116,7 @@ class OpsStatusTest(unittest.TestCase):
                 access_token_file=access_file,
                 pair_token_file=pair_file,
             )
-            with patch.dict(os.environ, {"LAI_GATEWAY_MODEL_RUNS_FILE": str(runs_file)}, clear=False), \
+            with patch.dict(os.environ, {"LAI_GATEWAY_MODEL_RUNS_FILE": str(runs_file), "LAI_GATEWAY_MODEL_CONFIG_FILE": str(Path(tmp) / "missing-model.json")}, clear=False), \
                     patch("lai_gateway.mobile._tcp_connects", return_value=True), \
                     patch("lai_gateway.ops.HarnessClient.mcp_status", side_effect=GatewayError("mcp unavailable")):
                 payload = collect_ops_status(
@@ -153,6 +156,7 @@ class OpsStatusTest(unittest.TestCase):
                 "LAI_GATEWAY_PAIR_TOKEN_FILE": str(pair_file),
                 "LAI_GATEWAY_TELEGRAM_ENABLE_SEND": "1",
                 "LAI_GATEWAY_MODEL_RUNS_FILE": str(Path(tmp) / "missing-model-runs.jsonl"),
+                "LAI_GATEWAY_MODEL_CONFIG_FILE": str(Path(tmp) / "missing-model.json"),
             })
             result = subprocess.run(
                 [

@@ -779,6 +779,9 @@ class ScriptTest(unittest.TestCase):
         self.assertNotIn("Authorization: Bearer $(cat", script)
         self.assertIn("probe_models_endpoint", script)
         self.assertIn("model-smoke", script)
+        self.assertIn("model_config_persisted: true", script)
+        self.assertIn("stores_api_key_value: false", script)
+        self.assertNotIn("Authorization: Bearer", script)
 
 
 if __name__ == "__main__":

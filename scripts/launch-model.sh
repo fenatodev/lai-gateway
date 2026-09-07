@@ -30,6 +30,7 @@ Idempotent local model launcher for Windows llama.cpp from WSL:
   - discovers the recommended local GGUF when --model-path is omitted
   - creates/verifies a local model API key file without printing the key
   - starts llama-server.exe bound to a private WSL-reachable Windows IP
+  - writes token-free model runtime config for later ops-status/model-status checks
   - waits for /v1/models, then runs lai-gateway model-status --probe-openai
   - with --smoke, also runs a fixed-prompt completion smoke test
   - with --task, also runs a fixed local model task such as code-mini
@@ -215,11 +216,15 @@ if [ "$plan_only" = "1" ]; then
 fi
 
 if [ "$create_key" = "1" ]; then
-  key_args=(model-key-create --path "$key_file")
-  if [ "$force_key" = "1" ]; then
-    key_args+=(--force)
+  if [ "$force_key" = "1" ] || ! "$python_bin" -m lai_gateway model-key-check --path "$key_file" >/dev/null 2>&1; then
+    key_args=(model-key-create --path "$key_file")
+    if [ "$force_key" = "1" ]; then
+      key_args+=(--force)
+    fi
+    "$python_bin" -m lai_gateway "${key_args[@]}"
+  else
+    "$python_bin" -m lai_gateway model-key-check --path "$key_file"
   fi
-  "$python_bin" -m lai_gateway "${key_args[@]}"
 elif ! "$python_bin" -m lai_gateway model-key-check --path "$key_file" >/dev/null 2>&1; then
   echo "error: model API key file is not ready; run with --create-key or create one with lai-gateway model-key-create" >&2
   exit 1
@@ -271,6 +276,15 @@ if ! command -v llama-server.exe >/dev/null 2>&1; then
   echo "error: llama-server.exe was not found from WSL PATH" >&2
   exit 1
 fi
+
+"$python_bin" - "$base_url" "$model_name" "$key_file" <<'PYCODE'
+import sys
+from lai_gateway.model import write_model_runtime_config
+payload = write_model_runtime_config(base_url=sys.argv[1], model_name=sys.argv[2], api_key_file=sys.argv[3])
+print(f"lai-gateway model-config: {payload['overall']}")
+print("model_config_persisted: true")
+print("stores_api_key_value: false")
+PYCODE
 
 if probe_models_endpoint; then
   run_validations

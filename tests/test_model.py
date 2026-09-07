@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from lai_gateway.model import collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_smoke, collect_model_status, collect_model_task, render_model_eval, render_model_files, render_model_plan, render_model_runs, render_model_smoke, render_model_status, render_model_task
-from lai_gateway.model import _model_smoke_messages
+from lai_gateway.model import _model_smoke_messages, write_model_runtime_config
 
 
 SECRET = "sk-local-secret-value"
@@ -115,6 +115,35 @@ class ModelStatusTest(unittest.TestCase):
         self.assertTrue(payload["openai_probe"]["auth_used"])
         self.assertTrue(payload["model_config"]["api_key_configured"])
         self.assertEqual(payload["model_config"]["api_key_file"], str(key_file))
+        self.assertNotIn(MODEL_API_KEY, text)
+        self.assertNotIn("Bearer", text)
+
+    def test_model_status_loads_token_free_persisted_runtime_config(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, FakeOpenAIModelsServer() as server:
+            base = Path(tmp)
+            key_file = base / "model-api-key"
+            config_file = base / "model.json"
+            key_file.write_text(MODEL_API_KEY + "\n", encoding="utf-8")
+            key_file.chmod(0o600)
+            written = write_model_runtime_config(
+                base_url=server.url + "/auth",
+                model_name="auth-local-code-model",
+                api_key_file=key_file,
+                path=config_file,
+            )
+            payload = collect_model_status(
+                env={"LAI_GATEWAY_MODEL_CONFIG_FILE": str(config_file)},
+                probe_openai=True,
+            )
+            mode = config_file.stat().st_mode & 0o777
+        text = json.dumps(payload, sort_keys=True) + json.dumps(written, sort_keys=True)
+        self.assertEqual(written["operation"], "model-config")
+        self.assertEqual(written["overall"], "ready")
+        self.assertFalse(written["stores_api_key_value"])
+        self.assertEqual(mode, 0o600)
+        self.assertEqual(payload["overall"], "ready")
+        self.assertEqual(payload["openai_probe"]["status"], "ready")
+        self.assertTrue(payload["openai_probe"]["auth_used"])
         self.assertNotIn(MODEL_API_KEY, text)
         self.assertNotIn("Bearer", text)
 
