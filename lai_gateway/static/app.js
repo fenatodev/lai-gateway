@@ -2,6 +2,7 @@ const READ_ONLY_MODES = new Set(["diagnose", "plan", "release", "review", "secur
 const TERMINAL_STATUSES = new Set(["succeeded", "failed", "cancelled", "canceled", "timed_out"]);
 const runHistory = [];
 let lastRunPayload = null;
+let lastRunEventsPayload = null;
 let runPollTimer = null;
 let gatewayAccessToken = "";
 let gatewayTokenKind = "none";
@@ -48,7 +49,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pair this phone first, then refresh this panel.";
-  for (const id of ["ops-output", "status-output", "model-output", "mcp-output", "sessions-output", "runs-output"]) {
+  for (const id of ["ops-output", "status-output", "model-output", "mcp-output", "sessions-output", "runs-output", "run-events-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -344,12 +345,51 @@ function setRunFromPayload(payload) {
   }
 }
 
+function renderRunEvents(payload) {
+  const events = Array.isArray(payload.events) ? payload.events : [];
+  const runId = payload.control_run_id || "unknown run";
+  const status = payload.status || "unknown";
+  const lines = [`${runId} · ${status}${payload.terminal ? " · terminal" : ""}`];
+  if (!events.length) {
+    lines.push("No timeline events reported yet.");
+    return lines.join("\n");
+  }
+  for (const event of events) {
+    const label = event.event || event.name || "event";
+    const eventStatus = event.status ? ` · ${event.status}` : "";
+    const at = event.at || "time unknown";
+    const details = event.details && Object.keys(event.details).length
+      ? ` · ${JSON.stringify(event.details)}`
+      : "";
+    lines.push(`${at} · ${label}${eventStatus}${details}`);
+  }
+  return lines.join("\n");
+}
+
+function setRunEventsFromPayload(payload) {
+  lastRunEventsPayload = payload;
+  const events = Array.isArray(payload.events) ? payload.events : [];
+  const status = payload.status || "unknown";
+  const state = payload.terminal ? (status === "succeeded" ? "ready" : "danger") : "running";
+  show("run-events-output", renderRunEvents(payload));
+  setPill("active-run-pill", `run events ${events.length} · ${status}`, state);
+}
+
+async function fetchSelectedRunEvents() {
+  const runId = byId("run-id").value.trim();
+  if (!runId) throw new Error("run id is required");
+  const payload = await requestJson(`/v1/harness/runs/${encodeURIComponent(runId)}/events`);
+  setRunEventsFromPayload(payload);
+  return payload;
+}
+
 async function pollSelectedRun() {
   const runId = byId("run-id").value.trim();
   if (!runId) throw new Error("run id is required");
   const payload = await requestJson(`/v1/harness/runs/${encodeURIComponent(runId)}`);
   setRunFromPayload(payload);
   show("runs-output", payload);
+  await fetchSelectedRunEvents();
   const status = payload.run && payload.run.status;
   if (TERMINAL_STATUSES.has(status)) stopRunPolling();
   return payload;
@@ -545,6 +585,8 @@ async function runAction(action) {
       startRunPolling();
     } else if (action === "get-run") {
       await pollSelectedRun();
+    } else if (action === "get-run-events") {
+      await fetchSelectedRunEvents();
     } else if (action === "poll-run") {
       await pollSelectedRun();
       startRunPolling();

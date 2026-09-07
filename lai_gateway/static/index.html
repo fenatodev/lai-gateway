@@ -180,11 +180,14 @@
           <button data-action="list-runs">List runs</button>
           <button data-action="create-run">Create read-only run</button>
           <button data-action="get-run">Get selected run</button>
+          <button data-action="get-run-events">Get selected events</button>
           <button data-action="poll-run">Poll selected run</button>
           <button data-action="stop-polling">Stop polling</button>
           <button data-action="copy-run-output">Copy output</button>
         </div>
         <pre id="runs-output" aria-live="polite">Not loaded.</pre>
+        <h3>Run timeline</h3>
+        <pre id="run-events-output" aria-live="polite">Not loaded.</pre>
         <h3>Recent run history</h3>
         <ol id="run-history" class="history" aria-live="polite"></ol>
       </article>
