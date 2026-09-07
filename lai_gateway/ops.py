@@ -167,7 +167,8 @@ def _ops_next_steps(
     for check in doctor.get("checks", []):
         if check.get("status") == "fail":
             steps.append(f"Fix doctor check `{check.get('name')}`: {check.get('detail')}")
-    steps.extend(str(step) for step in mobile.get("next_steps", []))
+    if mobile.get("overall") != "ready":
+        steps.extend(str(step) for step in mobile.get("next_steps", []))
     mcp_overall = (mcp or {}).get("overall")
     if mcp_overall == "blocked":
         steps.append("Fix blocked MCP broker config: lai-gateway mcp status")

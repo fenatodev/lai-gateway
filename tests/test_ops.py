@@ -56,6 +56,8 @@ class OpsStatusTest(unittest.TestCase):
             stdout = json.dumps(payload, sort_keys=True) + rendered
 
             self.assertEqual(payload["overall"], "ready")
+            self.assertEqual(payload["next_steps"], [])
+            self.assertNotIn("next_steps:", rendered)
             model_status.assert_called_once_with(probe_openai=True)
             self.assertEqual(payload["model"]["overall"], "ready")
             self.assertTrue(payload["network_calls"]["model_local"])

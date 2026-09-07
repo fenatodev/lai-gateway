@@ -5,6 +5,7 @@
 - Persist token-free model runtime config from `scripts/launch-model.sh` and let `ops-status` run the safe local model probe so later checks can see the active endpoint without re-exporting environment variables.
 - Make `scripts/launch-model.sh --create-key` idempotently reuse an existing valid key file unless `--force-key` is explicitly requested.
 - Keep `scripts/stack-check.sh` focused on Gateway/Harness compatibility by tolerating release-readiness-only `main_sync` and `tag_state` failures on post-release development branches.
+- Suppress mobile bridge/proxy guidance from `ops-status` once the mobile path is already ready, so a ready daily stack does not still print repair-style next steps.
 
 ## [0.1.34] - 2026-09-07
 
