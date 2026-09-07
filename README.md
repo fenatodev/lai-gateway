@@ -234,6 +234,9 @@ The gateway refuses wildcard and public bind addresses. Private-network/mobile e
 
 ## Development
 
+See `docs/OPERATING-MODE.md` and `AGENTS.md` for the local-first milestone workflow, product-progress decision gate, and capability-based Harness compatibility policy.
+
+
 ```bash
 make check
 python3 -m lai_gateway release-check --target 0.1.15 --json

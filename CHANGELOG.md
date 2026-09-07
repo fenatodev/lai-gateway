@@ -1,6 +1,7 @@
 ## [0.1.34] - Unreleased
 
 ### Changed
+- Add `AGENTS.md` and `docs/OPERATING-MODE.md` to codify the Gateway product-progress decision gate, local-first milestone batching, and capability-based Harness compatibility policy.
 - Replace patch-exact Harness targeting with a default minimum Harness 0.4.6 plus contract/capability validation, while retaining `--target-harness` for exact release audits.
 - Refresh current stack documentation and test fixtures for the Harness v0.4.7 verified baseline without requiring future Gateway releases for compatible Harness patch bumps.
 
