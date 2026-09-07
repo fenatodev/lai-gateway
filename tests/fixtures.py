@@ -3,7 +3,7 @@ from __future__ import annotations
 CONTRACT = {
     "schema_version": 1,
     "product": "lai harness",
-    "version": "0.4.5",
+    "version": "0.4.6",
     "repository": "/tmp/lai-local-agent",
     "transport": {
         "server": "lai serve",
@@ -69,6 +69,7 @@ CONTRACT = {
         {"method": "GET", "path": "/v1/runs?limit=N", "auth_required": True, "purpose": "list runs"},
         {"method": "POST", "path": "/v1/runs", "auth_required": True, "purpose": "enqueue run"},
         {"method": "GET", "path": "/v1/runs/{control_run_id}", "auth_required": True, "purpose": "read run"},
+        {"method": "GET", "path": "/v1/runs/{control_run_id}/events", "auth_required": True, "purpose": "read run events"},
         {"method": "POST", "path": "/v1/sessions", "auth_required": True, "purpose": "create session"},
         {"method": "GET", "path": "/v1/sessions?limit=N", "auth_required": True, "purpose": "list sessions"},
         {"method": "GET", "path": "/v1/sessions/{session_id}", "auth_required": True, "purpose": "read session"},

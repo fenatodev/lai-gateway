@@ -12,6 +12,7 @@ from lai_gateway.harness_client import (
     MCP_REDACTED_VALUE,
     normalize_run_list_payload,
     sanitize_mcp_payload,
+    sanitize_run_events_payload,
 )
 
 from .fake_harness import TOKEN, fake_harness
@@ -24,7 +25,7 @@ class HarnessClientTest(unittest.TestCase):
             token_file.write_text(TOKEN, encoding="utf-8")
             client = HarnessClient(GatewayConfig(harness_url=harness.url, token_file=token_file))
             contract = client.gateway_contract()
-            self.assertEqual(contract["version"], "0.4.5")
+            self.assertEqual(contract["version"], "0.4.6")
             self.assertEqual(client.status()["product"], "lai harness")
             self.assertEqual(client.readiness()["overall"], "ready")
             self.assertEqual(client.list_sessions()["sessions"][0]["session_id"], "cs-1234567890abcdef")
@@ -47,10 +48,20 @@ class HarnessClientTest(unittest.TestCase):
                 session_id="cs-1234567890abcdef",
             )
             fetched = client.get_run("cr-1234567890abcdef")
+            events = client.get_run_events("cr-1234567890abcdef")
 
             self.assertEqual(listed["runs"][0]["control_run_id"], "cr-1234567890abcdef")
             self.assertEqual(created["run"]["control_run_id"], "cr-1234567890abcdef")
             self.assertEqual(fetched["run"]["status"], "succeeded")
+            self.assertEqual(events["control_run_id"], "cr-1234567890abcdef")
+            self.assertEqual([event["event"] for event in events["events"]], ["queued", "started", "finished"])
+            shown = str(events)
+            self.assertNotIn("leaked fake response", shown)
+            self.assertNotIn("leaked task text", shown)
+            self.assertNotIn("leaked stderr", shown)
+            self.assertNotIn("stdout", shown)
+            self.assertNotIn("stderr", shown)
+            self.assertNotIn("task", shown)
             self.assertEqual(fake.LAST_RUN_BODY, {
                 "mode": "plan",
                 "session_id": "cs-1234567890abcdef",
@@ -76,6 +87,26 @@ class HarnessClientTest(unittest.TestCase):
                 with self.subTest(run_id=run_id):
                     with self.assertRaises(ConfigError):
                         client.get_run(run_id)
+                    with self.assertRaises(ConfigError):
+                        client.get_run_events(run_id)
+
+    def test_run_events_sanitizer_removes_output_task_and_transcript_fields(self):
+        payload = sanitize_run_events_payload({
+            "control_run_id": "cr-1234567890abcdef",
+            "stdout": "secret output",
+            "stderr": "secret error",
+            "task": "secret task",
+            "transcripts": [{"content": "hidden"}],
+            "events": [{"event": "started", "details": {"turns": ["hidden"], "output_truncated": False}}],
+        })
+
+        shown = str(payload)
+        self.assertNotIn("secret output", shown)
+        self.assertNotIn("secret error", shown)
+        self.assertNotIn("secret task", shown)
+        self.assertNotIn("hidden", shown)
+        self.assertEqual(payload["events"][0]["details"]["output_truncated"], False)
+
 
     def test_run_list_normalizer_only_promotes_control_run_shaped_legacy_ids(self):
         payload = {

@@ -98,6 +98,12 @@ class HarnessClient:
         validate_control_run_id(run_id)
         return self._request_json("GET", f"/v1/runs/{run_id}")
 
+    def get_run_events(self, run_id: str) -> dict[str, Any]:
+        validate_control_run_id(run_id)
+        return sanitize_run_events_payload(
+            self._request_json("GET", f"/v1/runs/{run_id}/events")
+        )
+
     def create_read_only_run(
         self,
         *,
@@ -155,6 +161,38 @@ def sanitize_mcp_payload(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(clean, dict):
         raise ConfigError("MCP payload must be a JSON object")
     return clean
+
+
+RUN_EVENT_FORBIDDEN_KEYS = frozenset({
+    "stdout",
+    "stderr",
+    "task",
+    "task_text",
+    "transcript",
+    "transcripts",
+    "turn",
+    "turns",
+})
+
+
+def sanitize_run_events_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return run-event metadata without output, task text, or transcript fields."""
+    clean = _strip_run_event_forbidden_fields(payload)
+    if not isinstance(clean, dict):
+        raise ConfigError("run events payload must be a JSON object")
+    return clean
+
+
+def _strip_run_event_forbidden_fields(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            str(key): _strip_run_event_forbidden_fields(nested)
+            for key, nested in value.items()
+            if str(key).lower() not in RUN_EVENT_FORBIDDEN_KEYS
+        }
+    if isinstance(value, list):
+        return [_strip_run_event_forbidden_fields(item) for item in value]
+    return value
 
 
 def _sanitize_mcp_value(value: Any, *, key: str | None = None) -> Any:

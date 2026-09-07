@@ -387,6 +387,8 @@ def main(argv: list[str] | None = None) -> int:
     runs_create.add_argument("--session-id", default=None, help="optional persistent session id")
     runs_get = runs_sub.add_parser("get", help="read one harness run")
     runs_get.add_argument("run_id", help="control run id returned by runs create/list")
+    runs_events = runs_sub.add_parser("events", help="read bounded metadata-only events for one harness run")
+    runs_events.add_argument("run_id", help="control run id returned by runs create/list")
     release_parser = sub.add_parser("release-check", help="check local release readiness")
     release_parser.add_argument("--target", required=True, help="target semantic version, for example 0.1.0")
     release_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
@@ -915,6 +917,8 @@ def main(argv: list[str] | None = None) -> int:
                 )
             elif args.runs_command == "get":
                 payload = client.get_run(args.run_id)
+            elif args.runs_command == "events":
+                payload = client.get_run_events(args.run_id)
             else:
                 runs_parser.print_help()
                 return 0

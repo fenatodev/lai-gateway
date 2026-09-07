@@ -141,7 +141,7 @@ class GatewayServerTest(unittest.TestCase):
             with RunningGateway(self._config(tmp, harness.url)) as gateway:
                 self.assertEqual(get_json(f"{gateway.url}/healthz")["product"], "lai-gateway")
                 contract = get_json(f"{gateway.url}/v1/harness/gateway-contract")
-                self.assertEqual(contract["version"], "0.4.5")
+                self.assertEqual(contract["version"], "0.4.6")
                 self.assertEqual(get_json(f"{gateway.url}/v1/harness/status")["ok"], True)
                 readiness = get_json(f"{gateway.url}/v1/harness/readiness")
                 self.assertEqual(readiness["overall"], "ready")
@@ -182,6 +182,16 @@ class GatewayServerTest(unittest.TestCase):
                 self.assertEqual(created["run"]["control_run_id"], "cr-1234567890abcdef")
                 fetched = get_json(f"{gateway.url}/v1/harness/runs/cr-1234567890abcdef")
                 self.assertEqual(fetched["run"]["status"], "succeeded")
+                events = get_json(f"{gateway.url}/v1/harness/runs/cr-1234567890abcdef/events")
+                self.assertEqual(events["control_run_id"], "cr-1234567890abcdef")
+                self.assertEqual([event["event"] for event in events["events"]], ["queued", "started", "finished"])
+                shown = json.dumps(events, sort_keys=True)
+                self.assertNotIn("leaked fake response", shown)
+                self.assertNotIn("leaked task text", shown)
+                self.assertNotIn("leaked stderr", shown)
+                self.assertNotIn("stdout", shown)
+                self.assertNotIn("stderr", shown)
+                self.assertNotIn("task", shown)
 
     def test_gateway_rejects_malformed_control_run_and_session_ids_before_proxy(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
@@ -194,6 +204,7 @@ class GatewayServerTest(unittest.TestCase):
                     "/v1/harness/runs/run-1",
                     "/v1/harness/runs/cr-123",
                     "/v1/harness/runs/cr-zzzzzzzzzzzzzzzz",
+                    "/v1/harness/runs/cr-1234567890abcdef/events/extra",
                 ):
                     with self.subTest(path=path):
                         status, body = get_json_error(f"{gateway.url}{path}")

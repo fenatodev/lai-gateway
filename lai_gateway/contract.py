@@ -23,6 +23,7 @@ REQUIRED_ROUTES = {
     ("GET", "/v1/runs?limit=N"),
     ("POST", "/v1/runs"),
     ("GET", "/v1/runs/{control_run_id}"),
+    ("GET", "/v1/runs/{control_run_id}/events"),
 }
 SECRET_FIELD_TERMS = ("secret", "api_key", "password", "authorization")
 ALLOWED_DOCUMENTATION_FIELDS = {"auth", "token_handling"}
