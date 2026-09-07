@@ -1,4 +1,14 @@
-## [0.1.33] - Unreleased
+## [0.1.34] - Unreleased
+
+### Changed
+- Add `AGENTS.md` and `docs/OPERATING-MODE.md` to codify the Gateway product-progress decision gate, local-first milestone batching, and capability-based Harness compatibility policy.
+- Replace patch-exact Harness targeting with a default minimum Harness 0.4.6 plus contract/capability validation, while retaining `--target-harness` for exact release audits.
+- Refresh current stack documentation and test fixtures for the Harness v0.4.7 verified baseline without requiring future Gateway releases for compatible Harness patch bumps.
+
+### Validation
+- Stack-check defaults must pass against installed `lai-gateway` 0.1.34 and any compatible `lai harness` >=0.4.6 exposing the required contract/capabilities; Harness 0.4.7 is the verified baseline.
+
+## [0.1.33] - 2026-09-07
 
 ### Added
 - Add a Gateway UI run timeline panel that reads `GET /v1/harness/runs/{control_run_id}/events` and displays metadata-only progress while a selected run is polled.

@@ -3,7 +3,7 @@ from __future__ import annotations
 CONTRACT = {
     "schema_version": 1,
     "product": "lai harness",
-    "version": "0.4.6",
+    "version": "0.4.7",
     "repository": "/tmp/lai-local-agent",
     "transport": {
         "server": "lai serve",

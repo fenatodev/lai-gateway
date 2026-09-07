@@ -21,7 +21,7 @@ This project starts with a narrow read-only proxy because the next risky boundar
 
 ## MCP broker boundary
 
-Harness 0.4.6 owns MCP discovery and policy classification. The gateway proxies only the non-executing foundation routes:
+Harness 0.4.6+ owns MCP discovery and policy classification; Harness 0.4.7 is the current verified baseline. The gateway proxies only the non-executing foundation routes:
 
 ```text
 GET /v1/harness/mcp/status

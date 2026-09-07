@@ -260,7 +260,7 @@ class ScriptTest(unittest.TestCase):
                 f"CONTRACT = {CONTRACT!r}\n"
                 "args = sys.argv[1:]\n"
                 "if args == ['--version']:\n"
-                "    print('lai harness 0.4.6')\n"
+                "    print('lai harness 0.4.7')\n"
                 "elif args == ['--gateway-contract', '--json']:\n"
                 "    print(json.dumps(CONTRACT, sort_keys=True))\n"
                 "elif args[:2] == ['--mcp', 'status'] and args[2:] == ['--help']:\n"
@@ -270,9 +270,9 @@ class ScriptTest(unittest.TestCase):
                 "elif args[:2] == ['--mcp', 'policy-check'] and args[2:] == ['--help']:\n"
                 "    print('Usage: lai mcp policy-check --operation status|list-tools|call-tool [--server NAME] [--tool NAME] [--json]')\n"
                 "elif args[:2] == ['--mcp', 'status'] and '--json' in args:\n"
-                "    print(json.dumps({'product': 'lai harness', 'version': '0.4.6', 'overall': 'no_config', 'server_count': 0, 'config_files': [], 'servers': [], 'issues': [], 'security': {'executes_tools': False, 'prints_credentials': False, 'reads_env_values': False}}, sort_keys=True))\n"
+                "    print(json.dumps({'product': 'lai harness', 'version': '0.4.7', 'overall': 'no_config', 'server_count': 0, 'config_files': [], 'servers': [], 'issues': [], 'security': {'executes_tools': False, 'prints_credentials': False, 'reads_env_values': False}}, sort_keys=True))\n"
                 "elif args[:2] == ['--mcp', 'policy-check'] and '--json' in args:\n"
-                "    print(json.dumps({'product': 'lai harness', 'version': '0.4.6', 'decision': 'DENY', 'reason': 'MCP tool execution is not enabled in this foundation milestone', 'executed': False}, sort_keys=True))\n"
+                "    print(json.dumps({'product': 'lai harness', 'version': '0.4.7', 'decision': 'DENY', 'reason': 'MCP tool execution is not enabled in this foundation milestone', 'executed': False}, sort_keys=True))\n"
                 "else:\n"
                 "    raise SystemExit(2)\n",
                 encoding="utf-8",
@@ -286,7 +286,7 @@ class ScriptTest(unittest.TestCase):
                     str(harness_repo),
                     "--target-gateway",
                     __version__,
-                    "--target-harness",
+                    "--min-harness",
                     "0.4.6",
                 ],
                 cwd=repo,
@@ -314,7 +314,7 @@ class ScriptTest(unittest.TestCase):
                     str(harness_repo),
                     "--target-gateway",
                     __version__,
-                    "--target-harness",
+                    "--min-harness",
                     "0.4.6",
                     "--json",
                 ],
@@ -330,7 +330,10 @@ class ScriptTest(unittest.TestCase):
             json_combined = json_result.stdout + json_result.stderr
             self.assertEqual(json_payload["overall"], "ready_for_local_commit")
             self.assertEqual(json_payload["gateway_version"], __version__)
-            self.assertEqual(json_payload["harness_version"], "0.4.6")
+            self.assertEqual(json_payload["harness_version"], "0.4.7")
+            self.assertEqual(json_payload["minimum_harness"], "0.4.6")
+            self.assertIsNone(json_payload["target_harness"])
+            self.assertEqual(json_payload["harness_compatibility"], "minimum")
             self.assertIn(
                 "gateway_release_check_version_and_safety",
                 {check["name"] for check in json_payload["checks"]},
@@ -351,7 +354,7 @@ class ScriptTest(unittest.TestCase):
                     str(harness_repo),
                     "--target-gateway",
                     __version__,
-                    "--target-harness",
+                    "--min-harness",
                     "0.4.6",
                     "--json",
                 ],
@@ -370,6 +373,56 @@ class ScriptTest(unittest.TestCase):
             self.assertNotIn("Bearer", non_repo_combined)
             self.assertNotIn(TOKEN, non_repo_combined)
             self.assertNotIn("API_KEY", non_repo_combined)
+
+            too_new_minimum = subprocess.run(
+                [
+                    "bash",
+                    "scripts/stack-check.sh",
+                    "--harness-repo",
+                    str(harness_repo),
+                    "--target-gateway",
+                    __version__,
+                    "--min-harness",
+                    "0.4.8",
+                ],
+                cwd=repo,
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=20,
+            )
+            too_new_combined = too_new_minimum.stdout + too_new_minimum.stderr
+            self.assertNotEqual(too_new_minimum.returncode, 0)
+            self.assertIn("is below minimum", too_new_minimum.stderr)
+            self.assertNotIn("Bearer", too_new_combined)
+            self.assertNotIn(TOKEN, too_new_combined)
+
+            exact_target = subprocess.run(
+                [
+                    "bash",
+                    "scripts/stack-check.sh",
+                    "--harness-repo",
+                    str(harness_repo),
+                    "--target-gateway",
+                    __version__,
+                    "--target-harness",
+                    "0.4.7",
+                    "--json",
+                ],
+                cwd=repo,
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=20,
+            )
+            exact_payload = json.loads(exact_target.stdout)
+            self.assertEqual(exact_payload["harness_compatibility"], "exact")
+            self.assertEqual(exact_payload["target_harness"], "0.4.7")
+            self.assertEqual(exact_payload["minimum_harness"], "0.4.6")
 
             wrong_target = subprocess.run(
                 [
