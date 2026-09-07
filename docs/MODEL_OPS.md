@@ -99,7 +99,7 @@ export LAI_GATEWAY_MODEL_API_KEY_FILE='/mnt/c/Users/fenat/.config/lai-gateway/mo
 lai-gateway model-status --probe-openai
 ```
 
-A real smoke test loaded the local Qwen2.5-Coder 7B Q4_K_M split GGUF and returned `LAI_OK` through the OpenAI-compatible chat endpoint.
+Historical Qwen2.5-Coder smoke tests proved availability only. Later model-evaluation dogfood did not make Qwen decision-eligible, so the operational baseline remains Ministral unless a future measured model clearly wins.
 
 
 ## Daily launcher
@@ -142,7 +142,7 @@ Use it after:
 
 ```bash
 export LAI_GATEWAY_MODEL_BASE_URL='http://172.29.192.1:18082'
-export LAI_GATEWAY_MODEL_NAME='qwen2.5-coder-7b-instruct-q4_k_m'
+export LAI_GATEWAY_MODEL_NAME='mistralai/Ministral-3-8B-Instruct-2512-GGUF:Q4_K_M'
 export LAI_GATEWAY_MODEL_API_KEY_FILE='/mnt/c/Users/fenat/.config/lai-gateway/model-api-key'
 lai-gateway model-status --probe-openai
 lai-gateway model-smoke
@@ -166,7 +166,7 @@ lai-gateway model-task --task code-mini
 
 The task asks for a tiny Python function and validates structural markers in the response. It is intentionally not a general prompt interface.
 
-The local UI exposes the same fixed task through `/v1/gateway/model-task`; in private mode it requires the gateway bearer or pair token.
+The local UI exposes the same fixed task through `/v1/gateway/model-task`; in private mode it requires the gateway bearer or a temporary mobile session created from a one-shot pair token.
 
 ## One-command startup validation
 

@@ -4,10 +4,10 @@ This runbook starts the published local LAI path without exposing secrets.
 
 ## Current proven path
 
-- `lai harness` 0.4.3 runs the control plane on `127.0.0.1:8765`.
-- `llama-server.exe` serves Qwen2.5-Coder on `172.29.192.1:8080` with `--api-key-file`.
-- `lai-gateway` 0.1.24 serves the mobile UI on `172.29.193.62:8787`.
-- Phone access uses the Windows/Tailscale URL `http://100.107.179.6:8787/` when the bridge is active.
+- `lai harness` 0.4.4 runs the control plane on `127.0.0.1:8765` during local dogfood.
+- `llama-server.exe` serves the validated Ministral baseline on `172.29.192.1:8080` with `--api-key-file`.
+- `lai-gateway` 0.1.30 serves the mobile UI on `172.29.193.62:8787` during local dogfood.
+- Phone access uses the Tailscale Serve MagicDNS URL when the mobile proxy is active.
 
 ## Start the model server
 
