@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import hmac
 import json
+import secrets
 import threading
 import time
 from http import HTTPStatus
@@ -22,6 +24,7 @@ from .model import collect_model_eval, collect_model_files, collect_model_plan, 
 _REQUEST_BODY_MAX_BYTES = 64 * 1024
 _AUTH_FAILURE_LIMIT = 5
 _AUTH_FAILURE_WINDOW_SECONDS = 60.0
+_MOBILE_SESSION_TTL_SECONDS = 8 * 60 * 60
 _STATIC_DIR = Path(__file__).with_name("static")
 _STATIC_ROUTES = {
     "/": ("index.html", "text/html; charset=utf-8"),
@@ -57,6 +60,7 @@ class GatewayHTTPServer(ThreadingHTTPServer):
         self.access_token = access_token
         self.pair_token_file = config.pair_token_file if config.private_bind_enabled else None
         self.auth_failures: dict[str, list[float]] = {}
+        self.mobile_sessions: dict[str, float] = {}
         self.auth_lock = threading.Lock()
 
 
@@ -128,14 +132,13 @@ class GatewayHandler(BaseHTTPRequestHandler):
         if parsed.path == "/v1/gateway/ops-status":
             if not self._authorize_gateway_api(parsed.path):
                 return
-            self._send_json(
-                HTTPStatus.OK,
-                collect_ops_status(
-                    config=self.server.config,
-                    mobile_candidate_ip=self.server.server_address[0],
-                    mobile_port=self.server.server_address[1],
-                ),
+            payload = collect_ops_status(
+                config=self.server.config,
+                mobile_candidate_ip=self.server.server_address[0],
+                mobile_port=self.server.server_address[1],
             )
+            self._attach_mobile_session_status(payload)
+            self._send_json(HTTPStatus.OK, payload)
             return
         if parsed.path == "/v1/harness/status":
             if not self._authorize_gateway_api(parsed.path):
@@ -190,6 +193,11 @@ class GatewayHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        if parsed.path == "/v1/gateway/mobile-session":
+            if not self._require_empty_body():
+                return
+            self._exchange_mobile_session()
+            return
         if parsed.path == "/v1/harness/sessions":
             if not self._authorize_gateway_api(parsed.path):
                 return
@@ -218,6 +226,19 @@ class GatewayHandler(BaseHTTPRequestHandler):
         )
 
     def do_DELETE(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        if parsed.path == "/v1/gateway/mobile-session":
+            self._revoke_mobile_session()
+            return
+        if parsed.path.startswith("/v1/harness/sessions/"):
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            session_id = parsed.path.removeprefix("/v1/harness/sessions/")
+            if "/" in session_id or not session_id:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
+                return
+            self._proxy(lambda: self.server.client.delete_session(session_id))
+            return
         self._send_json(HTTPStatus.METHOD_NOT_ALLOWED, {"error": "delete_not_supported"})
 
     def _serve_static(self, path: str) -> bool:
@@ -235,7 +256,16 @@ class GatewayHandler(BaseHTTPRequestHandler):
 
 
     def _authorize_gateway_api(self, path: str) -> bool:
-        if not (path.startswith("/v1/harness/") or path in {"/v1/gateway/ops-status", "/v1/gateway/model-status", "/v1/gateway/model-plan", "/v1/gateway/model-files", "/v1/gateway/model-task", "/v1/gateway/model-runs", "/v1/gateway/model-eval"}):
+        protected_gateway_paths = {
+            "/v1/gateway/ops-status",
+            "/v1/gateway/model-status",
+            "/v1/gateway/model-plan",
+            "/v1/gateway/model-files",
+            "/v1/gateway/model-task",
+            "/v1/gateway/model-runs",
+            "/v1/gateway/model-eval",
+        }
+        if not (path.startswith("/v1/harness/") or path in protected_gateway_paths):
             return True
         expected = self.server.access_token
         if expected is None:
@@ -254,13 +284,155 @@ class GatewayHandler(BaseHTTPRequestHandler):
         if hmac.compare_digest(supplied, expected):
             self._clear_auth_failures(client_key)
             return True
-        pair_token = self._current_pairing_token()
-        if pair_token is not None and hmac.compare_digest(supplied, pair_token):
+        if self._is_valid_mobile_session(supplied):
             self._clear_auth_failures(client_key)
             return True
         self._record_auth_failure(client_key)
         self._send_json(HTTPStatus.FORBIDDEN, {"error": "gateway_auth_failed"})
         return False
+
+    def _exchange_mobile_session(self) -> None:
+        expected = self.server.access_token
+        if expected is None:
+            self._send_json(HTTPStatus.OK, {
+                "product": "lai-gateway",
+                "version": __version__,
+                "overall": "ready",
+                "session_required": False,
+            })
+            return
+        client_key = self.client_address[0] if self.client_address else "unknown"
+        if self._auth_rate_limited(client_key):
+            self._send_json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "gateway_auth_rate_limited"})
+            return
+        raw = self.headers.get("Authorization", "")
+        prefix = "Bearer "
+        if not raw.startswith(prefix):
+            self._record_auth_failure(client_key)
+            self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "gateway_auth_required"})
+            return
+        supplied = raw[len(prefix):]
+        pair_token = self._current_pairing_token()
+        used_pair_token = pair_token is not None and hmac.compare_digest(supplied, pair_token)
+        if not (hmac.compare_digest(supplied, expected) or used_pair_token):
+            self._record_auth_failure(client_key)
+            self._send_json(HTTPStatus.FORBIDDEN, {"error": "gateway_auth_failed"})
+            return
+        if used_pair_token:
+            self._consume_pairing_token()
+        token = secrets.token_urlsafe(32)
+        expires_at = time.time() + _MOBILE_SESSION_TTL_SECONDS
+        digest = self._mobile_session_hash(token)
+        with self.server.auth_lock:
+            self._prune_mobile_sessions_locked(time.time())
+            self.server.mobile_sessions[digest] = expires_at
+        self._clear_auth_failures(client_key)
+        self._send_json(HTTPStatus.CREATED, {
+            "product": "lai-gateway",
+            "version": __version__,
+            "overall": "ready",
+            "session_token": token,
+            "token_type": "mobile_session",
+            "expires_at": self._utc_timestamp(expires_at),
+            "seconds_remaining": _MOBILE_SESSION_TTL_SECONDS,
+            "stored": "server_memory_hash_only",
+            "client_storage": "page_memory_only",
+            "pair_token_consumed": used_pair_token,
+        })
+
+    def _revoke_mobile_session(self) -> None:
+        expected = self.server.access_token
+        if expected is None:
+            self._send_json(HTTPStatus.OK, {
+                "product": "lai-gateway",
+                "version": __version__,
+                "overall": "ready",
+                "session_required": False,
+                "revoked": False,
+            })
+            return
+        client_key = self.client_address[0] if self.client_address else "unknown"
+        if self._auth_rate_limited(client_key):
+            self._send_json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "gateway_auth_rate_limited"})
+            return
+        raw = self.headers.get("Authorization", "")
+        prefix = "Bearer "
+        if not raw.startswith(prefix):
+            self._record_auth_failure(client_key)
+            self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "gateway_auth_required"})
+            return
+        supplied = raw[len(prefix):]
+        if hmac.compare_digest(supplied, expected):
+            self._clear_auth_failures(client_key)
+            self._send_json(HTTPStatus.OK, {
+                "product": "lai-gateway",
+                "version": __version__,
+                "overall": "ready",
+                "revoked": False,
+                "reason": "gateway_access_token_is_not_a_mobile_session",
+            })
+            return
+        revoked = self._pop_mobile_session(supplied)
+        if revoked:
+            self._clear_auth_failures(client_key)
+            self._send_json(HTTPStatus.OK, {
+                "product": "lai-gateway",
+                "version": __version__,
+                "overall": "ready",
+                "revoked": True,
+                "stored": "server_memory_hash_only",
+            })
+            return
+        self._record_auth_failure(client_key)
+        self._send_json(HTTPStatus.FORBIDDEN, {"error": "gateway_auth_failed"})
+
+    def _is_valid_mobile_session(self, token: str) -> bool:
+        if not token:
+            return False
+        now = time.time()
+        digest = self._mobile_session_hash(token)
+        with self.server.auth_lock:
+            self._prune_mobile_sessions_locked(now)
+            expires_at = self.server.mobile_sessions.get(digest)
+            return bool(expires_at and expires_at > now)
+
+    def _pop_mobile_session(self, token: str) -> bool:
+        if not token:
+            return False
+        now = time.time()
+        digest = self._mobile_session_hash(token)
+        with self.server.auth_lock:
+            self._prune_mobile_sessions_locked(now)
+            return self.server.mobile_sessions.pop(digest, None) is not None
+
+    def _attach_mobile_session_status(self, payload: dict[str, Any]) -> None:
+        now = time.time()
+        with self.server.auth_lock:
+            self._prune_mobile_sessions_locked(now)
+            active_count = len(self.server.mobile_sessions)
+        payload["mobile_session"] = {
+            "overall": "ready" if active_count else "none",
+            "active_count": active_count,
+            "ttl_seconds": _MOBILE_SESSION_TTL_SECONDS,
+            "stored": "server_memory_hash_only",
+            "client_storage": "page_memory_only",
+            "prints_tokens": False,
+        }
+        if active_count and isinstance(payload.get("mobile"), dict):
+            payload["mobile"]["active_mobile_session"] = True
+
+    def _prune_mobile_sessions_locked(self, now: float) -> None:
+        expired = [digest for digest, expires_at in self.server.mobile_sessions.items() if expires_at <= now]
+        for digest in expired:
+            self.server.mobile_sessions.pop(digest, None)
+
+    @staticmethod
+    def _mobile_session_hash(token: str) -> str:
+        return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _utc_timestamp(epoch_seconds: float) -> str:
+        return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(epoch_seconds))
 
     def _current_pairing_token(self) -> str | None:
         token_file = self.server.pair_token_file
@@ -270,6 +442,17 @@ class GatewayHandler(BaseHTTPRequestHandler):
             return read_valid_gateway_pairing_token(token_file)
         except GatewayError:
             return None
+
+    def _consume_pairing_token(self) -> None:
+        token_file = self.server.pair_token_file
+        if token_file is None:
+            return
+        try:
+            token_file.unlink()
+        except FileNotFoundError:
+            return
+        except OSError:
+            return
 
     def _auth_rate_limited(self, client_key: str) -> bool:
         now = time.monotonic()

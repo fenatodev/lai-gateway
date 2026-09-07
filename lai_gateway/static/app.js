@@ -5,8 +5,8 @@ let lastRunPayload = null;
 let runPollTimer = null;
 let gatewayAccessToken = "";
 let gatewayTokenKind = "none";
-let pairExpiresAt = null;
-let pairCountdownTimer = null;
+let sessionExpiresAt = null;
+let sessionCountdownTimer = null;
 let lastMobileUrl = "";
 const TASK_PRESETS = {
   plan: "Plan the next safe, high-impact step from the current project state.",
@@ -98,7 +98,8 @@ function setOpsStatus(payload) {
   const state = overall === "ready" ? "ready" : overall === "blocked" ? "danger" : "running";
   setPill("ops-pill", `ops ${overall}`, state);
   const doctor = payload.doctor && payload.doctor.overall ? payload.doctor.overall : "unknown";
-  const mobile = payload.mobile && payload.mobile.overall ? payload.mobile.overall : "unknown";
+  const mobileSession = payload.mobile_session && payload.mobile_session.overall === "ready" ? "session ready" : "";
+  const mobile = mobileSession || (payload.mobile && payload.mobile.overall ? payload.mobile.overall : "unknown");
   const telegram = payload.telegram && payload.telegram.overall ? payload.telegram.overall : "unknown";
   setCheck("check-access", `Ops: doctor ${doctor}, mobile ${mobile}, telegram ${telegram}.`, state);
   clearPairRequiredOutput("ops-output");
@@ -176,15 +177,15 @@ function updateGatewayAuthState(status, ok) {
     return;
   }
   if (ok) {
-    const label = gatewayTokenKind === "pair" ? "Pair token authenticated." : "Gateway token authenticated.";
+    const label = `${tokenKindLabel()} authenticated.`;
     byId("gateway-access-state").textContent = `${label} Token remains only in page memory.`;
-    setCheck("check-access", `${gatewayTokenKind === "pair" ? "Pair" : "Gateway"} token authenticated in memory.`, "ready");
+    setCheck("check-access", `${tokenKindLabel()} authenticated in memory.`, "ready");
     return;
   }
   if (status === 401) {
     byId("gateway-access-state").textContent = "Loaded token is missing, invalid, or expired.";
-    setCallout("gateway-auth-result", "Token was not accepted. Generate a fresh pair token and try again.", "danger");
-    setAuthBanner("Pairing failed. Generate a fresh pair token and try again.", "danger");
+    setCallout("gateway-auth-result", "Token was not accepted or the mobile session expired. Generate a fresh pair token and try again.", "danger");
+    setAuthBanner("Pairing failed or mobile session expired. Generate a fresh pair token and try again.", "danger");
     setCheck("check-access", "Pair token missing, invalid, or expired.", "danger");
   } else if (status === 403) {
     byId("gateway-access-state").textContent = "Loaded token was rejected by the gateway.";
@@ -199,45 +200,66 @@ function updateGatewayAuthState(status, ok) {
   }
 }
 
-function parsePairExpiresAt(raw) {
-  const value = raw.trim();
+function parseSessionExpiresAt(raw) {
+  const value = (raw || "").trim();
   if (!value) return null;
   const instant = Date.parse(value);
-  if (Number.isNaN(instant)) throw new Error("pair token expiration must be an ISO timestamp");
+  if (Number.isNaN(instant)) throw new Error("session expiration must be an ISO timestamp");
   return instant;
 }
 
-function renderPairCountdown() {
+function tokenKindLabel() {
+  if (gatewayTokenKind === "session") return "Mobile session";
+  if (gatewayTokenKind === "pair") return "Pair token";
+  if (gatewayTokenKind === "permanent") return "Gateway token";
+  return "No token";
+}
+
+async function exchangeMobileSession(pairToken) {
+  gatewayAccessToken = pairToken;
+  gatewayTokenKind = "pair";
+  const payload = await requestJson("/v1/gateway/mobile-session", { method: "POST" });
+  if (payload && payload.session_token) {
+    gatewayAccessToken = payload.session_token;
+    gatewayTokenKind = "session";
+    sessionExpiresAt = parseSessionExpiresAt(payload.expires_at || "");
+    startSessionCountdown();
+    return payload;
+  }
+  throw new Error("gateway did not return a mobile session token");
+}
+
+function renderSessionCountdown() {
   const target = byId("pairing-state");
-  if (gatewayTokenKind !== "pair" || pairExpiresAt === null) {
-    target.textContent = "No pairing token timer loaded.";
+  if (gatewayTokenKind !== "session" || sessionExpiresAt === null) {
+    target.textContent = "No mobile session timer loaded.";
     target.className = "muted";
     return;
   }
-  const remainingSeconds = Math.max(0, Math.floor((pairExpiresAt - Date.now()) / 1000));
+  const remainingSeconds = Math.max(0, Math.floor((sessionExpiresAt - Date.now()) / 1000));
   if (remainingSeconds <= 0) {
-    target.textContent = "Pair token timer expired. Forget it and create a new pair token.";
+    target.textContent = "Mobile session expired. Forget it and pair again with a fresh token.";
     target.className = "danger-text";
     return;
   }
   const minutes = Math.floor(remainingSeconds / 60);
   const seconds = remainingSeconds % 60;
-  target.textContent = `Pair token timer: ${minutes}m ${String(seconds).padStart(2, "0")}s remaining.`;
+  target.textContent = `Mobile session: ${minutes}m ${String(seconds).padStart(2, "0")}s remaining.`;
   target.className = remainingSeconds < 60 ? "warn-text" : "muted";
 }
 
-function startPairCountdown() {
-  stopPairCountdown();
-  renderPairCountdown();
-  if (gatewayTokenKind === "pair" && pairExpiresAt !== null) {
-    pairCountdownTimer = window.setInterval(renderPairCountdown, 1000);
+function startSessionCountdown() {
+  stopSessionCountdown();
+  renderSessionCountdown();
+  if (gatewayTokenKind === "session" && sessionExpiresAt !== null) {
+    sessionCountdownTimer = window.setInterval(renderSessionCountdown, 1000);
   }
 }
 
-function stopPairCountdown() {
-  if (pairCountdownTimer !== null) {
-    window.clearInterval(pairCountdownTimer);
-    pairCountdownTimer = null;
+function stopSessionCountdown() {
+  if (sessionCountdownTimer !== null) {
+    window.clearInterval(sessionCountdownTimer);
+    sessionCountdownTimer = null;
   }
 }
 
@@ -332,6 +354,15 @@ function clearSession() {
   setCheck("check-session", "No active session selected.", "muted");
 }
 
+async function revokeMobileSessionIfLoaded() {
+  if (gatewayTokenKind !== "session" || !gatewayAccessToken) return;
+  try {
+    await requestJson("/v1/gateway/mobile-session", { method: "DELETE" });
+  } catch (_err) {
+    // Forgetting the page token must still work even if the server session already expired.
+  }
+}
+
 async function copyRunOutput() {
   const run = lastRunPayload && lastRunPayload.run;
   const text = run && typeof run.stdout === "string" ? run.stdout : byId("runs-output").textContent;
@@ -347,8 +378,9 @@ async function runAction(action) {
   try {
     if (action === "use-gateway-token") {
       gatewayAccessToken = byId("gateway-token").value.trim();
-      gatewayTokenKind = byId("gateway-token-kind").value === "permanent" ? "permanent" : "pair";
-      pairExpiresAt = gatewayTokenKind === "pair" ? parsePairExpiresAt(byId("pair-expires-at").value) : null;
+      const selectedTokenKind = byId("gateway-token-kind").value === "permanent" ? "permanent" : "pair";
+      gatewayTokenKind = selectedTokenKind;
+      sessionExpiresAt = null;
       byId("gateway-token").value = "";
       if (!gatewayAccessToken) {
         byId("gateway-access-state").textContent = "No gateway token loaded in page memory.";
@@ -357,33 +389,42 @@ async function runAction(action) {
         setCheck("check-access", "Pair token not loaded yet.", "muted");
         return;
       }
-      byId("gateway-access-state").textContent = `${gatewayTokenKind === "pair" ? "Pair" : "Gateway"} token loaded in page memory. Validating now...`;
+      byId("gateway-access-state").textContent = `${selectedTokenKind === "pair" ? "Pair" : "Gateway"} token loaded in page memory. Validating now...`;
       setCallout("gateway-auth-result", "Validating token with the gateway...", "warn");
       setAuthBanner("Validating phone pairing...", "warn");
-      setCheck("check-access", `${gatewayTokenKind === "pair" ? "Pair" : "Gateway"} token validating.`, "running");
-      startPairCountdown();
+      setCheck("check-access", `${selectedTokenKind === "pair" ? "Pair" : "Gateway"} token validating.`, "running");
+      let sessionPayload = null;
+      if (selectedTokenKind === "pair") {
+        sessionPayload = await exchangeMobileSession(gatewayAccessToken);
+        setCallout("gateway-auth-result", "Paired successfully. Mobile session unlocked for this page.", "ready");
+        setAuthBanner("Phone paired. Temporary mobile session is active in this page only.", "ready");
+      } else {
+        startSessionCountdown();
+        setCallout("gateway-auth-result", "Gateway token accepted. Private controls are unlocked for this page.", "ready");
+        setAuthBanner("Gateway token accepted. Private controls are unlocked in this page only.", "ready");
+      }
       const payload = await requestJson("/v1/gateway/ops-status");
       setOpsStatus(payload);
-      setCallout("gateway-auth-result", "Paired successfully. Private controls are unlocked for this page.", "ready");
-      setAuthBanner("Phone paired. Private controls are unlocked in this page only.", "ready");
+      if (sessionPayload && sessionPayload.expires_at) {
+        setCallout("gateway-auth-result", `Paired successfully. Mobile session expires at ${sessionPayload.expires_at}.`, "ready");
+      }
       await runAction("refresh-readiness");
     } else if (action === "forget-gateway-token") {
+      await revokeMobileSessionIfLoaded();
       gatewayAccessToken = "";
       gatewayTokenKind = "none";
-      pairExpiresAt = null;
-      stopPairCountdown();
+      sessionExpiresAt = null;
+      stopSessionCountdown();
       byId("gateway-token").value = "";
       byId("pair-expires-at").value = "";
       byId("gateway-access-state").textContent = "No gateway token loaded in page memory.";
       setCallout("gateway-auth-result", "Token forgotten. Paste a new pair token to unlock this phone.", "warn");
       setAuthBanner("Phone is not paired. Private controls are locked.", "warn");
       setCheck("check-access", "Pair token not loaded yet.", "muted");
-      renderPairCountdown();
+      renderSessionCountdown();
       if (!isLoopbackHost()) showPairRequiredOutputs();
     } else if (action === "refresh-token-countdown") {
-      pairExpiresAt = parsePairExpiresAt(byId("pair-expires-at").value);
-      if (pairExpiresAt !== null) gatewayTokenKind = "pair";
-      startPairCountdown();
+      startSessionCountdown();
     } else if (action === "refresh-mobile-access") {
       setMobileAccess(await requestJson("/v1/gateway/mobile-access"));
     } else if (action === "copy-mobile-url") {
@@ -436,6 +477,13 @@ async function runAction(action) {
       const payload = await requestJson(`/v1/harness/sessions/${encodeURIComponent(sessionId)}`);
       setSessionFromPayload(payload);
       show("sessions-output", payload);
+    } else if (action === "delete-session") {
+      const sessionId = byId("session-id").value.trim();
+      if (!sessionId) throw new Error("session id is required");
+      if (!window.confirm(`Delete harness session ${sessionId}? This removes only the repository-scoped session record.`)) return;
+      const payload = await requestJson(`/v1/harness/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+      clearSession();
+      show("sessions-output", payload);
     } else if (action === "clear-session") {
       clearSession();
       show("sessions-output", "Session selection cleared. Existing harness sessions were not changed.");
@@ -475,9 +523,9 @@ async function runAction(action) {
     if (action === "use-gateway-token") {
       gatewayAccessToken = "";
       gatewayTokenKind = "none";
-      pairExpiresAt = null;
-      stopPairCountdown();
-      renderPairCountdown();
+      sessionExpiresAt = null;
+      stopSessionCountdown();
+      renderSessionCountdown();
     }
     const target = action.includes("session")
       ? "sessions-output"

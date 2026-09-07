@@ -99,6 +99,7 @@ python3 -m lai_gateway telegram preflight
 python3 -m lai_gateway sessions list --limit 10
 python3 -m lai_gateway sessions create
 python3 -m lai_gateway sessions get <session_id>
+python3 -m lai_gateway sessions delete <session_id>
 python3 -m lai_gateway runs list --limit 10
 python3 -m lai_gateway runs create --mode plan --task "Summarize the current state"
 python3 -m lai_gateway runs create --mode review --session-id <session_id> --task "Review this safely"
@@ -135,7 +136,7 @@ Start the harness and gateway, then open:
 http://127.0.0.1:8787/
 ```
 
-The UI is intentionally local-first and phone-friendly. It can refresh readiness/status, show a local QR code for mobile access, guide mobile pairing with an in-memory checklist, create and inspect sessions, create read-only runs, poll selected runs, stop polling, keep a compact in-memory run history, fill read-only task presets, count task characters, and copy run output. Use `lai-gateway lan-info` to print private LAN URL candidates and safe startup commands without starting a server. Use `lai-gateway mobile-access` to show WSL/Windows/Tailscale phone URLs, QR data, and portproxy hints. Use `lai-gateway mobile-start --prepare` to create missing token files and refresh the short-lived pair token before opening the UI on a phone. Use `lai-gateway mobile-serve --candidate-ip <private-ip>` only when you intentionally want to prepare tokens and start the private LAN gateway in one foreground command. The phone UI keeps token state only in memory and exposes a Forget token control. In private mode, paste either the permanent gateway token or a short-lived pair token into the Gateway access card. The optional pair expiration field shows an in-memory countdown, and Forget token clears token state from the page. It does not receive the harness control token, does not use external CDN assets, and does not use browser storage. Tiny mercy in a world full of tracking pixels.
+The UI is intentionally local-first and phone-friendly. It can refresh readiness/status, show a local QR code for mobile access, guide mobile pairing with an in-memory checklist, create, inspect, and delete sessions, create read-only runs, poll selected runs, stop polling, keep a compact in-memory run history, fill read-only task presets, count task characters, and copy run output. Use `lai-gateway lan-info` to print private LAN URL candidates and safe startup commands without starting a server. Use `lai-gateway mobile-access` to show WSL/Windows/Tailscale phone URLs, QR data, and portproxy hints. Use `lai-gateway mobile-start --prepare` to create missing token files and refresh the short-lived pair token before opening the UI on a phone. Use `lai-gateway mobile-serve --candidate-ip <private-ip>` only when you intentionally want to prepare tokens and start the private LAN gateway in one foreground command. The phone UI keeps token state only in memory and exposes a Forget token control. In private mode, paste either the permanent gateway token or a short-lived pair token into the Gateway access card. Pair tokens are printed only from interactive terminals, then exchanged for temporary page-memory mobile sessions; the pair token is consumed and cannot directly access protected APIs. Forget token revokes the mobile session from server memory when possible and clears token state from the page. It does not receive the harness control token, does not use external CDN assets, and does not use browser storage. Tiny mercy in a world full of tracking pixels.
 
 
 ## Private LAN preview
@@ -155,7 +156,7 @@ LAI_GATEWAY_PAIR_TOKEN_FILE="$HOME/.config/lai-gateway/pair-token.json" \
 lai-gateway dev --no-open
 ```
 
-When private mode is enabled, `/v1/harness/*` requires a gateway access token or a valid short-lived pairing token. Static UI files and `/healthz` remain secret-free. The UI keeps the selected token only in page memory, shows an optional pairing countdown, and has an explicit Forget token control. The harness control token stays server-side. Token files must be `0600`, pairing tokens expire, and repeated failed API auth attempts return `429 gateway_auth_rate_limited`. Humanity gets one less obvious way to leak credentials.
+When private mode is enabled, `/v1/harness/*` requires a permanent gateway access token or a temporary mobile session created from a one-shot pair token. Static UI files and `/healthz` remain secret-free. The UI keeps token state only in page memory, and Forget token revokes the mobile session before clearing the page when possible. The harness control token stays server-side. Token files must be `0600`, pairing tokens expire, launchers refuse to print pair tokens into pipes/logs, and repeated failed API auth attempts return `429 gateway_auth_rate_limited`. Humanity gets one less obvious way to leak credentials.
 
 ## Telegram outbound notifications
 
@@ -185,12 +186,13 @@ GET /v1/harness/gateway-contract
 GET /v1/harness/sessions?limit=N
 POST /v1/harness/sessions
 GET /v1/harness/sessions/{session_id}
+DELETE /v1/harness/sessions/{session_id}
 GET /v1/harness/runs?limit=N
 POST /v1/harness/runs
 GET /v1/harness/runs/{control_run_id}
 ```
 
-Session routes can create and inspect persistent harness sessions. Run routes can create only read-only harness runs. `POST /v1/runs` remains blocked as a raw shortcut, and write modes remain rejected at the gateway boundary. That distinction matters unless your threat model was written on a napkin.
+Session routes can create, inspect, and delete persistent harness sessions. Run routes can create only read-only harness runs. `POST /v1/runs` remains blocked as a raw shortcut, and write modes remain rejected at the gateway boundary. That distinction matters unless your threat model was written on a napkin.
 
 The gateway refuses wildcard and public bind addresses. Private-network/mobile exposure remains opt-in, private-token protected, and intentionally narrow.
 
@@ -234,3 +236,10 @@ lai-gateway-daily --show-pair
 ```
 
 Use this loopback proxy when Tailscale Serve needs to reach a WSL-bound mobile gateway through `http://127.0.0.1:18787`.
+
+
+### Mobile pairing sessions
+
+`lai-gateway-daily --show-pair` prints a short-lived pair token. The mobile UI
+exchanges that token for a temporary page-memory session; no permanent gateway token
+is stored on the phone.

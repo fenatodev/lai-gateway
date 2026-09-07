@@ -14,6 +14,7 @@ REQUIRED_ROUTES = {
     ("GET", "/v1/status"),
     ("GET", "/v1/readiness"),
     ("POST", "/v1/sessions"),
+    ("DELETE", "/v1/sessions/{session_id}"),
     ("POST", "/v1/runs"),
 }
 SECRET_FIELD_TERMS = ("secret", "api_key", "password", "authorization")

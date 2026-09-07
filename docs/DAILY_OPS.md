@@ -4,10 +4,10 @@ This runbook starts the published local LAI path without exposing secrets.
 
 ## Current proven path
 
-- `lai harness` 0.4.3 runs the control plane on `127.0.0.1:8765`.
-- `llama-server.exe` serves Qwen2.5-Coder on `172.29.192.1:8080` with `--api-key-file`.
-- `lai-gateway` 0.1.24 serves the mobile UI on `172.29.193.62:8787`.
-- Phone access uses the Windows/Tailscale URL `http://100.107.179.6:8787/` when the bridge is active.
+- `lai harness` 0.4.4 runs the control plane on `127.0.0.1:8765` during local dogfood.
+- `llama-server.exe` serves the validated Ministral baseline on `172.29.192.1:8080` with `--api-key-file`.
+- `lai-gateway` 0.1.30 serves the mobile UI on `172.29.193.62:8787` during local dogfood.
+- Phone access uses the Tailscale Serve MagicDNS URL when the mobile proxy is active.
 
 ## Start the model server
 
@@ -143,3 +143,25 @@ lai-gateway-daily --show-pair
 
 The config file is stored with `0600` permissions and does not contain access tokens or pair tokens.
 Use `LAI_GATEWAY_DAILY_CONFIG=/path/to/daily.json` when testing alternate profiles.
+
+
+## Mobile session exchange
+
+Phone pairing uses a short-lived pair token only to unlock a temporary mobile session.
+The browser keeps the mobile session token in page memory only. It is not written to
+localStorage, sessionStorage, or disk. The gateway stores only an in-memory hash of
+active mobile sessions and consumes the pair token after a successful exchange. Pair
+tokens are accepted only by the session exchange endpoint, not by protected Harness
+or gateway API calls.
+
+Daily flow:
+
+```bash
+lai-gateway-daily --show-pair
+```
+
+Open the printed phone URL, paste the temporary pair token, and tap **Pair this
+phone**. The UI should report that a mobile session is active and show the session
+countdown. If the page is closed or the session expires, run the daily command again
+to print a fresh pair token. The **Forget token** button clears the browser token
+and asks the gateway to revoke the active mobile session from server memory.

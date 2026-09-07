@@ -26,7 +26,7 @@
       <div>
         <p class="eyebrow">phone setup</p>
         <h2>Mobile checklist</h2>
-        <p class="muted">Start with <code>lai-gateway mobile-serve --show-pair</code>, open the LAN URL on your phone, paste the temporary pair token, then run read-only tasks.</p>
+        <p class="muted">Start with <code>lai-gateway-daily --show-pair</code>, open the phone URL, paste the temporary pair token, then run read-only tasks.</p>
       </div>
       <ol class="checklist">
         <li id="check-access" class="check muted">Pair token not loaded yet.</li>
@@ -40,7 +40,7 @@
 
       <article class="card mobile-access-card">
         <h2>Mobile Access</h2>
-        <p class="muted">Scan the local QR after starting <code>mobile-serve</code>. The QR contains only the URL, never tokens.</p>
+        <p class="muted">Scan the local QR after running <code>lai-gateway-daily --show-pair</code>. The QR contains only the URL, never tokens.</p>
         <div class="mobile-url-box">
           <span id="mobile-access-kind" class="pill muted">mobile URL unknown</span>
           <code id="mobile-access-url">Not loaded.</code>
@@ -55,7 +55,7 @@
 
       <article class="card auth-card">
         <h2>Gateway access</h2>
-        <p class="muted">Paste the short-lived pair token from the terminal, then tap <strong>Pair this phone</strong>. The token stays only in page memory.</p>
+        <p class="muted">Paste the short-lived pair token from the terminal, then tap <strong>Pair this phone</strong>. The pair token is exchanged for a temporary mobile session kept only in page memory.</p>
         <label>Token type
           <select id="gateway-token-kind">
             <option value="pair">temporary pair token</option>
@@ -65,18 +65,15 @@
         <label>Gateway or pair token
           <input id="gateway-token" class="token-input" type="password" autocomplete="one-time-code" inputmode="text" autocapitalize="none" spellcheck="false" placeholder="paste the temporary token here">
         </label>
-        <label>Pair token expires at, optional
-          <input id="pair-expires-at" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="2026-09-06T06:35:00Z">
-        </label>
+        <input id="pair-expires-at" type="hidden" value="">
         <div class="actions primary-actions">
           <button class="primary" data-action="use-gateway-token">Pair this phone</button>
           <button data-action="forget-gateway-token">Forget token</button>
-          <button data-action="refresh-token-countdown">Refresh pairing timer</button>
         </div>
         <p id="gateway-auth-result" class="callout warn" aria-live="assertive">Paste a pair token and tap Pair this phone.</p>
         <p id="gateway-access-state" class="muted" aria-live="polite">No gateway token loaded in page memory.</p>
-        <p id="pairing-state" class="muted" aria-live="polite">No pairing token timer loaded.</p>
-        <p class="hint"><code>lai-gateway pair create --ttl-seconds 600 --show</code> creates a temporary token for phone pairing.</p>
+        <p id="pairing-state" class="muted" aria-live="polite">No mobile session loaded.</p>
+        <p class="hint"><code>lai-gateway-daily --show-pair</code> starts or validates the stack and prints one fresh pair token.</p>
       </article>
 
       <article class="card wide">
@@ -122,7 +119,8 @@
         </label>
         <div class="actions">
           <button data-action="get-session">Get selected session</button>
-          <button data-action="clear-session">Clear session</button>
+          <button data-action="clear-session">Forget selection</button>
+          <button data-action="delete-session" class="danger">Delete selected session</button>
         </div>
         <pre id="sessions-output" aria-live="polite">Not loaded.</pre>
       </article>

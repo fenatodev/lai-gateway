@@ -49,6 +49,21 @@ def post_json(url: str, payload: dict[str, object]) -> tuple[int, dict[str, obje
         return response.status, body
 
 
+def post_empty_with_headers(url: str, headers: dict[str, str] | None = None) -> tuple[int, dict[str, object]]:
+    request = Request(url, data=None, headers=headers or {}, method="POST")
+    with urlopen(request, timeout=5) as response:
+        return response.status, json.loads(response.read().decode("utf-8"))
+
+
+def post_empty_error(url: str, headers: dict[str, str] | None = None) -> tuple[int, dict[str, object]]:
+    request = Request(url, data=None, headers=headers or {}, method="POST")
+    try:
+        urlopen(request, timeout=5)
+    except HTTPError as exc:
+        return exc.code, json.loads(exc.read().decode("utf-8"))
+    raise AssertionError("expected HTTPError")
+
+
 def post_json_error(url: str, payload: dict[str, object]) -> tuple[int, dict[str, object]]:
     request = Request(
         url,
@@ -61,6 +76,21 @@ def post_json_error(url: str, payload: dict[str, object]) -> tuple[int, dict[str
     except HTTPError as exc:
         body = json.loads(exc.read().decode("utf-8"))
         return exc.code, body
+    raise AssertionError("expected HTTPError")
+
+
+def delete_with_headers(url: str, headers: dict[str, str] | None = None) -> tuple[int, dict[str, object]]:
+    request = Request(url, headers=headers or {}, method="DELETE")
+    with urlopen(request, timeout=5) as response:
+        return response.status, json.loads(response.read().decode("utf-8"))
+
+
+def delete_error(url: str, headers: dict[str, str] | None = None) -> tuple[int, dict[str, object]]:
+    request = Request(url, headers=headers or {}, method="DELETE")
+    try:
+        urlopen(request, timeout=5)
+    except HTTPError as exc:
+        return exc.code, json.loads(exc.read().decode("utf-8"))
     raise AssertionError("expected HTTPError")
 
 
@@ -110,6 +140,12 @@ class GatewayServerTest(unittest.TestCase):
                     get_json(f"{gateway.url}/v1/harness/sessions/s_test")["session"]["session_id"],
                     "s_test",
                 )
+                delete_request = Request(f"{gateway.url}/v1/harness/sessions/s_test", method="DELETE")
+                with urlopen(delete_request, timeout=5) as response:
+                    deleted = json.loads(response.read().decode("utf-8"))
+                    self.assertEqual(response.status, HTTPStatus.OK)
+                self.assertTrue(deleted["deleted"])
+                self.assertEqual(deleted["session"]["session_id"], "s_test")
 
     def test_gateway_creates_only_read_only_runs(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
@@ -188,7 +224,83 @@ class GatewayServerTest(unittest.TestCase):
                 self.assertEqual(body["overall"], "ready")
 
 
-    def test_private_mode_accepts_valid_pairing_token_and_rejects_expired_pairing_token(self):
+    def test_private_mode_exchanges_pair_token_for_mobile_session(self):
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            access_file = Path(tmp) / "gateway-access"
+            pair_file = Path(tmp) / "pair.json"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            create_gateway_access_token(access_file)
+            create_gateway_pairing_token(pair_file, ttl_seconds=60)
+            pair_document = json.loads(pair_file.read_text(encoding="utf-8"))
+            pair_token = pair_document["token"]
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            with RunningGateway(config) as gateway:
+                missing_status, missing_body = post_empty_error(f"{gateway.url}/v1/gateway/mobile-session")
+                self.assertEqual(missing_status, HTTPStatus.UNAUTHORIZED)
+                self.assertEqual(missing_body["error"], "gateway_auth_required")
+
+                status, session = post_empty_with_headers(
+                    f"{gateway.url}/v1/gateway/mobile-session",
+                    {"Authorization": f"Bearer {pair_token}"},
+                )
+                self.assertEqual(status, HTTPStatus.CREATED)
+                self.assertEqual(session["overall"], "ready")
+                self.assertEqual(session["token_type"], "mobile_session")
+                self.assertEqual(session["stored"], "server_memory_hash_only")
+                self.assertEqual(session["client_storage"], "page_memory_only")
+                self.assertEqual(session["pair_token_consumed"], True)
+                self.assertFalse(pair_file.exists())
+                self.assertNotIn(pair_token, json.dumps(session))
+                session_token = str(session["session_token"])
+                self.assertGreaterEqual(len(session_token), 32)
+
+                status, body = get_json_with_headers(
+                    f"{gateway.url}/v1/harness/readiness",
+                    {"Authorization": f"Bearer {session_token}"},
+                )
+                self.assertEqual(status, HTTPStatus.OK)
+                self.assertEqual(body["overall"], "ready")
+
+                status, ops = get_json_with_headers(
+                    f"{gateway.url}/v1/gateway/ops-status",
+                    {"Authorization": f"Bearer {session_token}"},
+                )
+                self.assertEqual(status, HTTPStatus.OK)
+                self.assertEqual(ops["mobile_session"]["overall"], "ready")
+                self.assertEqual(ops["mobile_session"]["active_count"], 1)
+                self.assertNotIn(session_token, json.dumps(ops))
+                self.assertNotIn(pair_token, json.dumps(ops))
+
+                status, revoked = delete_with_headers(
+                    f"{gateway.url}/v1/gateway/mobile-session",
+                    {"Authorization": f"Bearer {session_token}"},
+                )
+                self.assertEqual(status, HTTPStatus.OK)
+                self.assertEqual(revoked["revoked"], True)
+                self.assertNotIn(session_token, json.dumps(revoked))
+
+                status, body = get_json_error(
+                    f"{gateway.url}/v1/harness/readiness",
+                    {"Authorization": f"Bearer {session_token}"},
+                )
+                self.assertEqual(status, HTTPStatus.FORBIDDEN)
+                self.assertEqual(body["error"], "gateway_auth_failed")
+
+                status, body = get_json_error(
+                    f"{gateway.url}/v1/harness/readiness",
+                    {"Authorization": f"Bearer {pair_token}"},
+                )
+                self.assertEqual(status, HTTPStatus.FORBIDDEN)
+                self.assertEqual(body["error"], "gateway_auth_failed")
+
+    def test_private_mode_rejects_pairing_token_for_direct_api_access(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
             token_file = Path(tmp) / "token"
             access_file = Path(tmp) / "gateway-access"
@@ -205,12 +317,12 @@ class GatewayServerTest(unittest.TestCase):
                 pair_token_file=pair_file,
             )
             with RunningGateway(config) as gateway:
-                status, body = get_json_with_headers(
+                status, body = get_json_error(
                     f"{gateway.url}/v1/harness/readiness",
                     {"Authorization": f"Bearer {pair_token}"},
                 )
-                self.assertEqual(status, HTTPStatus.OK)
-                self.assertEqual(body["overall"], "ready")
+                self.assertEqual(status, HTTPStatus.FORBIDDEN)
+                self.assertEqual(body["error"], "gateway_auth_failed")
 
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
             token_file = Path(tmp) / "token"

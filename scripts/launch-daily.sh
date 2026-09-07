@@ -66,7 +66,7 @@ Options:
   LAI_GATEWAY_DAILY_CONFIG can point to an alternate daily config file.
   -h, --help              show this help
 
-Token values are never printed unless --show-pair is passed explicitly.
+Token values are never printed unless --show-pair is passed explicitly from an interactive terminal.
 USAGE
 }
 
@@ -127,6 +127,11 @@ while [ "$#" -gt 0 ]; do
       ;;
   esac
 done
+
+if [ "$show_pair" = "1" ] && [ ! -t 1 ] && [ "${LAI_GATEWAY_ALLOW_NONINTERACTIVE_SHOW_PAIR:-0}" != "1" ]; then
+  echo "error: --show-pair requires an interactive terminal; refusing to print a pair token to a pipe or log" >&2
+  exit 2
+fi
 
 if [ -z "$candidate_ip" ]; then
   echo "error: --candidate-ip is required, or set LAI_GATEWAY_MOBILE_IP, or run lai-gateway daily-config set" >&2

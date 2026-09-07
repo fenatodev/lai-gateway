@@ -401,13 +401,15 @@ class ModelStatusTest(unittest.TestCase):
     def test_model_files_recommendation_uses_all_scanned_models_before_output_limit(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            # Create an oversized complete code model first alphabetically and a smaller split code model.
+            # Recommendation considers all scanned models, not only the displayed max_results slice.
             (root / "aaa-big-coder-00001-of-00001.gguf").write_bytes(b"a" * 64)
             (root / "qwen2.5-coder-7b-instruct-q4_k_m-00001-of-00002.gguf").write_bytes(b"q" * 128)
             (root / "qwen2.5-coder-7b-instruct-q4_k_m-00002-of-00002.gguf").write_bytes(b"w" * 64)
+            (root / "Ministral-3-8B-Instruct-2512-Q4_K_M.gguf").write_bytes(b"m" * 512)
             payload = collect_model_files(paths=[tmp], max_results=1)
         self.assertEqual(len(payload["models"]), 1)
-        self.assertEqual(payload["recommended"]["name"], "qwen2.5-coder-7b-instruct-q4_k_m")
+        self.assertEqual(payload["recommended"]["name"], "Ministral-3-8B-Instruct-2512-Q4_K_M")
+        self.assertEqual(payload["recommended"]["recommendation_reason"], "validated_baseline")
 
     def test_model_plan_auto_prefers_docker_without_mutation(self) -> None:
         def fake_which(name: str) -> str | None:
@@ -637,7 +639,7 @@ class ModelStatusTest(unittest.TestCase):
         self.assertNotIn("Bearer", rendered)
         self.assertNotIn("secret", rendered.lower())
 
-    def test_model_files_groups_split_and_recommends_code_model(self) -> None:
+    def test_model_files_groups_split_and_prefers_validated_baseline(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             qwen = root / "qwen2.5-coder-7b-instruct-q4_k_m-00001-of-00002.gguf"
@@ -656,12 +658,16 @@ class ModelStatusTest(unittest.TestCase):
         self.assertFalse(payload["starts_server"])
         self.assertFalse(payload["downloads_models"])
         self.assertEqual(payload["models_found"], 3)
-        self.assertEqual(payload["recommended"]["name"], "qwen2.5-coder-7b-instruct-q4_k_m")
+        self.assertEqual(payload["recommended"]["name"], "Ministral-3-8B-Instruct-2512-Q4_K_M")
+        self.assertEqual(payload["recommended"]["recommendation_reason"], "validated_baseline")
         recommended_model = payload["models"][0]
-        self.assertTrue(recommended_model["is_split"])
-        self.assertEqual(recommended_model["shard_count"], 2)
-        self.assertEqual(recommended_model["shard_total"], 2)
-        self.assertTrue(recommended_model["complete"])
+        self.assertEqual(recommended_model["name"], "Ministral-3-8B-Instruct-2512-Q4_K_M")
+        self.assertFalse(recommended_model["is_split"])
+        qwen_model = next(model for model in payload["models"] if model["name"] == "qwen2.5-coder-7b-instruct-q4_k_m")
+        self.assertTrue(qwen_model["is_split"])
+        self.assertEqual(qwen_model["shard_count"], 2)
+        self.assertEqual(qwen_model["shard_total"], 2)
+        self.assertTrue(qwen_model["complete"])
         self.assertIn("llama-server.exe", payload["recommended"]["start_runtime_example"])
         self.assertIn("model-key-create", payload["recommended"]["create_api_key_file"])
         self.assertIn("LAI_GATEWAY_MODEL_API_KEY_FILE", payload["recommended"]["configure_api_key_file"])

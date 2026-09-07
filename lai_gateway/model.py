@@ -786,6 +786,8 @@ def render_model_files(payload: dict[str, Any]) -> str:
         lines.append("recommended:")
         lines.append(f"  name: {recommended['name']}")
         lines.append(f"  size_total_gib: {recommended['size_total_gib']}")
+        if recommended.get("recommendation_reason"):
+            lines.append(f"  recommendation_reason: {recommended['recommendation_reason']}")
         lines.append(f"  primary_path: {recommended['primary_path']}")
         if recommended.get("windows_path"):
             lines.append(f"  windows_path: {recommended['windows_path']}")
@@ -905,12 +907,21 @@ def _group_gguf_models(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return models
 
 
-def _model_sort_key(model: dict[str, Any]) -> tuple[int, int, int, int]:
+def _is_validated_baseline_model(model: dict[str, Any]) -> bool:
+    text = " ".join(
+        str(model.get(key) or "")
+        for key in ("name", "primary_path", "windows_path")
+    ).lower()
+    return "ministral-3-8b-instruct-2512" in text
+
+
+def _model_sort_key(model: dict[str, Any]) -> tuple[int, int, int, int, int]:
     return (
-        0 if model.get("is_code_model") else 1,
+        0 if _is_validated_baseline_model(model) else 1,
         0 if model.get("complete") else 1,
         0 if not model.get("is_accessory") else 1,
         0 if not model.get("too_large_for_8gb_target") else 1,
+        0 if model.get("is_code_model") else 1,
     )
 
 
@@ -935,11 +946,13 @@ def _recommend_model_file(models: list[dict[str, Any]]) -> dict[str, Any] | None
         model for model in models
         if model.get("complete") and not model.get("is_accessory") and not model.get("too_large_for_8gb_target")
     ]
+    baseline = [model for model in candidates if _is_validated_baseline_model(model)]
     code = [model for model in candidates if model.get("is_code_model")]
-    pool = code or candidates
+    pool = baseline or code or candidates
     if not pool:
         return None
     chosen = sorted(pool, key=lambda model: model["size_total_bytes"], reverse=True)[0]
+    reason = "validated_baseline" if baseline else ("code_model" if code else "available_local_model")
     windows_path = chosen.get("windows_path") or chosen["primary_path"]
     host = _windows_model_host()
     port = _WINDOWS_LLAMA_CPP_DEFAULT_PORT
@@ -950,6 +963,7 @@ def _recommend_model_file(models: list[dict[str, Any]]) -> dict[str, Any] | None
         "size_total_gib": chosen["size_total_gib"],
         "is_code_model": chosen["is_code_model"],
         "is_split": chosen["is_split"],
+        "recommendation_reason": reason,
         "create_api_key_file": f"lai-gateway model-key-create --path '{_wsl_model_api_key_path(windows_path)}' --force",
         "start_runtime_example": f"llama-server.exe --host {host} --port {port} --model '{windows_path}' --ctx-size 4096 --threads 8 --n-gpu-layers 0 --api-key-file '{_windows_model_api_key_path(windows_path)}' --cors-origins localhost --no-cors-credentials",
         "configure_base_url": f"export LAI_GATEWAY_MODEL_BASE_URL='http://{host}:{port}'",
