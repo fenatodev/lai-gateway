@@ -159,6 +159,33 @@ class ScriptTest(unittest.TestCase):
         self.assertIn("phone_url: http://example.tailnet.ts.net:8787/", check_only.stdout)
         self.assertNotIn("Bearer", combined)
         self.assertNotIn(TOKEN, combined)
+    def test_launchers_refuse_noninteractive_show_pair(self) -> None:
+        repo = Path(__file__).parents[1]
+        env = {**os.environ, "LAI_GATEWAY_DAILY_CONFIG": str(repo / ".missing-daily-config"), "PYTHON": sys.executable}
+        cases = (
+            ["bash", "scripts/launch-daily.sh", "--candidate-ip", "172.29.193.62", "--show-pair", "--check-only", "--skip-model", "--skip-harness", "--skip-mobile", "--skip-proxy"],
+            ["bash", "scripts/launch-mobile.sh", "--candidate-ip", "172.29.193.62", "--show-pair"],
+        )
+        for command in cases:
+            with self.subTest(command=command[1]):
+                result = subprocess.run(
+                    command,
+                    cwd=repo,
+                    env=env,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False,
+                    timeout=10,
+                )
+                combined = result.stdout + result.stderr
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("interactive terminal", result.stderr)
+                self.assertNotIn("pair_token", combined)
+                self.assertNotIn(TOKEN, combined)
+                self.assertNotIn("Bearer", combined)
+
+
 
     def test_launch_daily_uses_daily_config_defaults(self) -> None:
         repo = Path(__file__).parents[1]
