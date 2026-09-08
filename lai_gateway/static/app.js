@@ -49,7 +49,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pair this phone first, then refresh this panel.";
-  for (const id of ["ops-output", "status-output", "model-output", "mcp-output", "sessions-output", "runs-output", "run-events-output"]) {
+  for (const id of ["health-output", "ops-output", "status-output", "model-output", "mcp-output", "sessions-output", "runs-output", "run-events-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -117,10 +117,50 @@ function mcpPolicyBody() {
   return { operation: "call-tool", server, tool };
 }
 
+function compactHealthText(payload) {
+  const checks = payload.checks || {};
+  const mobile = payload.mobile || {};
+  const telegram = payload.telegram || {};
+  const mcp = payload.mcp || {};
+  const network = payload.network_calls || {};
+  const security = payload.security || {};
+  const lines = [
+    `lai-gateway health-report: ${payload.overall || "unknown"}`,
+    `version: ${payload.version || "unknown"}`,
+    "scope: read-only daily operations snapshot",
+    `doctor: ${checks.doctor || "unknown"}`,
+    `harness_model: ${checks.harness_model || "unknown"}`,
+    `mobile: ${checks.mobile || "unknown"} listener_active=${Boolean(mobile.listener_active)}`,
+    `telegram: ${checks.telegram || "unknown"} send_enabled=${Boolean(telegram.send_enabled)}`,
+    `model: ${checks.gateway_model_probe || "unknown"} runs=${checks.model_runs || 0}`,
+    `mcp_broker: ${checks.mcp_broker || "unknown"} servers=${mcp.server_count || 0} execution_enabled=${Boolean(mcp.execution_enabled)}`,
+    `network_calls: harness_local=${Boolean(network.harness_local)} model_local=${Boolean(network.model_local)} telegram=false`,
+    `security: tokens=${Boolean(security.prints_tokens)} pairing_secret=${Boolean(security.prints_pairing_secret)} writes=${Boolean(security.modifies_files)} starts_server=${Boolean(security.starts_server)}`,
+  ];
+  const steps = Array.isArray(payload.next_steps) ? payload.next_steps.slice(0, 6) : [];
+  if (steps.length) {
+    lines.push("next_steps:");
+    for (const step of steps) lines.push(`  ${step}`);
+  }
+  return lines.join("\n");
+}
+
+function setHealthReport(payload) {
+  const overall = payload.overall || "unknown";
+  const state = overall === "ready" ? "ready" : overall === "blocked" ? "danger" : "running";
+  setPill("ops-pill", `health ${overall}`, state);
+  const checks = payload.checks || {};
+  const mobile = checks.mobile || "unknown";
+  const telegram = checks.telegram || "unknown";
+  const mcp = checks.mcp_broker || "unknown";
+  setCheck("check-access", `Health: mobile ${mobile}, telegram ${telegram}, MCP ${mcp}.`, state);
+  clearPairRequiredOutput("health-output");
+  show("health-output", compactHealthText(payload));
+}
+
 function setOpsStatus(payload) {
   const overall = payload.overall || "unknown";
   const state = overall === "ready" ? "ready" : overall === "blocked" ? "danger" : "running";
-  setPill("ops-pill", `ops ${overall}`, state);
   const doctor = payload.doctor && payload.doctor.overall ? payload.doctor.overall : "unknown";
   const mobileSession = payload.mobile_session && payload.mobile_session.overall === "ready" ? "session ready" : "";
   const mobile = mobileSession || (payload.mobile && payload.mobile.overall ? payload.mobile.overall : "unknown");
@@ -468,8 +508,8 @@ async function runAction(action) {
         setCallout("gateway-auth-result", "Gateway token accepted. Private controls are unlocked for this page.", "ready");
         setAuthBanner("Gateway token accepted. Private controls are unlocked in this page only.", "ready");
       }
-      const payload = await requestJson("/v1/gateway/ops-status");
-      setOpsStatus(payload);
+      const payload = await requestJson("/v1/gateway/health-report");
+      setHealthReport(payload);
       if (sessionPayload && sessionPayload.expires_at) {
         setCallout("gateway-auth-result", `Paired successfully. Mobile session expires at ${sessionPayload.expires_at}.`, "ready");
       }
@@ -494,6 +534,9 @@ async function runAction(action) {
       setMobileAccess(await requestJson("/v1/gateway/mobile-access"));
     } else if (action === "copy-mobile-url") {
       await copyMobileUrl();
+    } else if (action === "refresh-health-report") {
+      clearPairRequiredOutput("health-output");
+      setHealthReport(await requestJson("/v1/gateway/health-report"));
     } else if (action === "refresh-ops-status") {
       clearPairRequiredOutput("ops-output");
       setOpsStatus(await requestJson("/v1/gateway/ops-status"));
@@ -646,7 +689,7 @@ document.addEventListener("DOMContentLoaded", () => {
     runAction("refresh-model-status");
     runAction("refresh-mcp-status");
     runAction("refresh-readiness");
-    runAction("refresh-ops-status");
+    runAction("refresh-health-report");
   } else {
     setAuthBanner("Paste a fresh pair token to unlock private controls on this phone.", "warn");
     showPairRequiredOutputs();

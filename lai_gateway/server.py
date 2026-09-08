@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, urlparse
 
 from . import __version__
 from .access import collect_mobile_access
+from .health import collect_health_report
 from .ops import collect_ops_status
 from .config import GatewayConfig, read_gateway_access_token, validate_gateway_bind
 from .tokens import read_valid_gateway_pairing_token
@@ -135,6 +136,16 @@ class GatewayHandler(BaseHTTPRequestHandler):
             if limit is None:
                 return
             self._send_json(HTTPStatus.OK, collect_model_runs(limit=limit))
+            return
+        if parsed.path == "/v1/gateway/health-report":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            payload = collect_health_report(
+                config=self.server.config,
+                mobile_candidate_ip=self.server.server_address[0],
+                mobile_port=self.server.server_address[1],
+            )
+            self._send_json(HTTPStatus.OK, payload)
             return
         if parsed.path == "/v1/gateway/ops-status":
             if not self._authorize_gateway_api(parsed.path):
@@ -292,6 +303,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
 
     def _authorize_gateway_api(self, path: str) -> bool:
         protected_gateway_paths = {
+            "/v1/gateway/health-report",
             "/v1/gateway/ops-status",
             "/v1/gateway/model-status",
             "/v1/gateway/model-plan",

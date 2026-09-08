@@ -79,6 +79,9 @@ class GatewayUITest(unittest.TestCase):
                 self.assertIn('data-action="forget-gateway-token"', html)
                 self.assertIn('id="readiness-pill"', html)
                 self.assertIn('id="ops-pill"', html)
+                self.assertIn('id="health-output"', html)
+                self.assertIn('data-action="refresh-health-report"', html)
+                self.assertIn('Health Report', html)
                 self.assertIn('id="ops-output"', html)
                 self.assertIn('data-action="refresh-ops-status"', html)
                 self.assertIn('id="active-session-pill"', html)
@@ -146,6 +149,7 @@ class GatewayUITest(unittest.TestCase):
         self.assertEqual(js_status, 200)
         self.assertIn("application/javascript", js_headers["content-type"])
         self.assertIn("/v1/gateway/mobile-access", js)
+        self.assertIn("/v1/gateway/health-report", js)
         self.assertIn("/v1/gateway/ops-status", js)
         self.assertIn("/v1/gateway/model-status", js)
         self.assertIn("/v1/gateway/model-plan", js)
@@ -156,6 +160,7 @@ class GatewayUITest(unittest.TestCase):
         self.assertIn("/v1/harness/mcp/status", js)
         self.assertIn("/v1/harness/mcp/tools", js)
         self.assertIn("/v1/harness/mcp/policy-check", js)
+        self.assertIn("setHealthReport", js)
         self.assertIn("setOpsStatus", js)
         self.assertIn("setMcpStatus", js)
         self.assertIn("mcpPolicyBody", js)
@@ -265,6 +270,27 @@ class GatewayUITest(unittest.TestCase):
         self.assertNotIn(TOKEN, body)
         self.assertNotIn("Bearer", body)
 
+    def test_gateway_health_report_endpoint_is_read_only_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with RunningGateway(config) as gateway:
+                status, headers, body = read_url(f"{gateway.url}/v1/gateway/health-report")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        payload = json.loads(body)
+        self.assertEqual(payload["operation"], "health-report")
+        self.assertFalse(payload["starts_server"])
+        self.assertFalse(payload["modifies_files"])
+        self.assertFalse(payload["security"]["prints_tokens"])
+        self.assertFalse(payload["security"]["prints_pairing_secret"])
+        self.assertFalse(payload["security"]["prints_chat_reference"])
+        self.assertIn("mcp_broker", payload["checks"])
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
+        self.assertNotIn("chat_id", body)
+
     def test_private_ops_status_requires_gateway_auth(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
             token_file = Path(tmp) / "token"
@@ -293,6 +319,36 @@ class GatewayUITest(unittest.TestCase):
         self.assertEqual(json.loads(body)["operation"], "ops-status")
         self.assertNotIn(access, body)
         self.assertNotIn(TOKEN, body)
+
+    def test_private_health_report_requires_gateway_auth(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            access_file = Path(tmp) / "access-token"
+            pair_file = Path(tmp) / "pair-token.json"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            access = create_gateway_access_token(access_file, include_token=True)["token"]
+            create_gateway_pairing_token(pair_file, ttl_seconds=600)
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            with RunningGateway(config) as gateway:
+                try:
+                    read_url(f"{gateway.url}/v1/gateway/health-report")
+                except Exception as exc:
+                    self.assertIn("HTTP Error 401", str(exc))
+                status, _headers, body = read_url(
+                    f"{gateway.url}/v1/gateway/health-report",
+                    headers={"Authorization": f"Bearer {access}"},
+                )
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["operation"], "health-report")
+        self.assertNotIn(access, body)
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("chat_id", body)
 
     def test_gateway_model_status_endpoint_is_read_only_and_secret_free(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

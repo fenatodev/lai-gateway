@@ -79,10 +79,20 @@
       </article>
 
       <article class="card wide">
-        <h2>Operations</h2>
-        <p class="muted">One read-only snapshot for harness, gateway, mobile listener, pairing, and Telegram readiness.</p>
+        <h2>Health Report</h2>
+        <p class="muted">Compact read-only daily health for Harness, Gateway, model, MCP, mobile, and Telegram. Use this first; open the ops snapshot only when something needs detail.</p>
         <div class="actions">
-          <button data-action="refresh-ops-status">Refresh ops snapshot</button>
+          <button class="primary" data-action="refresh-health-report">Refresh health report</button>
+          <button data-action="refresh-ops-status">Refresh detailed ops snapshot</button>
+        </div>
+        <pre id="health-output" aria-live="polite">Not loaded.</pre>
+      </article>
+
+      <article class="card wide">
+        <h2>Operations Detail</h2>
+        <p class="muted">Full read-only JSON snapshot for harness, gateway, mobile listener, pairing, and Telegram readiness.</p>
+        <div class="actions">
+          <button data-action="refresh-ops-status">Refresh detailed ops snapshot</button>
         </div>
         <pre id="ops-output" aria-live="polite">Not loaded.</pre>
       </article>

@@ -2,6 +2,7 @@
 
 ### Added
 - Add `lai-gateway health-report` as a compact read-only daily operator summary for Gateway, Harness, mobile, Telegram, model, model-runs, and MCP broker readiness, with optional explicit Telegram delivery and secret-free output.
+- Surface the compact `health-report` in the local Gateway UI and keep the full `ops-status` JSON as a detail panel, preserving private-mode authentication and read-only behavior.
 
 ### Fixed
 - Refresh current Gateway README and architecture docs to name Harness 0.4.8 as the verified baseline while preserving the 0.4.6+ minimum contract.
