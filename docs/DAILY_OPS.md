@@ -148,6 +148,10 @@ The config file is stored with `0600` permissions and does not contain access to
 Use `LAI_GATEWAY_DAILY_CONFIG=/path/to/daily.json` when testing alternate profiles.
 
 
+## Mobile read-only dogfood
+
+Use `docs/MOBILE_READONLY_DOGFOOD.md` as the operator loop for health, pair refresh, session-bound read-only runs, sanitized event inspection, and rejected write attempts. The loop is deliberately limited to existing read-only Harness modes and does not enable MCP tool execution.
+
 ## Mobile session exchange
 
 Phone pairing uses a short-lived pair token only to unlock a temporary mobile session.

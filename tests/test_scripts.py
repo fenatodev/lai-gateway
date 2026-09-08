@@ -247,6 +247,44 @@ class ScriptTest(unittest.TestCase):
         )
         self.assertNotEqual(env_example.returncode, 0)
 
+
+
+    def test_mobile_readonly_dogfood_script_uses_sanitized_read_only_loop(self) -> None:
+        repo = Path(__file__).parents[1]
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            env = {
+                **os.environ,
+                "PYTHON": sys.executable,
+                "LAI_GATEWAY_HARNESS_URL": harness.url,
+                "LAI_GATEWAY_TOKEN_FILE": str(token_file),
+                "LAI_GATEWAY_DOGFOOD_POLL_LIMIT": "2",
+                "LAI_GATEWAY_DOGFOOD_POLL_SECONDS": "0",
+            }
+            result = subprocess.run(
+                ["bash", "scripts/mobile-readonly-dogfood.sh"],
+                cwd=repo,
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=20,
+            )
+
+        self.assertIn("write-mode rejection: ok", result.stdout)
+        self.assertIn("session-create: sanitized", result.stdout)
+        self.assertIn("run-create: sanitized", result.stdout)
+        self.assertIn("run-get: sanitized", result.stdout)
+        self.assertIn("run-events: sanitized", result.stdout)
+        self.assertIn("session-delete: sanitized", result.stdout)
+        self.assertIn("mobile-readonly-dogfood: ready", result.stdout)
+        self.assertNotIn(TOKEN, result.stdout)
+        self.assertNotIn("/home/", result.stdout)
+        self.assertNotIn("chat_id", result.stdout)
+        self.assertEqual(result.stderr, "")
+
     def test_stack_check_validates_fake_harness_without_printing_secrets(self) -> None:
         repo = Path(__file__).parents[1]
         with tempfile.TemporaryDirectory() as tmp:

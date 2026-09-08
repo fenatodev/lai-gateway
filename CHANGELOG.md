@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+### Fixed
+- Sanitize Gateway session/run/event payloads for mobile read-only dogfood by removing local repository paths and raw run text from the phone-facing surface.
+
+### Added
+- Document the mobile read-only dogfood loop and initial sanitized Gateway-to-Harness evidence.
+
 ### Added
 - Add a visual `Health Report` summary state in the local UI so ready/warn/blocked daily health is visible before reading the detailed report text.
 - Add an explicit local UI action to send the compact `health-report` to Telegram through a protected POST endpoint, preserving empty-body, read-only snapshot collection and secret-free responses.

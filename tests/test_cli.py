@@ -64,6 +64,8 @@ class CliTest(unittest.TestCase):
                 payload = json.loads(result.stdout)
                 self.assertIn(expected_key, payload)
                 self.assertNotIn(TOKEN, result.stdout)
+                self.assertNotIn("/home/example/private", result.stdout)
+                self.assertNotIn("repository", result.stdout)
                 self.assertEqual(result.stderr, "")
 
 
@@ -88,6 +90,8 @@ class CliTest(unittest.TestCase):
             self.assertEqual(payload["control_run_id"], "cr-1234567890abcdef")
             self.assertEqual([event["event"] for event in payload["events"]], ["queued", "started", "finished"])
             self.assertNotIn(TOKEN, result.stdout)
+            self.assertNotIn("/home/example/private", result.stdout)
+            self.assertNotIn("repository", result.stdout)
             self.assertNotIn("leaked fake response", result.stdout)
             self.assertNotIn("leaked task text", result.stdout)
             self.assertNotIn("leaked stderr", result.stdout)
@@ -174,6 +178,8 @@ class CliTest(unittest.TestCase):
                 payload = json.loads(result.stdout)
                 self.assertIn(expected_key, payload)
                 self.assertNotIn(TOKEN, result.stdout)
+                self.assertNotIn("/home/example/private", result.stdout)
+                self.assertNotIn("repository", result.stdout)
                 self.assertEqual(result.stderr, "")
 
     def test_cli_runs_commands_proxy_read_only_without_printing_token(self):

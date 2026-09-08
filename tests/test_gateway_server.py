@@ -157,10 +157,13 @@ class GatewayServerTest(unittest.TestCase):
                     body = json.loads(response.read().decode("utf-8"))
                     self.assertEqual(response.status, HTTPStatus.CREATED)
                 self.assertEqual(body["session"]["session_id"], "cs-1234567890abcdef")
+                session_payload = get_json(f"{gateway.url}/v1/harness/sessions/cs-1234567890abcdef")
                 self.assertEqual(
-                    get_json(f"{gateway.url}/v1/harness/sessions/cs-1234567890abcdef")["session"]["session_id"],
+                    session_payload["session"]["session_id"],
                     "cs-1234567890abcdef",
                 )
+                self.assertNotIn("repository", session_payload)
+                self.assertNotIn("/home/example/private", json.dumps(session_payload, sort_keys=True))
                 delete_request = Request(f"{gateway.url}/v1/harness/sessions/cs-1234567890abcdef", method="DELETE")
                 with urlopen(delete_request, timeout=5) as response:
                     deleted = json.loads(response.read().decode("utf-8"))
@@ -180,12 +183,18 @@ class GatewayServerTest(unittest.TestCase):
                 )
                 self.assertEqual(status, HTTPStatus.ACCEPTED)
                 self.assertEqual(created["run"]["control_run_id"], "cr-1234567890abcdef")
+                self.assertNotIn("repository", created)
+                self.assertNotIn("/home/example/private", json.dumps(created, sort_keys=True))
                 fetched = get_json(f"{gateway.url}/v1/harness/runs/cr-1234567890abcdef")
                 self.assertEqual(fetched["run"]["status"], "succeeded")
+                self.assertNotIn("repository", fetched)
+                self.assertNotIn("/home/example/private", json.dumps(fetched, sort_keys=True))
                 events = get_json(f"{gateway.url}/v1/harness/runs/cr-1234567890abcdef/events")
                 self.assertEqual(events["control_run_id"], "cr-1234567890abcdef")
                 self.assertEqual([event["event"] for event in events["events"]], ["queued", "started", "finished"])
                 shown = json.dumps(events, sort_keys=True)
+                self.assertNotIn("repository", events)
+                self.assertNotIn("/home/example/private", shown)
                 self.assertNotIn("leaked fake response", shown)
                 self.assertNotIn("leaked task text", shown)
                 self.assertNotIn("leaked stderr", shown)
