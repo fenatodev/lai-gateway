@@ -168,3 +168,13 @@ phone**. The UI should report that a mobile session is active and show the sessi
 countdown. If the page is closed or the session expires, run the daily command again
 to print a fresh pair token. The **Forget token** button clears the browser token
 and asks the gateway to revoke the active mobile session from server memory.
+
+### Compact health report
+
+For the final daily operator summary, prefer the compact report:
+
+```bash
+lai-gateway health-report --candidate-ip <wsl-private-ip> --port 8787
+```
+
+It is read-only: it does not start servers, modify files, print token values, expose pair tokens, or enable MCP tool execution. Use `--telegram-notify` only when `LAI_GATEWAY_TELEGRAM_ENABLE_SEND=1` is deliberately set for that shell.

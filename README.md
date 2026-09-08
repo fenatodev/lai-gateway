@@ -10,7 +10,7 @@ The current gateway provides:
 
 - a dependency-free Python client for the harness control plane;
 - validation of the `lai harness v0.4.8` gateway contract, including the MCP broker foundation, read-only run-event timelines, and strict-template-safe remote diagnose runs;
-- a local CLI for `config`, `contract`, `status`, `readiness`, `doctor`, `open-ui`, `mcp`, `sessions`, and `runs`, including run-event timeline reads;
+- a local CLI for `config`, `contract`, `status`, `readiness`, `doctor`, `health-report`, `open-ui`, `mcp`, `sessions`, and `runs`, including run-event timeline reads;
 - an HTTP gateway exposing harness status, readiness, contract, MCP metadata, session, read-only run, and run-event routes, loopback by default with opt-in private LAN binding;
 - read-only run creation for `diagnose`, `plan`, `release`, `review`, and `security`, plus metadata-only timeline polling in the local UI.
 
@@ -121,6 +121,17 @@ python3 -m lai_gateway runs events <control_run_id>
 python3 -m lai_gateway runs events <control_run_id>
 ```
 
+
+## Health report
+
+Use the compact daily report when you need a quick operator view without starting servers, mutating files, or printing tokens:
+
+```bash
+lai-gateway health-report --candidate-ip <wsl-private-ip> --port 8787
+lai-gateway health-report --candidate-ip <wsl-private-ip> --port 8787 --telegram-notify
+```
+
+The report summarizes doctor, mobile, Telegram, model, model-runs, and MCP broker status. Telegram delivery still requires the explicit send enable flag; the report never includes gateway tokens, pair tokens, chat ids, or MCP credential values.
 
 ## MCP broker foundation
 

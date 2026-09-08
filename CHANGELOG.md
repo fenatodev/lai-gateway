@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- Add `lai-gateway health-report` as a compact read-only daily operator summary for Gateway, Harness, mobile, Telegram, model, model-runs, and MCP broker readiness, with optional explicit Telegram delivery and secret-free output.
+
 ### Fixed
 - Refresh current Gateway README and architecture docs to name Harness 0.4.8 as the verified baseline while preserving the 0.4.6+ minimum contract.
 - Make `model-smoke` use an explicit local connectivity health-check prompt so the validated Ministral baseline returns the fixed marker instead of refusing a bare marker request.
