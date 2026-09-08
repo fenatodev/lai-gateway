@@ -145,14 +145,33 @@ function compactHealthText(payload) {
   return lines.join("\n");
 }
 
+function healthSummaryText(payload) {
+  const overall = payload.overall || "unknown";
+  const checks = payload.checks || {};
+  const nextSteps = Array.isArray(payload.next_steps) ? payload.next_steps.length : 0;
+  const mobile = checks.mobile || "unknown";
+  const telegram = checks.telegram || "unknown";
+  const model = checks.gateway_model_probe || "unknown";
+  const mcp = checks.mcp_broker || "unknown";
+  if (overall === "ready" && nextSteps === 0) {
+    return "All systems ready. Mobile, Telegram, model, and MCP checks are ready.";
+  }
+  if (overall === "blocked") {
+    return `Health blocked. Review ${nextSteps || "the"} next step${nextSteps === 1 ? "" : "s"} before using remote controls.`;
+  }
+  return `Health ${overall}; ${nextSteps} next step${nextSteps === 1 ? "" : "s"}. Mobile ${mobile}, Telegram ${telegram}, model ${model}, MCP ${mcp}.`;
+}
+
 function setHealthReport(payload) {
   const overall = payload.overall || "unknown";
-  const state = overall === "ready" ? "ready" : overall === "blocked" ? "danger" : "running";
+  const nextSteps = Array.isArray(payload.next_steps) ? payload.next_steps.length : 0;
+  const state = overall === "ready" && nextSteps === 0 ? "ready" : overall === "blocked" ? "danger" : "warn";
   setPill("ops-pill", `health ${overall}`, state);
   const checks = payload.checks || {};
   const mobile = checks.mobile || "unknown";
   const telegram = checks.telegram || "unknown";
   const mcp = checks.mcp_broker || "unknown";
+  setCallout("health-summary", healthSummaryText(payload), state);
   setCheck("check-access", `Health: mobile ${mobile}, telegram ${telegram}, MCP ${mcp}.`, state);
   clearPairRequiredOutput("health-output");
   show("health-output", compactHealthText(payload));
