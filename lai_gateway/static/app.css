@@ -29,6 +29,7 @@ pre { min-width: 0; max-width: 100%; overflow: auto; white-space: pre-wrap; over
 .pill { display: inline-flex; align-items: center; min-height: 32px; border-radius: 999px; padding: 6px 12px; font-size: .9rem; background: rgb(255 255 255 / .09); border: 1px solid rgb(255 255 255 / .14); }
 .pill.ready { background: rgb(64 196 125 / .18); }
 .pill.running { background: rgb(120 168 255 / .18); }
+.pill.warn { background: rgb(255 198 87 / .18); }
 .pill.danger { background: rgb(255 106 106 / .18); }
 .history { display: grid; gap: 8px; margin: 0; padding-left: 22px; }
 #run-events-output { min-height: 120px; }
@@ -129,6 +130,10 @@ textarea { resize: vertical; }
 .callout.ready { background: rgb(64 196 125 / .16); }
 .callout.warn { background: rgb(255 198 87 / .14); }
 .callout.danger { background: rgb(255 106 106 / .16); }
+
+.health-summary {
+  font-weight: 700;
+}
 .primary { background: #ffffff; }
 .primary-actions .primary { flex: 2 1 220px; }
 .token-input { font-size: 1rem; letter-spacing: .02em; }
