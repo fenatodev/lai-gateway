@@ -68,13 +68,13 @@ class FakeHarnessHandler(BaseHTTPRequestHandler):
             })
             return
         if self.path.startswith("/v1/sessions?"):
-            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.7", "sessions": [{"session_id": "cs-1234567890abcdef", "turn_count": 0}]})
+            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.7", "repository": "/home/example/private/repo", "sessions": [{"session_id": "cs-1234567890abcdef", "turn_count": 0, "workspace_path": "/home/example/private/repo/.lai", "note": "safe relative src/app.py"}]})
             return
         if self.path.startswith("/v1/runs?"):
-            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.7", "runs": [{"run_id": "cr-1234567890abcdef", "status": "queued", "mode": "plan"}]})
+            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.7", "repository": "/home/example/private/repo", "runs": [{"run_id": "cr-1234567890abcdef", "status": "queued", "mode": "plan", "metrics_file": "/home/example/private/.local/metrics.jsonl"}]})
             return
         if self.path == "/v1/runs/cr-1234567890abcdef":
-            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.7", "run": {"control_run_id": "cr-1234567890abcdef", "status": "succeeded", "mode": "plan"}})
+            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.7", "repository": "/home/example/private/repo", "run": {"control_run_id": "cr-1234567890abcdef", "status": "succeeded", "mode": "plan", "audit_file": "/home/example/private/.local/audit.jsonl"}})
             return
         if self.path == "/v1/runs/cr-1234567890abcdef/events":
             self._send(HTTPStatus.OK, {
@@ -84,6 +84,7 @@ class FakeHarnessHandler(BaseHTTPRequestHandler):
                 "mode": "plan",
                 "status": "succeeded",
                 "terminal": True,
+                "repository": "/home/example/private/repo",
                 "stdout": "leaked fake response",
                 "task": "leaked task text",
                 "events": [
@@ -94,7 +95,7 @@ class FakeHarnessHandler(BaseHTTPRequestHandler):
             })
             return
         if self.path == "/v1/sessions/cs-1234567890abcdef":
-            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.7", "session": {"session_id": "cs-1234567890abcdef", "turn_count": 0, "turns": []}})
+            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.7", "repository": "/home/example/private/repo", "session": {"session_id": "cs-1234567890abcdef", "turn_count": 0, "turns": [], "cwd": "/home/example/private/repo"}})
             return
         self._send(HTTPStatus.NOT_FOUND, {"error": "not_found"})
 
@@ -117,7 +118,7 @@ class FakeHarnessHandler(BaseHTTPRequestHandler):
             self._send(HTTPStatus.UNAUTHORIZED, {"error": "auth_required"})
             return
         if self.path == "/v1/sessions":
-            self._send(HTTPStatus.CREATED, {"product": "lai harness", "version": "0.4.7", "session": {"session_id": "cs-1234567890abcdef", "turn_count": 0, "turns": []}})
+            self._send(HTTPStatus.CREATED, {"product": "lai harness", "version": "0.4.7", "repository": "/home/example/private/repo", "session": {"session_id": "cs-1234567890abcdef", "turn_count": 0, "turns": [], "cwd": "/home/example/private/repo"}})
             return
         if self.path == "/v1/mcp/policy-check":
             length = int(self.headers.get("Content-Length", "0"))
@@ -152,7 +153,7 @@ class FakeHarnessHandler(BaseHTTPRequestHandler):
         if self.path == "/v1/runs":
             length = int(self.headers.get("Content-Length", "0"))
             LAST_RUN_BODY = json.loads(self.rfile.read(length).decode("utf-8"))
-            self._send(HTTPStatus.ACCEPTED, {"product": "lai harness", "version": "0.4.7", "run": {"control_run_id": "cr-1234567890abcdef", "status": "queued", "mode": LAST_RUN_BODY.get("mode"), "session_id": LAST_RUN_BODY.get("session_id")}})
+            self._send(HTTPStatus.ACCEPTED, {"product": "lai harness", "version": "0.4.7", "repository": "/home/example/private/repo", "run": {"control_run_id": "cr-1234567890abcdef", "status": "queued", "mode": LAST_RUN_BODY.get("mode"), "session_id": LAST_RUN_BODY.get("session_id"), "workspace_path": "/home/example/private/work"}})
             return
         self._send(HTTPStatus.NOT_FOUND, {"error": "not_found"})
 

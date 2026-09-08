@@ -12,6 +12,7 @@ from lai_gateway.harness_client import (
     MCP_REDACTED_VALUE,
     normalize_run_list_payload,
     sanitize_mcp_payload,
+    sanitize_mobile_harness_payload,
     sanitize_run_events_payload,
 )
 
@@ -28,12 +29,22 @@ class HarnessClientTest(unittest.TestCase):
             self.assertEqual(contract["version"], "0.4.7")
             self.assertEqual(client.status()["product"], "lai harness")
             self.assertEqual(client.readiness()["overall"], "ready")
-            self.assertEqual(client.list_sessions()["sessions"][0]["session_id"], "cs-1234567890abcdef")
-            self.assertEqual(client.create_session()["session"]["session_id"], "cs-1234567890abcdef")
-            self.assertEqual(client.get_session("cs-1234567890abcdef")["session"]["session_id"], "cs-1234567890abcdef")
+            listed_sessions = client.list_sessions()
+            created_session = client.create_session()
+            fetched_session = client.get_session("cs-1234567890abcdef")
+            for payload in (listed_sessions, created_session, fetched_session):
+                shown = str(payload)
+                self.assertNotIn("repository", payload)
+                self.assertNotIn("/home/example/private", shown)
+                self.assertNotIn("workspace_path", shown)
+                self.assertNotIn("cwd", shown)
+            self.assertEqual(listed_sessions["sessions"][0]["session_id"], "cs-1234567890abcdef")
+            self.assertEqual(created_session["session"]["session_id"], "cs-1234567890abcdef")
+            self.assertEqual(fetched_session["session"]["session_id"], "cs-1234567890abcdef")
             deleted = client.delete_session("cs-1234567890abcdef")
             self.assertTrue(deleted["session"]["deleted"])
             self.assertEqual(deleted["session"]["session_id"], "cs-1234567890abcdef")
+            self.assertNotIn("/home/example/private", str(deleted))
 
     def test_fetches_and_creates_read_only_runs_with_bounded_body(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
@@ -50,12 +61,21 @@ class HarnessClientTest(unittest.TestCase):
             fetched = client.get_run("cr-1234567890abcdef")
             events = client.get_run_events("cr-1234567890abcdef")
 
+            for payload in (listed, created, fetched):
+                shown = str(payload)
+                self.assertNotIn("repository", payload)
+                self.assertNotIn("/home/example/private", shown)
+                self.assertNotIn("workspace_path", shown)
+                self.assertNotIn("metrics_file", shown)
+                self.assertNotIn("audit_file", shown)
             self.assertEqual(listed["runs"][0]["control_run_id"], "cr-1234567890abcdef")
             self.assertEqual(created["run"]["control_run_id"], "cr-1234567890abcdef")
             self.assertEqual(fetched["run"]["status"], "succeeded")
             self.assertEqual(events["control_run_id"], "cr-1234567890abcdef")
             self.assertEqual([event["event"] for event in events["events"]], ["queued", "started", "finished"])
             shown = str(events)
+            self.assertNotIn("repository", events)
+            self.assertNotIn("/home/example/private", shown)
             self.assertNotIn("leaked fake response", shown)
             self.assertNotIn("leaked task text", shown)
             self.assertNotIn("leaked stderr", shown)
@@ -89,6 +109,30 @@ class HarnessClientTest(unittest.TestCase):
                         client.get_run(run_id)
                     with self.assertRaises(ConfigError):
                         client.get_run_events(run_id)
+    def test_mobile_harness_sanitizer_strips_local_paths_and_raw_run_text(self):
+        payload = sanitize_mobile_harness_payload({
+            "repository": "/home/example/private/repo",
+            "session": {
+                "session_id": "cs-1234567890abcdef",
+                "cwd": "/home/example/private/repo",
+            },
+            "run": {
+                "control_run_id": "cr-1234567890abcdef",
+                "stdout": "raw output",
+                "note": "see /home/example/private/repo/src/app.py and src/app.py",
+            },
+            "events": [{"event": "started", "details": {"stderr": "raw error", "path": "src/app.py"}}],
+        })
+
+        shown = str(payload)
+        self.assertNotIn("repository", payload)
+        self.assertNotIn("/home/example/private", shown)
+        self.assertNotIn("cwd", shown)
+        self.assertNotIn("stdout", shown)
+        self.assertNotIn("stderr", shown)
+        self.assertIn("[redacted-local-path]", shown)
+        self.assertIn("src/app.py", shown)
+
 
     def test_run_events_sanitizer_removes_output_task_and_transcript_fields(self):
         payload = sanitize_run_events_payload({

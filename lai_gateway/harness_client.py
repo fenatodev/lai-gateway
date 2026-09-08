@@ -17,6 +17,12 @@ MAX_TASK_CHARS = 12000
 CONTROL_RUN_ID_RE = re.compile(r"^cr-[0-9a-f]{16}$")
 CONTROL_SESSION_ID_RE = re.compile(r"^cs-[0-9a-f]{16}$")
 MCP_REDACTED_VALUE = "[redacted-mcp-secret]"
+LOCAL_PATH_REDACTED_VALUE = "[redacted-local-path]"
+LOCAL_PATH_PATTERNS = (
+    re.compile(r"/home/[^\s\"']+"),
+    re.compile(r"/mnt/[a-zA-Z]/Users/[^\s\"']+"),
+    re.compile(r"[A-Za-z]:\\Users\\[^\s\"']+"),
+)
 MCP_SECRET_KEY_TERMS = (
     "access_token",
     "api_key",
@@ -75,34 +81,36 @@ class HarnessClient:
 
     def list_sessions(self, limit: int = 20) -> dict[str, Any]:
         _validate_limit(limit)
-        return self._request_json("GET", f"/v1/sessions?{urlencode({'limit': limit})}")
+        return sanitize_mobile_harness_payload(
+            self._request_json("GET", f"/v1/sessions?{urlencode({'limit': limit})}")
+        )
 
     def create_session(self) -> dict[str, Any]:
-        return self._request_json("POST", "/v1/sessions", {})
+        return sanitize_mobile_harness_payload(self._request_json("POST", "/v1/sessions", {}))
 
     def get_session(self, session_id: str) -> dict[str, Any]:
         validate_control_session_id(session_id)
-        return self._request_json("GET", f"/v1/sessions/{session_id}")
+        return sanitize_mobile_harness_payload(self._request_json("GET", f"/v1/sessions/{session_id}"))
 
     def delete_session(self, session_id: str) -> dict[str, Any]:
         validate_control_session_id(session_id)
-        return self._request_json("DELETE", f"/v1/sessions/{session_id}")
+        return sanitize_mobile_harness_payload(self._request_json("DELETE", f"/v1/sessions/{session_id}"))
 
     def list_runs(self, limit: int = 20) -> dict[str, Any]:
         _validate_limit(limit)
-        return normalize_run_list_payload(
+        return sanitize_mobile_harness_payload(normalize_run_list_payload(
             self._request_json("GET", f"/v1/runs?{urlencode({'limit': limit})}")
-        )
+        ))
 
     def get_run(self, run_id: str) -> dict[str, Any]:
         validate_control_run_id(run_id)
-        return self._request_json("GET", f"/v1/runs/{run_id}")
+        return sanitize_mobile_harness_payload(self._request_json("GET", f"/v1/runs/{run_id}"))
 
     def get_run_events(self, run_id: str) -> dict[str, Any]:
         validate_control_run_id(run_id)
-        return sanitize_run_events_payload(
+        return sanitize_mobile_harness_payload(sanitize_run_events_payload(
             self._request_json("GET", f"/v1/runs/{run_id}/events")
-        )
+        ))
 
     def create_read_only_run(
         self,
@@ -112,7 +120,7 @@ class HarnessClient:
         session_id: str | None = None,
     ) -> dict[str, Any]:
         body = build_read_only_run_body(mode=mode, task=task, session_id=session_id)
-        return self._request_json("POST", "/v1/runs", body)
+        return sanitize_mobile_harness_payload(self._request_json("POST", "/v1/runs", body))
 
     def _request_json(
         self,
@@ -193,6 +201,46 @@ def _strip_run_event_forbidden_fields(value: Any) -> Any:
     if isinstance(value, list):
         return [_strip_run_event_forbidden_fields(item) for item in value]
     return value
+
+
+MOBILE_HARNESS_FORBIDDEN_KEYS = RUN_EVENT_FORBIDDEN_KEYS | frozenset({
+    "audit_file",
+    "cwd",
+    "metrics_file",
+    "repository",
+    "root_path",
+    "workspace",
+    "workspace_path",
+})
+
+
+def sanitize_mobile_harness_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return phone/CLI session-run payloads without local paths or raw run text."""
+    clean = _strip_mobile_harness_private_fields(payload)
+    if not isinstance(clean, dict):
+        raise ConfigError("mobile harness payload must be a JSON object")
+    return clean
+
+
+def _strip_mobile_harness_private_fields(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            str(key): _strip_mobile_harness_private_fields(nested)
+            for key, nested in value.items()
+            if str(key).lower() not in MOBILE_HARNESS_FORBIDDEN_KEYS
+        }
+    if isinstance(value, list):
+        return [_strip_mobile_harness_private_fields(item) for item in value]
+    if isinstance(value, str):
+        return _redact_local_path_strings(value)
+    return value
+
+
+def _redact_local_path_strings(value: str) -> str:
+    redacted = value
+    for pattern in LOCAL_PATH_PATTERNS:
+        redacted = pattern.sub(LOCAL_PATH_REDACTED_VALUE, redacted)
+    return redacted
 
 
 def _sanitize_mcp_value(value: Any, *, key: str | None = None) -> Any:
