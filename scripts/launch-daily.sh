@@ -49,7 +49,7 @@ Start or validate the daily local LAI workflow:
   2. lai harness control plane
   3. private lai-gateway mobile server
   4. loopback mobile proxy for Tailscale Serve
-  5. final ops-status summary
+  5. final compact health-report summary
 
 Options:
   --candidate-ip IP       WSL/private IP where mobile gateway binds; defaults to daily-config
@@ -275,7 +275,7 @@ fi
 
 if [ "$check_only" = "1" ]; then
   say "check_only: true"
-  say "would_run: lai-server-start, lai serve, lai-gateway-mobile, lai-gateway-mobile-proxy, ops-status"
+  say "would_run: lai-server-start, lai serve, lai-gateway-mobile, lai-gateway-mobile-proxy, health-report"
   exit 0
 fi
 
@@ -355,8 +355,8 @@ if [ "$start_proxy" = "1" ]; then
   "$python_bin" -m lai_gateway mobile-proxy --check --listen-host "$proxy_listen_host" --listen-port "$proxy_listen_port" --target-host "$candidate_ip" --target-port "$port"
 fi
 
-say "step: ops"
-"$python_bin" -m lai_gateway ops-status --candidate-ip "$candidate_ip" --port "$port"
+say "step: health-report"
+"$python_bin" -m lai_gateway health-report --candidate-ip "$candidate_ip" --port "$port"
 if [ -n "${phone_url:-}" ]; then
   say "phone_url: $phone_url"
 else

@@ -17,6 +17,7 @@ from .doctor import collect_doctor, render_doctor
 from .daily_config import collect_daily_config, read_daily_config, render_daily_config, shell_exports, validate_daily_config, write_daily_config
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
+from .health import collect_health_report, render_health_report
 from .lan import collect_lan_info, render_lan_info
 from .model import check_model_api_key_file, collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_smoke, collect_model_status, collect_model_task, create_model_api_key_file, render_model_eval, render_model_files, render_model_key, render_model_plan, render_model_runs, render_model_smoke, render_model_status, render_model_task
 from .mobile import (
@@ -134,6 +135,13 @@ def main(argv: list[str] | None = None) -> int:
     ops_parser.add_argument("--telegram-token-file", default=None, help="telegram bot token file for preflight")
     ops_parser.add_argument("--telegram-chat-id", default=None, help="telegram chat id for preflight")
     ops_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    health_parser = sub.add_parser("health-report", help="show a compact read-only daily health report")
+    health_parser.add_argument("--candidate-ip", default=None, help="private LAN IP to probe for mobile readiness")
+    health_parser.add_argument("--port", type=int, default=None, help="gateway/mobile port to inspect")
+    health_parser.add_argument("--telegram-token-file", default=None, help="telegram bot token file for preflight or notification")
+    health_parser.add_argument("--telegram-chat-id", default=None, help="telegram chat id for preflight or notification")
+    health_parser.add_argument("--telegram-notify", action="store_true", help="send this health report to Telegram when explicitly enabled")
+    health_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     model_parser = sub.add_parser("model-status", help="inspect local model runtime readiness without starting or downloading models")
     model_parser.add_argument("--probe-openai", action="store_true", help="probe the configured local OpenAI-compatible /v1/models endpoint")
     model_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
@@ -447,6 +455,36 @@ def main(argv: list[str] | None = None) -> int:
             )
             if not args.json:
                 print(render_ops_status(payload))
+                return 0 if payload["overall"] != "blocked" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] != "blocked" else 1
+        if args.command == "health-report":
+            telegram_token_file = Path(args.telegram_token_file).expanduser() if args.telegram_token_file else None
+            payload = collect_health_report(
+                config=config,
+                mobile_candidate_ip=args.candidate_ip,
+                mobile_port=args.port,
+                telegram_token_file=telegram_token_file,
+                telegram_chat_id=args.telegram_chat_id,
+            )
+            if args.telegram_notify:
+                notify_payload = send_telegram_message(
+                    text=render_health_report(payload),
+                    token_file=telegram_token_file,
+                    chat_id=args.telegram_chat_id,
+                )
+                payload["telegram_notify"] = {
+                    "sent": True,
+                    "ok": bool(notify_payload.get("ok", False)),
+                    "message_id": notify_payload.get("message_id"),
+                    "token_printed": False,
+                    "token_included": False,
+                    "webhook_exposed": False,
+                }
+            if not args.json:
+                print(render_health_report(payload))
+                if args.telegram_notify:
+                    print(f"telegram_notify: sent {payload['telegram_notify'].get('message_id')}")
                 return 0 if payload["overall"] != "blocked" else 1
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0 if payload["overall"] != "blocked" else 1
