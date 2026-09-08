@@ -83,8 +83,10 @@
         <p class="muted">Compact read-only daily health for Harness, Gateway, model, MCP, mobile, and Telegram. Use this first; open the ops snapshot only when something needs detail.</p>
         <div class="actions">
           <button class="primary" data-action="refresh-health-report">Refresh health report</button>
+          <button data-action="send-health-report-telegram">Send health report to Telegram</button>
           <button data-action="refresh-ops-status">Refresh detailed ops snapshot</button>
         </div>
+        <p id="health-telegram-result" class="callout warn" aria-live="polite">Telegram delivery is manual and still requires Telegram send to be enabled on the gateway.</p>
         <pre id="health-output" aria-live="polite">Not loaded.</pre>
       </article>
 

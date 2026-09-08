@@ -537,6 +537,13 @@ async function runAction(action) {
     } else if (action === "refresh-health-report") {
       clearPairRequiredOutput("health-output");
       setHealthReport(await requestJson("/v1/gateway/health-report"));
+    } else if (action === "send-health-report-telegram") {
+      clearPairRequiredOutput("health-output");
+      setCallout("health-telegram-result", "Sending health report to Telegram...", "warn");
+      const payload = await requestJson("/v1/gateway/health-report/telegram", { method: "POST" });
+      setHealthReport(payload.health_report || payload);
+      const notify = payload.telegram_notify || {};
+      setCallout("health-telegram-result", notify.sent ? `Health report sent to Telegram. message_id=${notify.message_id || "unknown"}` : "Telegram delivery did not report success.", notify.sent ? "ready" : "danger");
     } else if (action === "refresh-ops-status") {
       clearPairRequiredOutput("ops-output");
       setOpsStatus(await requestJson("/v1/gateway/ops-status"));

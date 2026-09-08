@@ -15,7 +15,7 @@ from urllib.parse import parse_qs, urlparse
 
 from . import __version__
 from .access import collect_mobile_access
-from .health import collect_health_report
+from .health import collect_health_report, render_health_report
 from .ops import collect_ops_status
 from .config import GatewayConfig, read_gateway_access_token, validate_gateway_bind
 from .tokens import read_valid_gateway_pairing_token
@@ -28,6 +28,7 @@ from .harness_client import (
     is_control_session_id,
 )
 from .model import collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_status, collect_model_task
+from .telegram import send_telegram_message
 
 _REQUEST_BODY_MAX_BYTES = 64 * 1024
 _AUTH_FAILURE_LIMIT = 5
@@ -232,6 +233,44 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 return
             self._exchange_mobile_session()
             return
+        if parsed.path == "/v1/gateway/health-report/telegram":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            if not self._require_empty_body():
+                return
+            payload = collect_health_report(
+                config=self.server.config,
+                mobile_candidate_ip=self.server.server_address[0],
+                mobile_port=self.server.server_address[1],
+            )
+            try:
+                notify_payload = send_telegram_message(text=render_health_report(payload))
+            except ConfigError as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {
+                    "error": "telegram_notify_failed",
+                    "message": str(exc),
+                    "sent": False,
+                    "token_printed": False,
+                    "token_included": False,
+                    "webhook_exposed": False,
+                })
+                return
+            self._send_json(HTTPStatus.OK, {
+                "product": "lai-gateway",
+                "version": __version__,
+                "operation": "health-report-telegram-notify",
+                "overall": "ready",
+                "health_report": payload,
+                "telegram_notify": {
+                    "sent": True,
+                    "ok": bool(notify_payload.get("ok", False)),
+                    "message_id": notify_payload.get("message_id"),
+                    "token_printed": False,
+                    "token_included": False,
+                    "webhook_exposed": False,
+                },
+            })
+            return
         if parsed.path == "/v1/harness/sessions":
             if not self._authorize_gateway_api(parsed.path):
                 return
@@ -304,6 +343,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
     def _authorize_gateway_api(self, path: str) -> bool:
         protected_gateway_paths = {
             "/v1/gateway/health-report",
+            "/v1/gateway/health-report/telegram",
             "/v1/gateway/ops-status",
             "/v1/gateway/model-status",
             "/v1/gateway/model-plan",

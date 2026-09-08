@@ -36,9 +36,10 @@ class RunningGateway:
         self.thread.join(timeout=5)
 
 
-def read_url(url: str, headers: dict[str, str] | None = None) -> tuple[int, dict[str, str], str]:
+def read_url(url: str, headers: dict[str, str] | None = None, data: bytes | None = None, method: str | None = None) -> tuple[int, dict[str, str], str]:
     request_headers = {"Accept": "*/*", **(headers or {})}
-    with urlopen(Request(url, headers=request_headers), timeout=5) as response:
+    request = Request(url, data=data, headers=request_headers, method=method)
+    with urlopen(request, timeout=5) as response:
         headers = {key.lower(): value for key, value in response.headers.items()}
         return response.status, headers, response.read().decode("utf-8")
 
@@ -80,7 +81,9 @@ class GatewayUITest(unittest.TestCase):
                 self.assertIn('id="readiness-pill"', html)
                 self.assertIn('id="ops-pill"', html)
                 self.assertIn('id="health-output"', html)
+                self.assertIn('id="health-telegram-result"', html)
                 self.assertIn('data-action="refresh-health-report"', html)
+                self.assertIn('data-action="send-health-report-telegram"', html)
                 self.assertIn('Health Report', html)
                 self.assertIn('id="ops-output"', html)
                 self.assertIn('data-action="refresh-ops-status"', html)
@@ -150,6 +153,8 @@ class GatewayUITest(unittest.TestCase):
         self.assertIn("application/javascript", js_headers["content-type"])
         self.assertIn("/v1/gateway/mobile-access", js)
         self.assertIn("/v1/gateway/health-report", js)
+        self.assertIn("/v1/gateway/health-report/telegram", js)
+        self.assertIn("send-health-report-telegram", js)
         self.assertIn("/v1/gateway/ops-status", js)
         self.assertIn("/v1/gateway/model-status", js)
         self.assertIn("/v1/gateway/model-plan", js)
@@ -289,6 +294,78 @@ class GatewayUITest(unittest.TestCase):
         self.assertIn("mcp_broker", payload["checks"])
         self.assertNotIn(TOKEN, body)
         self.assertNotIn("Bearer", body)
+        self.assertNotIn("chat_id", body)
+
+    def test_gateway_health_report_telegram_endpoint_is_explicit_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with patch("lai_gateway.server.send_telegram_message", return_value={"ok": True, "message_id": 88}) as send:
+                with RunningGateway(config) as gateway:
+                    status, headers, body = read_url(
+                        f"{gateway.url}/v1/gateway/health-report/telegram",
+                        method="POST",
+                    )
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        payload = json.loads(body)
+        self.assertEqual(payload["operation"], "health-report-telegram-notify")
+        self.assertEqual(payload["telegram_notify"]["message_id"], 88)
+        self.assertEqual(payload["health_report"]["operation"], "health-report")
+        send.assert_called_once()
+        self.assertIn("lai-gateway health-report:", send.call_args.kwargs["text"])
+        self.assertNotIn(TOKEN, body + send.call_args.kwargs["text"])
+        self.assertNotIn("Bearer", body + send.call_args.kwargs["text"])
+        self.assertNotIn("chat_id", body + send.call_args.kwargs["text"])
+
+    def test_gateway_health_report_telegram_requires_empty_body(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with patch("lai_gateway.server.send_telegram_message") as send:
+                with RunningGateway(config) as gateway:
+                    try:
+                        read_url(
+                            f"{gateway.url}/v1/gateway/health-report/telegram",
+                            data=b"{}",
+                            method="POST",
+                        )
+                    except Exception as exc:
+                        self.assertIn("HTTP Error 400", str(exc))
+        send.assert_not_called()
+
+    def test_private_health_report_telegram_requires_gateway_auth(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            access_file = Path(tmp) / "access-token"
+            pair_file = Path(tmp) / "pair-token.json"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            access = create_gateway_access_token(access_file, include_token=True)["token"]
+            create_gateway_pairing_token(pair_file, ttl_seconds=600)
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            with patch("lai_gateway.server.send_telegram_message", return_value={"ok": True, "message_id": 89}):
+                with RunningGateway(config) as gateway:
+                    try:
+                        read_url(f"{gateway.url}/v1/gateway/health-report/telegram", method="POST")
+                    except Exception as exc:
+                        self.assertIn("HTTP Error 401", str(exc))
+                    status, _headers, body = read_url(
+                        f"{gateway.url}/v1/gateway/health-report/telegram",
+                        headers={"Authorization": f"Bearer {access}"},
+                        method="POST",
+                    )
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["operation"], "health-report-telegram-notify")
+        self.assertNotIn(access, body)
+        self.assertNotIn(TOKEN, body)
         self.assertNotIn("chat_id", body)
 
     def test_private_ops_status_requires_gateway_auth(self) -> None:
