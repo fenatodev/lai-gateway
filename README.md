@@ -9,7 +9,7 @@ It is intentionally a separate project. The harness owns local coding authority 
 The current gateway provides:
 
 - a dependency-free Python client for the harness control plane;
-- validation of the `lai harness v0.4.7` gateway contract, including the MCP broker foundation and read-only run-event timelines;
+- validation of the `lai harness v0.4.8` gateway contract, including the MCP broker foundation, read-only run-event timelines, and strict-template-safe remote diagnose runs;
 - a local CLI for `config`, `contract`, `status`, `readiness`, `doctor`, `open-ui`, `mcp`, `sessions`, and `runs`, including run-event timeline reads;
 - an HTTP gateway exposing harness status, readiness, contract, MCP metadata, session, read-only run, and run-event routes, loopback by default with opt-in private LAN binding;
 - read-only run creation for `diagnose`, `plan`, `release`, `review`, and `security`, plus metadata-only timeline polling in the local UI.
@@ -19,7 +19,7 @@ It does **not** expose write-capable run modes such as `implement`, `fix`, `refa
 ## Requirements
 
 - Python 3.11+
-- `lai harness` installed at `0.4.7+`
+- `lai harness` installed at `0.4.6+` minimum; `0.4.8` is the current verified baseline
 - `lai serve` running on loopback from the target harness repository directory
 - a local LAI control token file
 
@@ -124,7 +124,7 @@ python3 -m lai_gateway runs events <control_run_id>
 
 ## MCP broker foundation
 
-Gateway 0.1.34 validates Harness 0.4.6+ plus required contract capabilities; Harness 0.4.7 is the current verified baseline. MCP support remains metadata-only: the gateway can read MCP broker status, list declared MCP servers/tools, and ask the harness to classify an MCP operation. It does not execute MCP tools.
+Gateway 0.1.34 validates Harness 0.4.6+ plus required contract capabilities; Harness 0.4.8 is the current verified baseline. MCP support remains metadata-only: the gateway can read MCP broker status, list declared MCP servers/tools, and ask the harness to classify an MCP operation. It does not execute MCP tools.
 
 ```bash
 lai-gateway mcp status

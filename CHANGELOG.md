@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Fixed
+- Refresh current Gateway README and architecture docs to name Harness 0.4.8 as the verified baseline while preserving the 0.4.6+ minimum contract.
 - Make `model-smoke` use an explicit local connectivity health-check prompt so the validated Ministral baseline returns the fixed marker instead of refusing a bare marker request.
 - Persist token-free model runtime config from `scripts/launch-model.sh` and let `ops-status` run the safe local model probe so later checks can see the active endpoint without re-exporting environment variables.
 - Make `scripts/launch-model.sh --create-key` idempotently reuse an existing valid key file unless `--force-key` is explicitly requested.
