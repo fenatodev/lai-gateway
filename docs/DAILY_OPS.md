@@ -119,7 +119,7 @@ lai-gateway daily-config set \
 lai-gateway-daily --show-pair
 ```
 
-The wrapper keeps token values out of logs unless `--show-pair` is passed. It checks or starts `lai-server-start`, the harness control plane, `lai-gateway-mobile`, `lai-gateway-mobile-proxy`, and a final `ops-status` snapshot.
+The wrapper keeps token values out of logs unless `--show-pair` is passed. It checks or starts `lai-server-start`, the harness control plane, `lai-gateway-mobile`, `lai-gateway-mobile-proxy`, and a final compact `health-report` snapshot.
 
 For a dry plan without starting services:
 
@@ -176,5 +176,7 @@ For the final daily operator summary, prefer the compact report:
 ```bash
 lai-gateway health-report --candidate-ip <wsl-private-ip> --port 8787
 ```
+
+The Gateway UI shows this compact health report before the full operations detail so the daily answer is visible without reading raw JSON first.
 
 It is read-only: it does not start servers, modify files, print token values, expose pair tokens, or enable MCP tool execution. Use `--telegram-notify` only when `LAI_GATEWAY_TELEGRAM_ENABLE_SEND=1` is deliberately set for that shell.
