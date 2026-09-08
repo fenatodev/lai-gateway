@@ -177,6 +177,6 @@ For the final daily operator summary, prefer the compact report:
 lai-gateway health-report --candidate-ip <wsl-private-ip> --port 8787
 ```
 
-The Gateway UI shows this compact health report before the full operations detail so the daily answer is visible without reading raw JSON first.
+The Gateway UI shows this compact health report before the full operations detail so the daily answer is visible without reading raw JSON first. Use **Send health report to Telegram** only when you deliberately want a one-click status message; the backend still requires Telegram sending to be enabled to avoid accidental notifications.
 
 It is read-only: it does not start servers, modify files, print token values, expose pair tokens, or enable MCP tool execution. Use `--telegram-notify` only when `LAI_GATEWAY_TELEGRAM_ENABLE_SEND=1` is deliberately set for that shell.

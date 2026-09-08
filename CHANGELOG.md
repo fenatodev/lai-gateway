@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- Add an explicit local UI action to send the compact `health-report` to Telegram through a protected POST endpoint, preserving empty-body, read-only snapshot collection and secret-free responses.
 - Add `lai-gateway health-report` as a compact read-only daily operator summary for Gateway, Harness, mobile, Telegram, model, model-runs, and MCP broker readiness, with optional explicit Telegram delivery and secret-free output.
 - Surface the compact `health-report` in the local Gateway UI and keep the full `ops-status` JSON as a detail panel, preserving private-mode authentication and read-only behavior.
 

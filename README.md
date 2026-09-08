@@ -131,7 +131,7 @@ lai-gateway health-report --candidate-ip <wsl-private-ip> --port 8787
 lai-gateway health-report --candidate-ip <wsl-private-ip> --port 8787 --telegram-notify
 ```
 
-The local UI also exposes the same compact health report as the first operations card. The full `ops-status` payload remains available as a detail panel for deeper troubleshooting.
+The local UI also exposes the same compact health report as the first operations card. It can send that report to Telegram only through an explicit button and the same Telegram send enable flag used by the CLI; the full `ops-status` payload remains available as a detail panel for deeper troubleshooting.
 
 The report summarizes doctor, mobile, Telegram, model, model-runs, and MCP broker status. Telegram delivery still requires the explicit send enable flag; the report never includes gateway tokens, pair tokens, chat ids, or MCP credential values.
 
