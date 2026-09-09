@@ -86,6 +86,8 @@ python3 -m lai_gateway mcp status
 python3 -m lai_gateway mcp tools
 python3 -m lai_gateway mcp policy-check --operation call-tool --server desktop-commander --tool start_process
 python3 -m lai_gateway open-ui --print-only
+python3 -m lai_gateway stack-start
+python3 -m lai_gateway stack-start --check-only
 python3 -m lai_gateway lan-info --port 8787
 python3 -m lai_gateway mobile-access --port 8787
 python3 -m lai_gateway mobile-bridge --target tailscale --port 8787
@@ -176,7 +178,13 @@ The installer writes wrapper scripts to `$HOME/.local/bin` by default, including
 
 ## Local UI
 
-Start the harness and gateway, then open:
+Start the local stack and open the UI:
+
+```bash
+lai-gateway stack-start
+```
+
+Then open:
 
 ```text
 http://127.0.0.1:8787/

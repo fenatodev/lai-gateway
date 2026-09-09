@@ -52,6 +52,7 @@ class ScriptTest(unittest.TestCase):
             gateway = bin_dir / "lai-gateway"
             ui = bin_dir / "lai-gateway-ui"
             mobile = bin_dir / "lai-gateway-mobile"
+            stack_start = bin_dir / "lai-stack-start"
             model = bin_dir / "lai-gateway-model"
             mobile_proxy = bin_dir / "lai-gateway-mobile-proxy"
             daily = bin_dir / "lai-gateway-daily"
@@ -59,6 +60,7 @@ class ScriptTest(unittest.TestCase):
             self.assertTrue(gateway.exists())
             self.assertTrue(ui.exists())
             self.assertTrue(mobile.exists())
+            self.assertTrue(stack_start.exists())
             self.assertTrue(model.exists())
             self.assertTrue(mobile_proxy.exists())
             self.assertTrue(daily.exists())
@@ -67,12 +69,14 @@ class ScriptTest(unittest.TestCase):
             self.assertNotIn("TOKEN", gateway.read_text(encoding="utf-8").upper())
             self.assertNotIn("TOKEN", ui.read_text(encoding="utf-8").upper())
             self.assertNotIn("TOKEN", mobile.read_text(encoding="utf-8").upper())
+            self.assertNotIn("TOKEN", stack_start.read_text(encoding="utf-8").upper())
             self.assertNotIn("TOKEN", model.read_text(encoding="utf-8").upper())
             self.assertNotIn("TOKEN", mobile_proxy.read_text(encoding="utf-8").upper())
             self.assertNotIn("TOKEN", daily.read_text(encoding="utf-8").upper())
             self.assertNotIn("TOKEN", stack_check.read_text(encoding="utf-8").upper())
             self.assertIn("repo_dir=", ui.read_text(encoding="utf-8"))
             self.assertIn("repo_dir=", mobile.read_text(encoding="utf-8"))
+            self.assertIn("stack-start", stack_start.read_text(encoding="utf-8"))
             self.assertIn("repo_dir=", model.read_text(encoding="utf-8"))
             self.assertIn("mobile-proxy", mobile_proxy.read_text(encoding="utf-8"))
             self.assertIn("launch-daily.sh", daily.read_text(encoding="utf-8"))
@@ -86,6 +90,15 @@ class ScriptTest(unittest.TestCase):
                 timeout=10,
             )
             self.assertIn("lai-gateway-mobile", mobile_help.stdout)
+            stack_start_help = subprocess.run(
+                [str(stack_start), "--help"],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=10,
+            )
+            self.assertIn("stack-start", stack_start_help.stdout)
             model_help = subprocess.run(
                 [str(model), "--help"],
                 text=True,

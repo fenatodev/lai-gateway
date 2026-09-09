@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- Add `lai-gateway stack-start` and the installed `lai-stack-start` wrapper to start or reuse the local model server, Harness control plane, and loopback Gateway UI with secret-free diagnostics.
+
 ### Fixed
 - Sanitize Gateway session/run/event payloads for mobile read-only dogfood by removing local repository paths and raw run text from the phone-facing surface.
 

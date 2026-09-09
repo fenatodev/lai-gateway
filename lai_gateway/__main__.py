@@ -34,6 +34,7 @@ from .ops import collect_ops_status, render_ops_status
 from .proxy import collect_mobile_proxy_status, dump_mobile_proxy_json, render_mobile_proxy_status, run_mobile_proxy, validate_mobile_proxy_config
 from .release import collect_release_check, render_release_check
 from .server import serve
+from .stack import render_local_stack, resolve_harness_repo, start_local_stack
 from .service import (
     collect_service_plan,
     install_service_unit,
@@ -231,6 +232,15 @@ def main(argv: list[str] | None = None) -> int:
     service_remove_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     open_ui_parser = sub.add_parser("open-ui", help="print or open the local gateway UI URL")
     open_ui_parser.add_argument("--print-only", action="store_true", help="only print the UI URL")
+    stack_parser = sub.add_parser("stack-start", help="start or reuse the local model, harness control plane, and Gateway UI")
+    stack_parser.add_argument("--harness-repo", default=None, help="lai harness checkout directory; defaults to sibling checkout or ~/dev/projects/lai-local-agent")
+    stack_parser.add_argument("--gateway-port", type=int, default=None, help="Gateway UI port; defaults to LAI_GATEWAY_PORT or 8787")
+    stack_parser.add_argument("--log-dir", default=None, help="directory for background service logs; defaults to ~/.local/state/lai-gateway")
+    stack_parser.add_argument("--skip-model", action="store_true", help="do not run lai-server-start before starting the stack")
+    stack_parser.add_argument("--open", action="store_true", help="open the Gateway UI after the stack is ready")
+    stack_parser.add_argument("--check-only", action="store_true", help="print the planned local stack without starting services")
+    stack_parser.add_argument("--timeout-seconds", type=float, default=30.0, help="seconds to wait for services to become ready")
+    stack_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     dev_parser = sub.add_parser("dev", help="check harness and serve the local gateway UI")
     dev_parser.add_argument("--bind", default=None, help="gateway bind address allowed by config policy")
     dev_parser.add_argument("--port", type=int, default=None, help="gateway port")
@@ -605,6 +615,23 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
+        if args.command == "stack-start":
+            config = _config_with_overrides(config, None, args.gateway_port)
+            payload = start_local_stack(
+                config,
+                harness_repo=resolve_harness_repo(args.harness_repo),
+                gateway_port=args.gateway_port or config.port,
+                log_dir=Path(args.log_dir).expanduser() if args.log_dir else None,
+                start_model=not args.skip_model,
+                open_browser=args.open,
+                check_only=args.check_only,
+                timeout_seconds=args.timeout_seconds,
+            )
+            if args.json:
+                print(json.dumps(payload, indent=2, sort_keys=True))
+            else:
+                print(render_local_stack(payload))
+            return 0 if payload["overall"] in {"ready", "planned"} else 1
         if args.command == "mobile-access":
             payload = collect_mobile_access(port=args.port or config.port, bind=args.bind or config.bind)
             if not args.json:

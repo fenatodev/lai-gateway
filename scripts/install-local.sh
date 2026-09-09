@@ -26,6 +26,19 @@ exec "\$repo_dir/scripts/launch-local.sh" "\$@"
 EOF
 chmod 755 "$bin_dir/lai-gateway-ui"
 
+cat > "$bin_dir/lai-stack-start" <<EOF
+#!/usr/bin/env sh
+repo_dir='$repo_dir'
+python_bin='$python_bin'
+if [ -n "\${PYTHONPATH:-}" ]; then
+  export PYTHONPATH="\$repo_dir:\$PYTHONPATH"
+else
+  export PYTHONPATH="\$repo_dir"
+fi
+exec "\$python_bin" -m lai_gateway stack-start "\$@"
+EOF
+chmod 755 "$bin_dir/lai-stack-start"
+
 cat > "$bin_dir/lai-gateway-mobile" <<EOF
 #!/usr/bin/env sh
 repo_dir='$repo_dir'
