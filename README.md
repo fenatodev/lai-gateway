@@ -9,17 +9,18 @@ It is intentionally a separate project. The harness owns local coding authority 
 The current gateway provides:
 
 - a dependency-free Python client for the harness control plane;
-- validation of the `lai harness v0.4.8` gateway contract, including the MCP broker foundation, read-only run-event timelines, and strict-template-safe remote diagnose runs;
-- a local CLI for `config`, `contract`, `status`, `readiness`, `doctor`, `health-report`, `open-ui`, `mcp`, `sessions`, and `runs`, including run-event timeline reads;
-- an HTTP gateway exposing harness status, readiness, contract, MCP metadata, session, read-only run, and run-event routes, loopback by default with opt-in private LAN binding;
-- read-only run creation for `diagnose`, `plan`, `release`, `review`, and `security`, plus metadata-only timeline polling in the local UI.
+- validation of the `lai harness` gateway contract, including the MCP broker foundation, read-only run-event timelines, strict-template-safe remote diagnose runs, and the v0.5.0 local-chat workbench contract when available;
+- a local CLI for `config`, `contract`, `status`, `readiness`, `doctor`, `health-report`, `open-ui`, `stack-start`, `mcp`, `sessions`, and `runs`, including run-event timeline reads;
+- an HTTP gateway exposing harness status, readiness, contract, MCP metadata, session, read-only run, run-event, and local-chat workbench routes;
+- read-only run creation for `diagnose`, `plan`, `release`, `review`, and `security`, plus metadata-only timeline polling in the local UI;
+- a loopback-only Local Workbench for `lai harness` v0.5.0 local-chat workspaces, model choices, work runs, review, lifecycle cancel, and hash-bound promotion.
 
-It does **not** expose write-capable run modes such as `implement`, `fix`, `refactor`, or `ci-fix`.
+It does **not** expose write-capable workbench routes through private LAN/mobile mode, and it still does not expose shell execution, MCP tool execution, direct source-checkout writes, GitHub publication authority, or the harness control token to the browser.
 
 ## Requirements
 
 - Python 3.11+
-- `lai harness` installed at `0.4.6+` minimum; `0.4.8` is the current verified baseline
+- `lai harness` installed at `0.4.6+` minimum for Gateway basics; `0.5.0+` is required for the Local Workbench local-chat routes
 - `lai serve` running on loopback from the target harness repository directory
 - a local LAI control token file
 
@@ -133,7 +134,7 @@ lai-gateway health-report --candidate-ip <wsl-private-ip> --port 8787
 lai-gateway health-report --candidate-ip <wsl-private-ip> --port 8787 --telegram-notify
 ```
 
-The local UI also exposes the same compact health report as the first operations card, including a visual ready/warn/blocked summary before the detailed text. It can send that report to Telegram only through an explicit button and the same Telegram send enable flag used by the CLI; the full `ops-status` payload remains available as a detail panel for deeper troubleshooting.
+The local UI also exposes a loopback-only Local Workbench for the Harness local-chat contract, plus the same compact health report as the first operations card, including a visual ready/warn/blocked summary before the detailed text. It can send that report to Telegram only through an explicit button and the same Telegram send enable flag used by the CLI; the full `ops-status` payload remains available as a detail panel for deeper troubleshooting.
 
 The report summarizes doctor, mobile, Telegram, model, model-runs, and MCP broker status. Telegram delivery still requires the explicit send enable flag; the report never includes gateway tokens, pair tokens, chat ids, or MCP credential values.
 

@@ -21,6 +21,7 @@ from .config import GatewayConfig, read_gateway_access_token, validate_gateway_b
 from .tokens import read_valid_gateway_pairing_token
 from .errors import ConfigError, GatewayError, HarnessHTTPError
 from .harness_client import (
+    LOCAL_CHAT_RUN_MODES,
     READ_ONLY_RUN_MODES,
     HarnessClient,
     build_read_only_run_body,
@@ -159,6 +160,41 @@ class GatewayHandler(BaseHTTPRequestHandler):
             self._attach_mobile_session_status(payload)
             self._send_json(HTTPStatus.OK, payload)
             return
+        if parsed.path == "/v1/local-chat/contract":
+            if not self._authorize_local_chat_api():
+                return
+            self._proxy(lambda: self.server.client.local_chat_contract())
+            return
+        if parsed.path == "/v1/local-chat/workspaces":
+            if not self._authorize_local_chat_api():
+                return
+            self._proxy(lambda: self.server.client.local_chat_workspaces())
+            return
+        if parsed.path == "/v1/local-chat/models":
+            if not self._authorize_local_chat_api():
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            workspace_id = values.get("workspace_id", [""])[0]
+            self._proxy(lambda: self.server.client.local_chat_models(workspace_id))
+            return
+        local_events_match = re.fullmatch(r"/v1/local-chat/runs/(cr-[0-9a-f]{16})/events", parsed.path)
+        if local_events_match:
+            if not self._authorize_local_chat_api():
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            cursor = self._nonnegative_int_query(values.get("cursor", ["0"])[0], default=0, maximum=1000000, error_name="cursor")
+            if cursor is None:
+                return
+            self._proxy(lambda: self.server.client.get_local_chat_events(local_events_match.group(1), cursor=cursor))
+            return
+        local_review_match = re.fullmatch(r"/v1/local-chat/runs/(cr-[0-9a-f]{16})/review", parsed.path)
+        if local_review_match:
+            if not self._authorize_local_chat_api():
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            workspace_id = values.get("workspace_id", [""])[0]
+            self._proxy(lambda: self.server.client.get_local_chat_review(local_review_match.group(1), workspace_id))
+            return
         if parsed.path == "/v1/harness/status":
             if not self._authorize_gateway_api(parsed.path):
                 return
@@ -271,6 +307,47 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 },
             })
             return
+        if parsed.path == "/v1/local-chat/runs":
+            if not self._authorize_local_chat_api():
+                return
+            body = self._read_local_chat_run_body()
+            if body is None:
+                return
+            self._proxy(
+                lambda: self.server.client.create_local_chat_run(
+                    mode=body["mode"],
+                    task=body["task"],
+                    workspace_id=body["workspace_id"],
+                    model_id=body["model_id"],
+                    session_id=body.get("session_id"),
+                ),
+                success=HTTPStatus.ACCEPTED,
+            )
+            return
+        local_promotion_match = re.fullmatch(r"/v1/local-chat/runs/(cr-[0-9a-f]{16})/promotion", parsed.path)
+        if local_promotion_match:
+            if not self._authorize_local_chat_api():
+                return
+            body = self._read_promotion_body()
+            if body is None:
+                return
+            self._proxy(
+                lambda: self.server.client.promote_local_chat_run(
+                    local_promotion_match.group(1),
+                    workspace_id=body["workspace_id"],
+                    patch_sha256=body["patch_sha256"],
+                )
+            )
+            return
+        local_lifecycle_match = re.fullmatch(r"/v1/local-chat/runs/(cr-[0-9a-f]{16})/lifecycle", parsed.path)
+        if local_lifecycle_match:
+            if not self._authorize_local_chat_api():
+                return
+            body = self._read_lifecycle_body()
+            if body is None:
+                return
+            self._proxy(lambda: self.server.client.local_chat_lifecycle(local_lifecycle_match.group(1), action=body["action"]))
+            return
         if parsed.path == "/v1/harness/sessions":
             if not self._authorize_gateway_api(parsed.path):
                 return
@@ -339,6 +416,23 @@ class GatewayHandler(BaseHTTPRequestHandler):
         self._send_bytes(HTTPStatus.OK, data, content_type)
         return True
 
+
+    def _authorize_local_chat_api(self) -> bool:
+        if self.server.config.private_bind_enabled:
+            self._send_json(HTTPStatus.FORBIDDEN, {"error": "local_chat_loopback_only"})
+            return False
+        client_host = self.client_address[0] if self.client_address else ""
+        if client_host not in {"127.0.0.1", "::1"}:
+            self._send_json(HTTPStatus.FORBIDDEN, {"error": "local_chat_client_loopback_only"})
+            return False
+        if not _is_loopback_http_host(self.headers.get("Host", "")):
+            self._send_json(HTTPStatus.FORBIDDEN, {"error": "local_chat_host_loopback_only"})
+            return False
+        origin = self.headers.get("Origin")
+        if origin and not _is_loopback_http_origin(origin):
+            self._send_json(HTTPStatus.FORBIDDEN, {"error": "local_chat_origin_loopback_only"})
+            return False
+        return True
 
     def _authorize_gateway_api(self, path: str) -> bool:
         protected_gateway_paths = {
@@ -615,6 +709,17 @@ class GatewayHandler(BaseHTTPRequestHandler):
             return None
         return value
 
+    def _nonnegative_int_query(self, raw: str, *, default: int, maximum: int, error_name: str = "value") -> int | None:
+        try:
+            value = int(raw or str(default))
+        except ValueError:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": f"invalid_{error_name}"})
+            return None
+        if not 0 <= value <= maximum:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": f"invalid_{error_name}"})
+            return None
+        return value
+
     def _require_empty_body(self) -> bool:
         raw_length = self.headers.get("Content-Length", "0")
         try:
@@ -682,6 +787,62 @@ class GatewayHandler(BaseHTTPRequestHandler):
             return None
         return {"operation": operation, "server": server, "tool": tool}
 
+    def _read_local_chat_run_body(self) -> dict[str, str] | None:
+        payload = self._read_json_object(
+            allowed_keys={"mode", "task", "workspace_id", "model_id", "session_id"},
+            unsupported_error="unsupported_local_chat_run_fields",
+        )
+        if payload is None:
+            return None
+        mode = payload.get("mode")
+        task = payload.get("task")
+        workspace_id = payload.get("workspace_id")
+        model_id = payload.get("model_id", "default")
+        session_id = payload.get("session_id")
+        if not all(isinstance(value, str) for value in [mode, task, workspace_id, model_id]):
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_local_chat_run_body"})
+            return None
+        if session_id is not None and not isinstance(session_id, str):
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_local_chat_run_body"})
+            return None
+        if mode not in LOCAL_CHAT_RUN_MODES:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "unsupported_local_chat_mode"})
+            return None
+        return {
+            "mode": mode,
+            "task": task,
+            "workspace_id": workspace_id,
+            "model_id": model_id,
+            **({"session_id": session_id} if session_id else {}),
+        }
+
+    def _read_promotion_body(self) -> dict[str, str] | None:
+        payload = self._read_json_object(
+            allowed_keys={"workspace_id", "patch_sha256"},
+            unsupported_error="unsupported_promotion_fields",
+        )
+        if payload is None:
+            return None
+        workspace_id = payload.get("workspace_id")
+        patch_sha256 = payload.get("patch_sha256")
+        if not isinstance(workspace_id, str) or not isinstance(patch_sha256, str):
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_promotion_body"})
+            return None
+        return {"workspace_id": workspace_id, "patch_sha256": patch_sha256}
+
+    def _read_lifecycle_body(self) -> dict[str, str] | None:
+        payload = self._read_json_object(
+            allowed_keys={"action"},
+            unsupported_error="unsupported_lifecycle_fields",
+        )
+        if payload is None:
+            return None
+        action = payload.get("action")
+        if action != "cancel":
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "unsupported_lifecycle_action"})
+            return None
+        return {"action": action}
+
     def _read_run_body(self) -> dict[str, str] | None:
         payload = self._read_json_object(
             allowed_keys={"mode", "task", "session_id"},
@@ -725,6 +886,19 @@ class GatewayHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+
+def _is_loopback_http_host(raw: str) -> bool:
+    host = raw.rsplit("@", 1)[-1].split(":", 1)[0].strip("[]").lower()
+    return host in {"127.0.0.1", "localhost", "::1"}
+
+
+def _is_loopback_http_origin(raw: str) -> bool:
+    try:
+        parsed = urlparse(raw)
+    except Exception:
+        return False
+    return parsed.scheme == "http" and (parsed.hostname or "").lower() in {"127.0.0.1", "localhost", "::1"}
 
 
 def serve(config: GatewayConfig) -> None:

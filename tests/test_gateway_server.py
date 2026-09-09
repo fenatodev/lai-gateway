@@ -131,6 +131,67 @@ def get_json_error(url: str, headers: dict[str, str] | None = None) -> tuple[int
 
 
 class GatewayServerTest(unittest.TestCase):
+
+    def test_gateway_local_chat_loopback_proxies_work_run_review_and_promotion(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            with RunningGateway(self._config(tmp, harness.url)) as gateway:
+                contract = get_json(f"{gateway.url}/v1/local-chat/contract")
+                self.assertTrue(contract["negotiated"])
+
+                workspaces = get_json(f"{gateway.url}/v1/local-chat/workspaces")
+                workspace_id = workspaces["workspaces"][0]["workspace_id"]
+
+                models = get_json(f"{gateway.url}/v1/local-chat/models?workspace_id={workspace_id}")
+                self.assertEqual(models["models"][0]["model_id"], "default")
+
+                run_status, run = post_json(
+                    f"{gateway.url}/v1/local-chat/runs",
+                    {"mode": "implement", "task": "safe task", "workspace_id": workspace_id, "model_id": "default"},
+                )
+                self.assertEqual(run_status, HTTPStatus.ACCEPTED)
+                self.assertEqual(run["run"]["mode"], "implement")
+
+                events = get_json(f"{gateway.url}/v1/local-chat/runs/cr-1234567890abcdef/events?cursor=0")
+                self.assertTrue(events["terminal"])
+
+                review = get_json(f"{gateway.url}/v1/local-chat/runs/cr-1234567890abcdef/review?workspace_id={workspace_id}")
+                patch_sha = review["review"]["patch_sha256"]
+
+                promotion_status, promotion = post_json(
+                    f"{gateway.url}/v1/local-chat/runs/cr-1234567890abcdef/promotion",
+                    {"workspace_id": workspace_id, "patch_sha256": patch_sha},
+                )
+                self.assertEqual(promotion_status, HTTPStatus.OK)
+                self.assertFalse(promotion["promotion"]["push_performed"])
+
+    def test_private_gateway_rejects_local_chat_work_surface(self) -> None:
+        with fake_harness() as harness, tempfile.TemporaryDirectory() as tmp:
+            token_file = Path(tmp) / "control-token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            access_file = Path(tmp) / "gateway-token"
+            create_gateway_access_token(access_file)
+            config = GatewayConfig.from_env({
+                "LAI_GATEWAY_HARNESS_URL": harness.url,
+                "LAI_GATEWAY_TOKEN_FILE": str(token_file),
+                "LAI_GATEWAY_BIND": "127.0.0.1",
+                "LAI_GATEWAY_PRIVATE_BIND": "1",
+                "LAI_GATEWAY_ACCESS_TOKEN_FILE": str(access_file),
+            })
+            with RunningGateway(config) as gateway:
+                status, body = get_json_error(f"{gateway.url}/v1/local-chat/contract")
+                self.assertEqual(status, HTTPStatus.FORBIDDEN)
+                self.assertEqual(body["error"], "local_chat_loopback_only")
+
+    def test_gateway_local_chat_rejects_foreign_browser_origin(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            with RunningGateway(self._config(tmp, harness.url)) as gateway:
+                status, body = get_json_error(
+                    f"{gateway.url}/v1/local-chat/contract",
+                    headers={"Origin": "http://example.invalid"},
+                )
+                self.assertEqual(status, HTTPStatus.FORBIDDEN)
+                self.assertEqual(body["error"], "local_chat_origin_loopback_only")
+
     def _config(self, tmp: str, harness_url: str) -> GatewayConfig:
         token_file = Path(tmp) / "token"
         token_file.write_text(TOKEN, encoding="utf-8")

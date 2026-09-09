@@ -13,7 +13,11 @@ from .errors import ConfigError, HarnessHTTPError
 
 MAX_RESPONSE_BYTES = 1024 * 1024
 READ_ONLY_RUN_MODES = frozenset({"diagnose", "plan", "release", "review", "security"})
+WORK_RUN_MODES = frozenset({"ci-fix", "fix", "implement", "refactor"})
+LOCAL_CHAT_RUN_MODES = READ_ONLY_RUN_MODES | WORK_RUN_MODES
 MAX_TASK_CHARS = 12000
+MAX_LOCAL_CHAT_TASK_CHARS = 12000
+LOCAL_WORKSPACE_ID_RE = re.compile(r"^lw-[0-9a-f]{16}$")
 CONTROL_RUN_ID_RE = re.compile(r"^cr-[0-9a-f]{16}$")
 CONTROL_SESSION_ID_RE = re.compile(r"^cs-[0-9a-f]{16}$")
 MCP_REDACTED_VALUE = "[redacted-mcp-secret]"
@@ -122,11 +126,78 @@ class HarnessClient:
         body = build_read_only_run_body(mode=mode, task=task, session_id=session_id)
         return sanitize_mobile_harness_payload(self._request_json("POST", "/v1/runs", body))
 
+    def local_chat_contract(self) -> dict[str, Any]:
+        return self._request_json("GET", "/v1/local-chat/contract?client_version=1")
+
+    def local_chat_workspaces(self) -> dict[str, Any]:
+        return self._request_json("GET", "/v1/local-chat/workspaces?client_version=1")
+
+    def local_chat_models(self, workspace_id: str) -> dict[str, Any]:
+        validate_local_workspace_id(workspace_id)
+        return self._request_json("GET", f"/v1/local-chat/models?{urlencode({'client_version': 1, 'workspace_id': workspace_id})}")
+
+    def create_local_chat_run(
+        self,
+        *,
+        mode: str,
+        task: str,
+        workspace_id: str,
+        model_id: str = "default",
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        body = build_local_chat_run_body(
+            mode=mode,
+            task=task,
+            workspace_id=workspace_id,
+            model_id=model_id,
+            session_id=session_id,
+        )
+        return self._request_json("POST", "/v1/local-chat/runs", body, extra_headers=self._local_chat_csrf_headers())
+
+    def get_local_chat_events(self, run_id: str, cursor: int = 0) -> dict[str, Any]:
+        validate_control_run_id(run_id)
+        if cursor < 0 or cursor > 1000000:
+            raise ConfigError("cursor must be between 0 and 1000000")
+        query = urlencode({"client_version": 1, "cursor": cursor})
+        return self._request_json("GET", f"/v1/local-chat/runs/{run_id}/events?{query}")
+
+    def get_local_chat_review(self, run_id: str, workspace_id: str) -> dict[str, Any]:
+        validate_control_run_id(run_id)
+        validate_local_workspace_id(workspace_id)
+        query = urlencode({"client_version": 1, "workspace_id": workspace_id})
+        return self._request_json("GET", f"/v1/local-chat/runs/{run_id}/review?{query}")
+
+    def promote_local_chat_run(self, run_id: str, *, workspace_id: str, patch_sha256: str) -> dict[str, Any]:
+        validate_control_run_id(run_id)
+        validate_local_workspace_id(workspace_id)
+        if not re.fullmatch(r"[0-9a-f]{64}", patch_sha256):
+            raise ConfigError("patch_sha256 must be 64 lowercase hex characters")
+        body = {"workspace_id": workspace_id, "patch_sha256": patch_sha256}
+        return self._request_json("POST", f"/v1/local-chat/runs/{run_id}/promotion", body, extra_headers=self._local_chat_csrf_headers())
+
+    def local_chat_lifecycle(self, run_id: str, *, action: str) -> dict[str, Any]:
+        validate_control_run_id(run_id)
+        if action != "cancel":
+            raise ConfigError("only cancel lifecycle action is exposed by the Gateway")
+        return self._request_json("POST", f"/v1/local-chat/runs/{run_id}/lifecycle", {"action": action}, extra_headers=self._local_chat_csrf_headers())
+
+    def _local_chat_csrf_headers(self) -> dict[str, str]:
+        contract = self.local_chat_contract()
+        security = contract.get("security") if isinstance(contract.get("security"), dict) else {}
+        header = security.get("csrf_header")
+        token = security.get("csrf_token")
+        if not isinstance(header, str) or not header:
+            raise ConfigError("local-chat contract did not provide a CSRF header")
+        if not isinstance(token, str) or not token:
+            raise ConfigError("local-chat contract did not provide a CSRF token")
+        return {header: token}
+
     def _request_json(
         self,
         method: str,
         path: str,
         body: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         token = read_control_token(self.config.token_file)
         data = None
@@ -135,6 +206,8 @@ class HarnessClient:
             "Authorization": f"Bearer {token}",
             "Cache-Control": "no-store",
         }
+        if extra_headers:
+            headers.update(extra_headers)
         if body is not None:
             data = json.dumps(body, sort_keys=True).encode("utf-8")
             headers["Content-Type"] = "application/json; charset=utf-8"
@@ -288,6 +361,10 @@ def is_control_session_id(value: str) -> bool:
     return isinstance(value, str) and CONTROL_SESSION_ID_RE.fullmatch(value) is not None
 
 
+def is_local_workspace_id(value: str) -> bool:
+    return isinstance(value, str) and LOCAL_WORKSPACE_ID_RE.fullmatch(value) is not None
+
+
 def validate_control_run_id(value: str) -> None:
     if not is_control_run_id(value):
         raise ConfigError("invalid run_id")
@@ -296,6 +373,11 @@ def validate_control_run_id(value: str) -> None:
 def validate_control_session_id(value: str) -> None:
     if not is_control_session_id(value):
         raise ConfigError("invalid session_id")
+
+
+def validate_local_workspace_id(value: str) -> None:
+    if not is_local_workspace_id(value):
+        raise ConfigError("invalid workspace_id")
 
 
 def normalize_run_list_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -328,6 +410,36 @@ def build_read_only_run_body(*, mode: str, task: str, session_id: str | None = N
     if len(task) > MAX_TASK_CHARS:
         raise ConfigError(f"task must be at most {MAX_TASK_CHARS} characters")
     body = {"mode": mode, "task": task}
+    if session_id is not None:
+        validate_control_session_id(session_id)
+        body["session_id"] = session_id
+    return body
+
+
+def build_local_chat_run_body(
+    *,
+    mode: str,
+    task: str,
+    workspace_id: str,
+    model_id: str = "default",
+    session_id: str | None = None,
+) -> dict[str, str | int]:
+    if mode not in LOCAL_CHAT_RUN_MODES:
+        allowed = ", ".join(sorted(LOCAL_CHAT_RUN_MODES))
+        raise ConfigError(f"mode must be allowed by local-chat; allowed: {allowed}")
+    if not isinstance(task, str) or not task.strip():
+        raise ConfigError("task must be a non-empty string")
+    if len(task) > MAX_LOCAL_CHAT_TASK_CHARS:
+        raise ConfigError(f"task must be at most {MAX_LOCAL_CHAT_TASK_CHARS} characters")
+    validate_local_workspace_id(workspace_id)
+    _validate_id(model_id, "model_id")
+    body: dict[str, str | int] = {
+        "client_version": 1,
+        "workspace_id": workspace_id,
+        "model_id": model_id,
+        "mode": mode,
+        "task": task,
+    }
     if session_id is not None:
         validate_control_session_id(session_id)
         body["session_id"] = session_id

@@ -1,4 +1,6 @@
 const READ_ONLY_MODES = new Set(["diagnose", "plan", "release", "review", "security"]);
+const LOCAL_CHAT_MODES = new Set(["ci-fix", "diagnose", "fix", "implement", "plan", "refactor", "release", "review", "security"]);
+const LOCAL_CHAT_WORK_MODES = new Set(["ci-fix", "fix", "implement", "refactor"]);
 const TERMINAL_STATUSES = new Set(["succeeded", "failed", "cancelled", "canceled", "timed_out"]);
 const runHistory = [];
 let lastRunPayload = null;
@@ -9,6 +11,8 @@ let gatewayTokenKind = "none";
 let sessionExpiresAt = null;
 let sessionCountdownTimer = null;
 let lastMobileUrl = "";
+let localChatPollTimer = null;
+let lastLocalChatCursor = 0;
 const TASK_PRESETS = {
   plan: "Plan the next safe, high-impact step from the current project state.",
   review: "Review the current state and identify issues, risks, and quick wins.",
@@ -213,6 +217,13 @@ function updateTaskCounter() {
   counter.textContent = `${task.value.length} / ${task.maxLength || 12000}`;
 }
 
+function updateLocalTaskCounter() {
+  const task = byId("local-run-task");
+  const counter = byId("local-task-counter");
+  if (!task || !counter) return;
+  counter.textContent = `${task.value.length} / ${task.maxLength || 12000}`;
+}
+
 function applyPreset(mode) {
   if (!TASK_PRESETS[mode]) return;
   byId("run-mode").value = mode;
@@ -225,6 +236,123 @@ function setPill(id, text, state = "muted") {
   if (!pill) return;
   pill.textContent = text;
   pill.className = `pill ${state}`;
+}
+
+
+function setLocalChatSummary(text, state = "warn") {
+  setCallout("local-chat-summary", text, state);
+  setPill("workbench-pill", text.length > 54 ? `${text.slice(0, 51)}...` : text, state);
+}
+
+function selectValue(id) {
+  const item = byId(id);
+  return item ? item.value.trim() : "";
+}
+
+function setOptions(selectId, items, valueKey, labelFn) {
+  const select = byId(selectId);
+  if (!select) return "";
+  const previous = select.value;
+  select.replaceChildren();
+  for (const item of items) {
+    const value = item[valueKey];
+    if (!value) continue;
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = labelFn(item);
+    select.appendChild(option);
+  }
+  if (previous && Array.from(select.options).some((option) => option.value === previous)) {
+    select.value = previous;
+  }
+  return select.value;
+}
+
+function setLocalChatContract(payload) {
+  const capabilities = payload.capabilities || {};
+  const work = Boolean(capabilities.local_chat_work_runs || capabilities.work_runs);
+  const state = payload.negotiated ? "ready" : "warn";
+  setLocalChatSummary(`workbench ${payload.negotiated ? "negotiated" : "not negotiated"}; work_runs=${work}`, state);
+  show("local-chat-output", payload);
+}
+
+function setLocalWorkspaces(payload) {
+  const workspaces = Array.isArray(payload.workspaces) ? payload.workspaces : [];
+  const selected = setOptions("local-workspace", workspaces, "workspace_id", (workspace) => {
+    const name = workspace.display_name || workspace.repository_name || workspace.workspace_id;
+    const branch = workspace.branch ? ` · ${workspace.branch}` : "";
+    const clean = workspace.git_clean === false ? " · dirty" : " · clean";
+    return `${name}${branch}${clean}`;
+  });
+  setLocalChatSummary(workspaces.length ? `workspace selected ${selected}` : "no local-chat workspace", workspaces.length ? "ready" : "danger");
+  show("local-chat-output", payload);
+}
+
+function setLocalModels(payload) {
+  const models = Array.isArray(payload.models) ? payload.models : [];
+  const selected = setOptions("local-model", models, "model_id", (model) => {
+    const label = model.label || model.model_id;
+    const available = model.available === false ? " · unavailable" : " · available";
+    return `${label}${available}`;
+  });
+  setLocalChatSummary(models.length ? `model selected ${selected}` : "no local-chat model", models.length ? "ready" : "danger");
+  show("local-chat-output", payload);
+}
+
+function setLocalRunFromPayload(payload) {
+  const run = payload.run || payload;
+  const runId = run.control_run_id || run.run_id || payload.control_run_id;
+  if (runId) byId("local-run-id").value = runId;
+  const status = run.status || payload.status || "unknown";
+  const mode = run.mode || payload.mode || selectValue("local-run-mode") || "unknown";
+  const state = TERMINAL_STATUSES.has(status) ? (status === "succeeded" ? "ready" : "danger") : "running";
+  setLocalChatSummary(`local ${mode} ${status}`, state);
+  show("local-chat-output", payload);
+}
+
+function setLocalReview(payload) {
+  const review = payload.review || payload;
+  const patchSha = review.patch_sha256 || payload.patch_sha256 || "";
+  if (patchSha) byId("local-patch-sha").value = patchSha;
+  const status = review.status || payload.status || "review loaded";
+  setLocalChatSummary(`review ${status}`, patchSha ? "ready" : "warn");
+  show("local-review-output", payload);
+}
+
+async function loadLocalChatModelsForSelectedWorkspace() {
+  const workspaceId = selectValue("local-workspace");
+  if (!workspaceId) throw new Error("workspace is required");
+  return requestJson(`/v1/local-chat/models?workspace_id=${encodeURIComponent(workspaceId)}`);
+}
+
+async function fetchLocalChatEvents() {
+  const runId = selectValue("local-run-id");
+  if (!runId) throw new Error("local run id is required");
+  const payload = await requestJson(`/v1/local-chat/runs/${encodeURIComponent(runId)}/events?cursor=${lastLocalChatCursor}`);
+  const events = Array.isArray(payload.events) ? payload.events : [];
+  if (Number.isInteger(payload.next_cursor)) lastLocalChatCursor = payload.next_cursor;
+  setLocalRunFromPayload(payload);
+  show("local-chat-output", payload);
+  if (payload.terminal) stopLocalChatPolling();
+  return payload;
+}
+
+function startLocalChatPolling() {
+  stopLocalChatPolling();
+  setLocalChatSummary("polling local run", "running");
+  localChatPollTimer = window.setInterval(() => {
+    fetchLocalChatEvents().catch((err) => {
+      stopLocalChatPolling();
+      show("local-chat-output", String(err.message || err));
+    });
+  }, 1400);
+}
+
+function stopLocalChatPolling() {
+  if (localChatPollTimer !== null) {
+    window.clearInterval(localChatPollTimer);
+    localChatPollTimer = null;
+  }
 }
 
 function gatewayAuthHeaders() {
@@ -599,6 +727,73 @@ async function runAction(action) {
       const payload = await requestJson("/v1/gateway/model-runs?limit=20");
       setPill("model-pill", `model runs ${payload.count || 0}`, payload.count ? "ready" : "warn");
       show("model-output", payload);
+    } else if (action === "refresh-local-chat-contract") {
+      setLocalChatContract(await requestJson("/v1/local-chat/contract"));
+    } else if (action === "load-local-chat-workspaces") {
+      const payload = await requestJson("/v1/local-chat/workspaces");
+      setLocalWorkspaces(payload);
+      if (selectValue("local-workspace")) setLocalModels(await loadLocalChatModelsForSelectedWorkspace());
+    } else if (action === "load-local-chat-models") {
+      setLocalModels(await loadLocalChatModelsForSelectedWorkspace());
+    } else if (action === "create-local-chat-run") {
+      const mode = selectValue("local-run-mode");
+      const task = byId("local-run-task").value.trim();
+      const workspaceId = selectValue("local-workspace");
+      const modelId = selectValue("local-model") || "default";
+      const sessionId = selectValue("session-id");
+      if (!LOCAL_CHAT_MODES.has(mode)) throw new Error("unsupported local-chat mode");
+      if (!task) throw new Error("task is required");
+      if (!workspaceId) throw new Error("workspace is required");
+      const body = { mode, task, workspace_id: workspaceId, model_id: modelId };
+      if (sessionId) body.session_id = sessionId;
+      lastLocalChatCursor = 0;
+      const payload = await requestJson("/v1/local-chat/runs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify(body),
+      });
+      setLocalRunFromPayload(payload);
+      if (LOCAL_CHAT_WORK_MODES.has(mode)) setLocalChatSummary(`local ${mode} queued; review before promotion`, "running");
+      startLocalChatPolling();
+    } else if (action === "get-local-chat-events") {
+      await fetchLocalChatEvents();
+    } else if (action === "poll-local-chat-run") {
+      await fetchLocalChatEvents();
+      startLocalChatPolling();
+    } else if (action === "stop-local-chat-polling") {
+      stopLocalChatPolling();
+      setLocalChatSummary("local polling stopped", "warn");
+    } else if (action === "get-local-chat-review") {
+      const runId = selectValue("local-run-id");
+      const workspaceId = selectValue("local-workspace");
+      if (!runId) throw new Error("local run id is required");
+      if (!workspaceId) throw new Error("workspace is required");
+      setLocalReview(await requestJson(`/v1/local-chat/runs/${encodeURIComponent(runId)}/review?workspace_id=${encodeURIComponent(workspaceId)}`));
+    } else if (action === "promote-local-chat-run") {
+      const runId = selectValue("local-run-id");
+      const workspaceId = selectValue("local-workspace");
+      const patchSha = selectValue("local-patch-sha");
+      if (!runId) throw new Error("local run id is required");
+      if (!workspaceId) throw new Error("workspace is required");
+      if (!/^[0-9a-f]{64}$/.test(patchSha)) throw new Error("reviewed patch sha256 is required");
+      if (!window.confirm(`Promote reviewed patch ${patchSha.slice(0, 12)} for ${runId}?`)) return;
+      const payload = await requestJson(`/v1/local-chat/runs/${encodeURIComponent(runId)}/promotion`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ workspace_id: workspaceId, patch_sha256: patchSha }),
+      });
+      setLocalReview(payload);
+    } else if (action === "cancel-local-chat-run") {
+      const runId = selectValue("local-run-id");
+      if (!runId) throw new Error("local run id is required");
+      const payload = await requestJson(`/v1/local-chat/runs/${encodeURIComponent(runId)}/lifecycle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ action: "cancel" }),
+      });
+      stopLocalChatPolling();
+      setLocalRunFromPayload(payload);
+
     } else if (action === "refresh-status") {
       clearPairRequiredOutput("status-output");
       show("status-output", await requestJson("/v1/harness/status"));
@@ -674,17 +869,19 @@ async function runAction(action) {
       stopSessionCountdown();
       renderSessionCountdown();
     }
-    const target = action.includes("session")
-      ? "sessions-output"
-      : action.includes("run") || action === "copy-run-output"
-        ? "runs-output"
-        : action.includes("mcp")
-          ? "mcp-output"
-        : action.includes("ops")
-          ? "ops-output"
-        : action.includes("model")
-          ? "model-output"
-          : "status-output";
+    const target = action.includes("local-chat")
+      ? "local-chat-output"
+      : action.includes("session")
+        ? "sessions-output"
+        : action.includes("run") || action === "copy-run-output"
+          ? "runs-output"
+          : action.includes("mcp")
+            ? "mcp-output"
+          : action.includes("ops")
+            ? "ops-output"
+          : action.includes("model")
+            ? "model-output"
+            : "status-output";
     show(target, String(err.message || err));
   }
 }
@@ -703,6 +900,9 @@ document.addEventListener("DOMContentLoaded", () => {
   updateTaskCounter();
   const taskBox = byId("run-task");
   if (taskBox) taskBox.addEventListener("input", updateTaskCounter);
+  updateLocalTaskCounter();
+  const localTaskBox = byId("local-run-task");
+  if (localTaskBox) localTaskBox.addEventListener("input", updateLocalTaskCounter);
   const tokenBox = byId("gateway-token");
   if (tokenBox) {
     tokenBox.addEventListener("keydown", (event) => {
@@ -716,6 +916,8 @@ document.addEventListener("DOMContentLoaded", () => {
     runAction("refresh-mcp-status");
     runAction("refresh-readiness");
     runAction("refresh-health-report");
+    runAction("refresh-local-chat-contract");
+    runAction("load-local-chat-workspaces");
   } else {
     setAuthBanner("Paste a fresh pair token to unlock private controls on this phone.", "warn");
     showPairRequiredOutputs();
