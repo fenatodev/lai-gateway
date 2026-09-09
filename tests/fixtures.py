@@ -75,5 +75,8 @@ CONTRACT = {
         {"method": "GET", "path": "/v1/sessions/{session_id}", "auth_required": True, "purpose": "read session"},
         {"method": "DELETE", "path": "/v1/sessions/{session_id}", "auth_required": True, "purpose": "delete session"},
         {"method": "POST", "path": "/v1/policy-check", "auth_required": True, "purpose": "classify"},
+        {"method": "GET", "path": "/v1/local-chat/contract?client_version=1", "auth_required": True, "purpose": "negotiate local chat"},
+        {"method": "GET", "path": "/v1/local-chat/workspaces?client_version=1", "auth_required": True, "purpose": "list local workspaces"},
+        {"method": "POST", "path": "/v1/local-chat/runs", "auth_required": True, "purpose": "enqueue local chat run"},
     ],
 }

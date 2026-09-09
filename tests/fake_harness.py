@@ -12,6 +12,8 @@ from .fixtures import CONTRACT
 
 TOKEN = "test-token"
 LAST_RUN_BODY: dict[str, Any] | None = None
+LOCAL_CHAT_LAST_BODY: dict[str, Any] | None = None
+LOCAL_CHAT_CSRF = "csrf-test-token"
 MCP_SECRET_LEAK = False
 
 
@@ -67,6 +69,73 @@ class FakeHarnessHandler(BaseHTTPRequestHandler):
                 "security": {"executes_tools": False},
             })
             return
+        if self.path == "/v1/local-chat/contract?client_version=1":
+            self._send(HTTPStatus.OK, {
+                "product": "lai harness",
+                "version": "0.5.0",
+                "schema_version": 1,
+                "client_version": 1,
+                "negotiated": True,
+                "security": {"csrf_header": "X-LAI-CSRF", "csrf_token": LOCAL_CHAT_CSRF},
+                "capabilities": {
+                    "local_chat": True,
+                    "local_chat_read_only_runs": True,
+                    "local_chat_work_runs": True,
+                    "source_repository_write": False,
+                    "mcp_tool_execution": False,
+                },
+                "workspace_selection": {"current_workspace_id": "lw-1234567890abcdef"},
+            })
+            return
+        if self.path == "/v1/local-chat/workspaces?client_version=1":
+            self._send(HTTPStatus.OK, {
+                "product": "lai harness",
+                "version": "0.5.0",
+                "schema_version": 1,
+                "workspaces": [{
+                    "workspace_id": "lw-1234567890abcdef",
+                    "display_name": "fake-harness",
+                    "branch": "main",
+                    "git_clean": True,
+                    "source_checkout_write": False,
+                }],
+            })
+            return
+        if self.path == "/v1/local-chat/models?client_version=1&workspace_id=lw-1234567890abcdef":
+            self._send(HTTPStatus.OK, {
+                "product": "lai harness",
+                "version": "0.5.0",
+                "schema_version": 1,
+                "workspace_id": "lw-1234567890abcdef",
+                "models": [{"model_id": "default", "available": True, "api_key_exposed": False}],
+            })
+            return
+        if self.path == "/v1/local-chat/runs/cr-1234567890abcdef/events?client_version=1&cursor=0":
+            self._send(HTTPStatus.OK, {
+                "product": "lai harness",
+                "version": "0.5.0",
+                "control_run_id": "cr-1234567890abcdef",
+                "status": "succeeded",
+                "terminal": True,
+                "cursor": 2,
+                "events": [{"event": "queued", "status": "queued"}, {"event": "finished", "status": "succeeded"}],
+            })
+            return
+        if self.path == "/v1/local-chat/runs/cr-1234567890abcdef/review?client_version=1&workspace_id=lw-1234567890abcdef":
+            self._send(HTTPStatus.OK, {
+                "product": "lai harness",
+                "version": "0.5.0",
+                "control_run_id": "cr-1234567890abcdef",
+                "workspace_id": "lw-1234567890abcdef",
+                "review": {
+                    "status": "ready",
+                    "changed_paths": ["src/app.py"],
+                    "patch_sha256": "a" * 64,
+                    "promotion_available": True,
+                    "source_checkout_write": False,
+                },
+            })
+            return
         if self.path.startswith("/v1/sessions?"):
             self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.4.7", "repository": "/home/example/private/repo", "sessions": [{"session_id": "cs-1234567890abcdef", "turn_count": 0, "workspace_path": "/home/example/private/repo/.lai", "note": "safe relative src/app.py"}]})
             return
@@ -116,6 +185,49 @@ class FakeHarnessHandler(BaseHTTPRequestHandler):
         global LAST_RUN_BODY
         if self.headers.get("Authorization") != f"Bearer {TOKEN}":
             self._send(HTTPStatus.UNAUTHORIZED, {"error": "auth_required"})
+            return
+        if self.path == "/v1/local-chat/runs":
+            global LOCAL_CHAT_LAST_BODY
+            if self.headers.get("X-LAI-CSRF") != LOCAL_CHAT_CSRF:
+                self._send(HTTPStatus.FORBIDDEN, {"error": "csrf_required"})
+                return
+            length = int(self.headers.get("Content-Length", "0"))
+            LOCAL_CHAT_LAST_BODY = json.loads(self.rfile.read(length).decode("utf-8"))
+            self._send(HTTPStatus.ACCEPTED, {
+                "product": "lai harness",
+                "version": "0.5.0",
+                "run": {
+                    "control_run_id": "cr-1234567890abcdef",
+                    "status": "queued",
+                    "mode": LOCAL_CHAT_LAST_BODY.get("mode"),
+                    "workspace_id": LOCAL_CHAT_LAST_BODY.get("workspace_id"),
+                    "model_id": LOCAL_CHAT_LAST_BODY.get("model_id"),
+                },
+            })
+            return
+        if self.path == "/v1/local-chat/runs/cr-1234567890abcdef/promotion":
+            if self.headers.get("X-LAI-CSRF") != LOCAL_CHAT_CSRF:
+                self._send(HTTPStatus.FORBIDDEN, {"error": "csrf_required"})
+                return
+            length = int(self.headers.get("Content-Length", "0"))
+            body = json.loads(self.rfile.read(length).decode("utf-8"))
+            self._send(HTTPStatus.OK, {
+                "product": "lai harness",
+                "version": "0.5.0",
+                "promotion": {
+                    "status": "promoted",
+                    "workspace_id": body.get("workspace_id"),
+                    "patch_sha256": body.get("patch_sha256"),
+                    "source_checkout_write": False,
+                    "push_performed": False,
+                },
+            })
+            return
+        if self.path == "/v1/local-chat/runs/cr-1234567890abcdef/lifecycle":
+            if self.headers.get("X-LAI-CSRF") != LOCAL_CHAT_CSRF:
+                self._send(HTTPStatus.FORBIDDEN, {"error": "csrf_required"})
+                return
+            self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.5.0", "lifecycle": {"action": "cancel", "accepted": True}})
             return
         if self.path == "/v1/sessions":
             self._send(HTTPStatus.CREATED, {"product": "lai harness", "version": "0.4.7", "repository": "/home/example/private/repo", "session": {"session_id": "cs-1234567890abcdef", "turn_count": 0, "turns": [], "cwd": "/home/example/private/repo"}})

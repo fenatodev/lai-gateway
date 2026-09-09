@@ -20,6 +20,37 @@ from .fake_harness import TOKEN, fake_harness
 
 
 class HarnessClientTest(unittest.TestCase):
+
+    def test_local_chat_client_negotiates_work_run_review_and_promotion(self) -> None:
+        with fake_harness() as harness, tempfile.TemporaryDirectory() as tmp:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            client = HarnessClient(GatewayConfig.from_env({
+                "LAI_GATEWAY_HARNESS_URL": harness.url,
+                "LAI_GATEWAY_TOKEN_FILE": str(token_file),
+            }))
+            contract = client.local_chat_contract()
+            self.assertTrue(contract["negotiated"])
+            workspaces = client.local_chat_workspaces()
+            workspace_id = workspaces["workspaces"][0]["workspace_id"]
+            models = client.local_chat_models(workspace_id)
+            self.assertEqual(models["models"][0]["model_id"], "default")
+            run = client.create_local_chat_run(
+                mode="implement",
+                task="make a safe isolated change",
+                workspace_id=workspace_id,
+                model_id="default",
+            )
+            self.assertEqual(run["run"]["control_run_id"], "cr-1234567890abcdef")
+            events = client.get_local_chat_events("cr-1234567890abcdef", cursor=0)
+            self.assertTrue(events["terminal"])
+            review = client.get_local_chat_review("cr-1234567890abcdef", workspace_id)
+            patch_sha = review["review"]["patch_sha256"]
+            promotion = client.promote_local_chat_run("cr-1234567890abcdef", workspace_id=workspace_id, patch_sha256=patch_sha)
+            self.assertFalse(promotion["promotion"]["push_performed"])
+            lifecycle = client.local_chat_lifecycle("cr-1234567890abcdef", action="cancel")
+            self.assertTrue(lifecycle["lifecycle"]["accepted"])
+
     def test_fetches_contract_status_readiness_and_sessions_with_bearer_auth(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
             token_file = Path(tmp) / "token"

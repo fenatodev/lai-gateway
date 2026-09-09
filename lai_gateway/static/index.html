@@ -19,6 +19,7 @@
         <span id="mcp-pill" class="pill muted">mcp unknown</span>
         <span id="active-session-pill" class="pill muted">no active session</span>
         <span id="active-run-pill" class="pill muted">no active run</span>
+        <span id="workbench-pill" class="pill muted">workbench unknown</span>
       </div>
       <p id="auth-banner" class="callout warn" aria-live="polite">Phone access needs pairing before private controls will work.</p>
     </header>
@@ -157,6 +158,64 @@
           <button data-action="delete-session" class="danger">Delete selected session</button>
         </div>
         <pre id="sessions-output" aria-live="polite">Not loaded.</pre>
+      </article>
+
+      <article class="card wide workbench-card">
+        <p class="eyebrow">local workbench</p>
+        <h2>Local chat & work runs</h2>
+        <p class="muted">Loopback-only UI for the Harness local-chat contract. Work modes run through the Harness sandbox/review/promotion gates; the Gateway does not get shell, MCP tool, GitHub release, or direct source-write authority.</p>
+        <p id="local-chat-summary" class="callout warn" aria-live="polite">Local workbench not loaded yet.</p>
+        <div class="form-row">
+          <label>Workspace
+            <select id="local-workspace"></select>
+          </label>
+          <label>Model
+            <select id="local-model"></select>
+          </label>
+          <label>Mode
+            <select id="local-run-mode">
+              <option value="plan">plan</option>
+              <option value="review">review</option>
+              <option value="diagnose">diagnose</option>
+              <option value="security">security</option>
+              <option value="release">release</option>
+              <option value="implement">implement</option>
+              <option value="fix">fix</option>
+              <option value="refactor">refactor</option>
+              <option value="ci-fix">ci-fix</option>
+            </select>
+          </label>
+        </div>
+        <label>Task
+          <textarea id="local-run-task" rows="7" maxlength="12000" placeholder="Describe the work. For write modes, the Harness must keep changes isolated until review/promotion."></textarea>
+        </label>
+        <div class="task-meta">
+          <span id="local-task-counter" class="muted">0 / 12000</span>
+          <span class="muted">Promotion requires the reviewed patch hash.</span>
+        </div>
+        <div class="form-row">
+          <label>Run id
+            <input id="local-run-id" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="cr-...">
+          </label>
+          <label>Reviewed patch sha256
+            <input id="local-patch-sha" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="64 lowercase hex chars">
+          </label>
+        </div>
+        <div class="actions">
+          <button data-action="refresh-local-chat-contract">Refresh contract</button>
+          <button data-action="load-local-chat-workspaces">Load workspaces</button>
+          <button data-action="load-local-chat-models">Load models</button>
+          <button class="primary" data-action="create-local-chat-run">Start local run</button>
+          <button data-action="get-local-chat-events">Get events</button>
+          <button data-action="poll-local-chat-run">Poll run</button>
+          <button data-action="stop-local-chat-polling">Stop polling</button>
+          <button data-action="get-local-chat-review">Review diff</button>
+          <button data-action="promote-local-chat-run">Promote reviewed patch</button>
+          <button class="danger" data-action="cancel-local-chat-run">Cancel run</button>
+        </div>
+        <pre id="local-chat-output" aria-live="polite">Not loaded.</pre>
+        <h3>Review / promotion</h3>
+        <pre id="local-review-output" aria-live="polite">Not loaded.</pre>
       </article>
 
       <article class="card wide">
