@@ -291,6 +291,39 @@ class CliTest(unittest.TestCase):
             self.assertIn("harness_status", result.stderr)
             self.assertNotIn(TOKEN, result.stderr)
 
+    def test_cli_stack_start_check_only_prints_plan_without_tokens(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            harness_repo = Path(tmp) / "lai-local-agent"
+            harness_repo.mkdir()
+            env = {
+                **os.environ,
+                "LAI_GATEWAY_HARNESS_URL": "http://127.0.0.1:18765",
+                "LAI_GATEWAY_TOKEN_FILE": str(token_file),
+                "LAI_GATEWAY_PORT": "18787",
+            }
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "lai_gateway",
+                    "stack-start",
+                    "--harness-repo",
+                    str(harness_repo),
+                    "--check-only",
+                ],
+                text=True,
+                capture_output=True,
+                check=True,
+                timeout=10,
+                env=env,
+            )
+            self.assertIn("lai-gateway stack-start:", result.stdout)
+            self.assertIn("would_run: lai-server-start", result.stdout)
+            self.assertNotIn(TOKEN, result.stdout)
+            self.assertEqual(result.stderr, "")
+
     def test_cli_config_prints_path_not_token_value(self):
         with tempfile.TemporaryDirectory() as tmp:
             token_file = Path(tmp) / "token"
