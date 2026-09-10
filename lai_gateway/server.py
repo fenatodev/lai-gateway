@@ -346,7 +346,13 @@ class GatewayHandler(BaseHTTPRequestHandler):
             body = self._read_lifecycle_body()
             if body is None:
                 return
-            self._proxy(lambda: self.server.client.local_chat_lifecycle(local_lifecycle_match.group(1), action=body["action"]))
+            self._proxy(
+                lambda: self.server.client.local_chat_lifecycle(
+                    local_lifecycle_match.group(1),
+                    action=body["action"],
+                    workspace_id=body["workspace_id"],
+                )
+            )
             return
         if parsed.path == "/v1/harness/sessions":
             if not self._authorize_gateway_api(parsed.path):
@@ -832,16 +838,20 @@ class GatewayHandler(BaseHTTPRequestHandler):
 
     def _read_lifecycle_body(self) -> dict[str, str] | None:
         payload = self._read_json_object(
-            allowed_keys={"action"},
+            allowed_keys={"action", "workspace_id"},
             unsupported_error="unsupported_lifecycle_fields",
         )
         if payload is None:
             return None
         action = payload.get("action")
+        workspace_id = payload.get("workspace_id")
+        if not isinstance(workspace_id, str):
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_lifecycle_body"})
+            return None
         if action != "cancel":
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": "unsupported_lifecycle_action"})
             return None
-        return {"action": action}
+        return {"action": action, "workspace_id": workspace_id}
 
     def _read_run_body(self) -> dict[str, str] | None:
         payload = self._read_json_object(

@@ -809,11 +809,13 @@ async function runAction(action) {
       setLocalReview(payload);
     } else if (action === "cancel-local-chat-run") {
       const runId = selectValue("local-run-id");
+      const workspaceId = selectValue("local-workspace");
       if (!runId) throw new Error("local run id is required");
+      if (!workspaceId) throw new Error("workspace is required");
       const payload = await requestJson(`/v1/local-chat/runs/${encodeURIComponent(runId)}/lifecycle`, {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
-        body: JSON.stringify({ action: "cancel" }),
+        body: JSON.stringify({ action: "cancel", workspace_id: workspaceId }),
       });
       stopLocalChatPolling();
       setLocalRunFromPayload(payload);

@@ -6,6 +6,7 @@
 - Add `lai-gateway stack-start` and the installed `lai-stack-start` wrapper to start or reuse the local model server, Harness control plane, and loopback Gateway UI with secret-free diagnostics.
 
 ### Fixed
+- Make Local Workbench promotion/cancel calls preserve the Harness local-chat `client_version` and `workspace_id` contract, and make `stack-start` require/readiness-check the verified work-run sandbox while restoring configured sandbox env on Harness startup.
 - Make Gateway health and ops reports reuse `daily-config` mobile defaults when no explicit mobile candidate is provided, avoiding loopback-only reports that ignore the active daily mobile server.
 - Let `daily-config` persist the digest-pinned Harness sandbox image and sandbox Python executable so daily startup can restore verified work-run readiness after reboot.
 - Make `lai-gateway-daily` load persisted `daily-config` defaults when launched from the installed wrapper or any non-repository working directory.
