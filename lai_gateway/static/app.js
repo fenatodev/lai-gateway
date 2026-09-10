@@ -20,6 +20,20 @@ const TASK_PRESETS = {
   security: "Perform a security-focused review of the current state and boundaries.",
   release: "Check release readiness and identify blockers before publication.",
 };
+const LOCAL_MODE_PRESETS = {
+  observe: {
+    mode: "diagnose",
+    task: "Diagnose the current repository state using read-only evidence. Identify blockers, missing setup, and the next safe verification step.",
+  },
+  work: {
+    mode: "implement",
+    task: "Implement one bounded change in the isolated sandbox workspace. Keep the source checkout unchanged, validate the result, and leave promotion for review.",
+  },
+  promote: {
+    mode: "review",
+    task: "Review the selected isolated work-run diff. Verify the patch hash and list promotion risks before using the Promote reviewed patch button.",
+  },
+};
 
 function pretty(payload) {
   return JSON.stringify(payload, null, 2);
@@ -229,6 +243,16 @@ function applyPreset(mode) {
   byId("run-mode").value = mode;
   byId("run-task").value = TASK_PRESETS[mode];
   updateTaskCounter();
+}
+
+function applyLocalModePreset(presetName) {
+  const preset = LOCAL_MODE_PRESETS[presetName];
+  if (!preset) return;
+  byId("local-run-mode").value = preset.mode;
+  byId("local-run-task").value = preset.task;
+  updateLocalTaskCounter();
+  const state = presetName === "work" ? "running" : "ready";
+  setLocalChatSummary(`mode preset ${presetName}: ${preset.mode}`, state);
 }
 
 function setPill(id, text, state = "muted") {
@@ -894,6 +918,8 @@ document.addEventListener("click", (event) => {
   }
   const presetButton = event.target.closest("button[data-preset]");
   if (presetButton) applyPreset(presetButton.dataset.preset);
+  const localPresetButton = event.target.closest("button[data-local-mode-preset]");
+  if (localPresetButton) applyLocalModePreset(localPresetButton.dataset.localModePreset);
 });
 
 document.addEventListener("DOMContentLoaded", () => {
