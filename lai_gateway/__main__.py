@@ -194,6 +194,8 @@ def main(argv: list[str] | None = None) -> int:
     daily_config_set.add_argument("--port", type=int, default=8787, help="mobile gateway port")
     daily_config_set.add_argument("--proxy-port", type=int, default=18787, help="loopback proxy port for Tailscale Serve")
     daily_config_set.add_argument("--harness-repo", default=None, help="lai harness checkout directory")
+    daily_config_set.add_argument("--sandbox-image", default=None, help="digest-pinned Docker image for Harness sandbox work-runs")
+    daily_config_set.add_argument("--sandbox-python", default=None, help="bare Python executable inside the sandbox image")
     daily_config_set.add_argument("--path", default=None, help="daily config file path; defaults to ~/.config/lai-gateway/daily.json")
     daily_config_set.add_argument("--json", action="store_true", help="print machine-readable JSON")
     daily_config_show = daily_config_sub.add_parser("show", help="show token-free daily startup defaults")
@@ -427,6 +429,8 @@ def main(argv: list[str] | None = None) -> int:
                     port=args.port,
                     proxy_port=args.proxy_port,
                     harness_repo=args.harness_repo,
+                    sandbox_image=args.sandbox_image,
+                    sandbox_python=args.sandbox_python,
                     path=Path(args.path).expanduser() if args.path else None,
                 )
                 target = write_daily_config(daily, path=args.path, force=True)

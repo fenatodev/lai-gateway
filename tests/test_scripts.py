@@ -594,6 +594,10 @@ class ScriptTest(unittest.TestCase):
                     "http://example.tailnet.ts.net:8787/",
                     "--harness-repo",
                     str(repo),
+                    "--sandbox-image",
+                    "python:3.12-bookworm@sha256:" + "a" * 64,
+                    "--sandbox-python",
+                    "python3",
                     "--path",
                     str(config_path),
                     "--json",
@@ -619,6 +623,8 @@ class ScriptTest(unittest.TestCase):
             )
             self.assertIn("LAI_GATEWAY_MOBILE_IP=172.29.193.62", env_result.stdout)
             self.assertIn("LAI_GATEWAY_PHONE_URL=http://example.tailnet.ts.net:8787/", env_result.stdout)
+            self.assertIn("LAI_REMOTE_SANDBOX_IMAGE=python:3.12-bookworm@sha256:" + "a" * 64, env_result.stdout)
+            self.assertIn("LAI_REMOTE_SANDBOX_PYTHON=python3", env_result.stdout)
             env = {**os.environ, "LAI_GATEWAY_DAILY_CONFIG": str(config_path), "PYTHON": sys.executable}
             env.pop("LAI_GATEWAY_MOBILE_IP", None)
             check_only = subprocess.run(
@@ -646,9 +652,13 @@ class ScriptTest(unittest.TestCase):
             self.assertIn("daily_config: loaded", check_only.stdout)
             self.assertIn("mobile_target: 172.29.193.62:8787", check_only.stdout)
             self.assertIn("phone_url: http://example.tailnet.ts.net:8787/", check_only.stdout)
+            self.assertIn("sandbox_image: configured", check_only.stdout)
+            self.assertIn("sandbox_python: python3", check_only.stdout)
             self.assertIn("daily_config: loaded", outside_repo_check.stdout)
             self.assertIn("mobile_target: 172.29.193.62:8787", outside_repo_check.stdout)
             self.assertIn("phone_url: http://example.tailnet.ts.net:8787/", outside_repo_check.stdout)
+            self.assertIn("sandbox_image: configured", outside_repo_check.stdout)
+            self.assertIn("sandbox_python: python3", outside_repo_check.stdout)
             combined = (
                 set_result.stdout
                 + set_result.stderr
@@ -695,10 +705,56 @@ class ScriptTest(unittest.TestCase):
                 check=False,
                 timeout=10,
             )
+            bad_sandbox_image = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "lai_gateway",
+                    "daily-config",
+                    "set",
+                    "--candidate-ip",
+                    "172.29.193.62",
+                    "--sandbox-image",
+                    "python:3.12",
+                    "--path",
+                    str(Path(tmp) / "daily.json"),
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=10,
+            )
+            bad_sandbox_python = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "lai_gateway",
+                    "daily-config",
+                    "set",
+                    "--candidate-ip",
+                    "172.29.193.62",
+                    "--sandbox-python",
+                    "/usr/bin/python3",
+                    "--path",
+                    str(Path(tmp) / "daily.json"),
+                ],
+                cwd=repo,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=10,
+            )
         self.assertNotEqual(bad_public_ip.returncode, 0)
         self.assertIn("private non-loopback", bad_public_ip.stderr)
         self.assertNotEqual(bad_url.returncode, 0)
         self.assertIn("http://", bad_url.stderr)
+        self.assertNotEqual(bad_sandbox_image.returncode, 0)
+        self.assertIn("digest-pinned", bad_sandbox_image.stderr)
+        self.assertNotEqual(bad_sandbox_python.returncode, 0)
+        self.assertIn("bare executable", bad_sandbox_python.stderr)
 
     def test_launch_mobile_help_and_missing_candidate_are_secret_free(self) -> None:
         repo = Path(__file__).parents[1]
