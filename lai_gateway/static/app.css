@@ -159,6 +159,12 @@ textarea { resize: vertical; }
   .hint code { display: block; overflow-wrap: anywhere; }
 }
 
+.mode-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
+.mode-card { border: 1px solid rgb(255 255 255 / .12); border-radius: 14px; padding: 12px; background: rgb(255 255 255 / .055); }
+.mode-card h3 { margin-top: 0; }
+.mode-card p { min-height: 58px; color: #cbd3e1; }
+.mode-card button { width: 100%; }
 .workbench-card textarea { min-height: 170px; }
 .workbench-card .form-row > label { flex: 1 1 220px; }
 #local-review-output { min-height: 150px; }
+@media (max-width: 780px) { .mode-grid { grid-template-columns: 1fr; } }

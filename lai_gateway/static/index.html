@@ -164,6 +164,23 @@
         <p class="eyebrow">local workbench</p>
         <h2>Local chat & work runs</h2>
         <p class="muted">Loopback-only UI for the Harness local-chat contract. Work modes run through the Harness sandbox/review/promotion gates; the Gateway does not get shell, MCP tool, GitHub release, or direct source-write authority.</p>
+        <div class="mode-grid" aria-label="Three local workbench operating modes">
+          <section class="mode-card">
+            <h3>1. Observe</h3>
+            <p>Read-only diagnosis, planning, review, security, and release checks. No file writes.</p>
+            <button type="button" data-local-mode-preset="observe">Use Observe preset</button>
+          </section>
+          <section class="mode-card">
+            <h3>2. Work</h3>
+            <p>Sandboxed implement, fix, refactor, and CI-fix runs. Changes stay isolated until review.</p>
+            <button type="button" data-local-mode-preset="work">Use Work preset</button>
+          </section>
+          <section class="mode-card">
+            <h3>3. Promote</h3>
+            <p>Review the isolated diff, verify the patch hash, then promote through the Harness gate.</p>
+            <button type="button" data-local-mode-preset="promote">Use Promote preset</button>
+          </section>
+        </div>
         <p id="local-chat-summary" class="callout warn" aria-live="polite">Local workbench not loaded yet.</p>
         <div class="form-row">
           <label>Workspace

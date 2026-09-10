@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- Add a three-mode Local Workbench guide with Observe, Work, and Promote presets so the loopback UI exposes the intended operating flow without adding Gateway authority.
 - Add a loopback-only Local Workbench UI and Gateway proxy for the Harness v0.5.0 local-chat contract, including workspace/model selection, read-only/work runs, events, review, cancel, and hash-bound promotion without exposing those write-capable routes to private LAN/mobile mode.
 - Add `lai-gateway stack-start` and the installed `lai-stack-start` wrapper to start or reuse the local model server, Harness control plane, and loopback Gateway UI with secret-free diagnostics.
 
