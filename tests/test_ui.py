@@ -194,6 +194,7 @@ class GatewayUITest(unittest.TestCase):
         self.assertIn("/v1/local-chat/runs", js)
         self.assertIn("promote-local-chat-run", js)
         self.assertIn("cancel-local-chat-run", js)
+        self.assertIn("workspace_id: workspaceId", js)
         self.assertIn("LOCAL_MODE_PRESETS", js)
         self.assertIn("applyLocalModePreset", js)
         self.assertIn("data-local-mode-preset", js)

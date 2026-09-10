@@ -48,8 +48,12 @@ class HarnessClientTest(unittest.TestCase):
             patch_sha = review["review"]["patch_sha256"]
             promotion = client.promote_local_chat_run("cr-1234567890abcdef", workspace_id=workspace_id, patch_sha256=patch_sha)
             self.assertFalse(promotion["promotion"]["push_performed"])
-            lifecycle = client.local_chat_lifecycle("cr-1234567890abcdef", action="cancel")
+            self.assertEqual(fake.LOCAL_CHAT_LAST_PROMOTION_BODY["client_version"], 1)
+            self.assertEqual(fake.LOCAL_CHAT_LAST_PROMOTION_BODY["workspace_id"], workspace_id)
+            lifecycle = client.local_chat_lifecycle("cr-1234567890abcdef", action="cancel", workspace_id=workspace_id)
             self.assertTrue(lifecycle["lifecycle"]["accepted"])
+            self.assertEqual(fake.LOCAL_CHAT_LAST_LIFECYCLE_BODY["client_version"], 1)
+            self.assertEqual(fake.LOCAL_CHAT_LAST_LIFECYCLE_BODY["workspace_id"], workspace_id)
 
     def test_fetches_contract_status_readiness_and_sessions_with_bearer_auth(self):
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

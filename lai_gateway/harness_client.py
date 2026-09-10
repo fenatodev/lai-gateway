@@ -172,14 +172,16 @@ class HarnessClient:
         validate_local_workspace_id(workspace_id)
         if not re.fullmatch(r"[0-9a-f]{64}", patch_sha256):
             raise ConfigError("patch_sha256 must be 64 lowercase hex characters")
-        body = {"workspace_id": workspace_id, "patch_sha256": patch_sha256}
+        body = {"client_version": 1, "workspace_id": workspace_id, "patch_sha256": patch_sha256}
         return self._request_json("POST", f"/v1/local-chat/runs/{run_id}/promotion", body, extra_headers=self._local_chat_csrf_headers())
 
-    def local_chat_lifecycle(self, run_id: str, *, action: str) -> dict[str, Any]:
+    def local_chat_lifecycle(self, run_id: str, *, action: str, workspace_id: str) -> dict[str, Any]:
         validate_control_run_id(run_id)
+        validate_local_workspace_id(workspace_id)
         if action != "cancel":
             raise ConfigError("only cancel lifecycle action is exposed by the Gateway")
-        return self._request_json("POST", f"/v1/local-chat/runs/{run_id}/lifecycle", {"action": action}, extra_headers=self._local_chat_csrf_headers())
+        body = {"client_version": 1, "workspace_id": workspace_id, "action": action}
+        return self._request_json("POST", f"/v1/local-chat/runs/{run_id}/lifecycle", body, extra_headers=self._local_chat_csrf_headers())
 
     def _local_chat_csrf_headers(self) -> dict[str, str]:
         contract = self.local_chat_contract()

@@ -13,6 +13,8 @@ from .fixtures import CONTRACT
 TOKEN = "test-token"
 LAST_RUN_BODY: dict[str, Any] | None = None
 LOCAL_CHAT_LAST_BODY: dict[str, Any] | None = None
+LOCAL_CHAT_LAST_PROMOTION_BODY: dict[str, Any] | None = None
+LOCAL_CHAT_LAST_LIFECYCLE_BODY: dict[str, Any] | None = None
 LOCAL_CHAT_CSRF = "csrf-test-token"
 MCP_SECRET_LEAK = False
 
@@ -206,11 +208,16 @@ class FakeHarnessHandler(BaseHTTPRequestHandler):
             })
             return
         if self.path == "/v1/local-chat/runs/cr-1234567890abcdef/promotion":
+            global LOCAL_CHAT_LAST_PROMOTION_BODY
             if self.headers.get("X-LAI-CSRF") != LOCAL_CHAT_CSRF:
                 self._send(HTTPStatus.FORBIDDEN, {"error": "csrf_required"})
                 return
             length = int(self.headers.get("Content-Length", "0"))
             body = json.loads(self.rfile.read(length).decode("utf-8"))
+            LOCAL_CHAT_LAST_PROMOTION_BODY = body
+            if body.get("client_version") != 1:
+                self._send(HTTPStatus.BAD_REQUEST, {"error": "invalid_client_version"})
+                return
             self._send(HTTPStatus.OK, {
                 "product": "lai harness",
                 "version": "0.5.0",
@@ -224,8 +231,15 @@ class FakeHarnessHandler(BaseHTTPRequestHandler):
             })
             return
         if self.path == "/v1/local-chat/runs/cr-1234567890abcdef/lifecycle":
+            global LOCAL_CHAT_LAST_LIFECYCLE_BODY
             if self.headers.get("X-LAI-CSRF") != LOCAL_CHAT_CSRF:
                 self._send(HTTPStatus.FORBIDDEN, {"error": "csrf_required"})
+                return
+            length = int(self.headers.get("Content-Length", "0"))
+            body = json.loads(self.rfile.read(length).decode("utf-8"))
+            LOCAL_CHAT_LAST_LIFECYCLE_BODY = body
+            if body.get("client_version") != 1 or not body.get("workspace_id"):
+                self._send(HTTPStatus.BAD_REQUEST, {"error": "invalid_lifecycle_contract"})
                 return
             self._send(HTTPStatus.OK, {"product": "lai harness", "version": "0.5.0", "lifecycle": {"action": "cancel", "accepted": True}})
             return

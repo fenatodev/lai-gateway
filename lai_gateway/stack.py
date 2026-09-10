@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from .config import GatewayConfig, read_control_token
+from .daily_config import read_daily_config
 from .harness_client import HarnessClient
 
 DEFAULT_HARNESS_REPO = Path("~/dev/projects/lai-local-agent").expanduser()
@@ -158,16 +159,35 @@ def _planned_commands(config: GatewayConfig, harness_repo: Path, gateway_port: i
 
 def _probe_harness(config: GatewayConfig) -> dict[str, Any]:
     try:
-        status = HarnessClient(config).status()
+        client = HarnessClient(config)
+        status = client.status()
+        readiness = client.readiness()
     except Exception as exc:
         return {"ready": False, "url": config.harness_url, "error": _safe_error(exc)}
-    return {
-        "ready": True,
+    readiness_overall = str(readiness.get("overall") or "unknown")
+    capabilities = status.get("capabilities") if isinstance(status.get("capabilities"), dict) else {}
+    needs_verified_sandbox = any(
+        bool(capabilities.get(name))
+        for name in ("async_work_runs", "local_chat_work_runs", "sandbox_workspace_write")
+    )
+    verified_sandbox_ready = bool(capabilities.get("verified_sandbox_ready"))
+    ready = readiness_overall == "ready" and (not needs_verified_sandbox or verified_sandbox_ready)
+    result = {
+        "ready": ready,
         "url": config.harness_url,
         "product": status.get("product"),
         "version": status.get("version"),
         "repository": status.get("repository"),
+        "readiness": readiness_overall,
     }
+    if needs_verified_sandbox:
+        result["verified_sandbox_ready"] = verified_sandbox_ready
+    if not ready:
+        if readiness_overall != "ready":
+            result["detail"] = f"readiness={readiness_overall}"
+        elif needs_verified_sandbox and not verified_sandbox_ready:
+            result["detail"] = "verified_sandbox_ready=false"
+    return result
 
 
 def _probe_gateway(bind: str, port: int, *, timeout_seconds: float) -> dict[str, Any]:
@@ -237,8 +257,22 @@ def _start_harness(config: GatewayConfig, harness_repo: Path, log_dir: Path) -> 
             stderr=subprocess.STDOUT,
             stdin=subprocess.DEVNULL,
             start_new_session=True,
+            env=_harness_start_env(),
         )
     return {"name": "harness", "status": "started", "pid": proc.pid, "url": config.harness_url, "log": str(log_path)}
+
+
+def _harness_start_env() -> dict[str, str]:
+    env = os.environ.copy()
+    try:
+        daily = read_daily_config()
+    except Exception:
+        return env
+    if daily.sandbox_image and not env.get("LAI_REMOTE_SANDBOX_IMAGE"):
+        env["LAI_REMOTE_SANDBOX_IMAGE"] = daily.sandbox_image
+    if daily.sandbox_python and not env.get("LAI_REMOTE_SANDBOX_PYTHON"):
+        env["LAI_REMOTE_SANDBOX_PYTHON"] = daily.sandbox_python
+    return env
 
 
 def _start_gateway(config: GatewayConfig, port: int, log_dir: Path) -> dict[str, Any]:
