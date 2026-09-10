@@ -3,6 +3,7 @@ from __future__ import annotations
 import ipaddress
 import json
 import os
+import re
 import shlex
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,6 +15,8 @@ from .errors import ConfigError
 
 DEFAULT_DAILY_CONFIG_FILE = "~/.config/lai-gateway/daily.json"
 _SCHEMA_VERSION = 1
+_SANDBOX_IMAGE_RE = re.compile(r"^[a-z0-9]+(?:[._/-][a-z0-9]+)*(?::[A-Za-z0-9_.-]+)?@sha256:[0-9a-f]{64}$")
+_BARE_EXECUTABLE_RE = re.compile(r"^[A-Za-z0-9_.+-]+$")
 
 
 @dataclass(frozen=True)
@@ -23,6 +26,8 @@ class DailyConfig:
     port: int = 8787
     proxy_port: int = 18787
     harness_repo: str | None = None
+    sandbox_image: str | None = None
+    sandbox_python: str | None = None
     path: Path | None = None
 
     def public_dict(self) -> dict[str, Any]:
@@ -33,6 +38,8 @@ class DailyConfig:
             "port": self.port,
             "proxy_port": self.proxy_port,
             "harness_repo": self.harness_repo,
+            "sandbox_image": self.sandbox_image,
+            "sandbox_python": self.sandbox_python,
             "path": str(self.path) if self.path else None,
         }
 
@@ -52,6 +59,8 @@ def validate_daily_config(
     port: int | str = 8787,
     proxy_port: int | str = 18787,
     harness_repo: str | None = None,
+    sandbox_image: str | None = None,
+    sandbox_python: str | None = None,
     path: Path | None = None,
 ) -> DailyConfig:
     try:
@@ -64,12 +73,16 @@ def validate_daily_config(
     resolved_proxy_port = _validate_port(proxy_port, "daily proxy_port")
     normalized_url = _validate_phone_url(phone_url, expected_port=resolved_port) if phone_url else None
     normalized_repo = _normalize_harness_repo(harness_repo)
+    normalized_sandbox_image = _normalize_sandbox_image(sandbox_image)
+    normalized_sandbox_python = _normalize_sandbox_python(sandbox_python)
     return DailyConfig(
         candidate_ip=str(parsed_ip),
         phone_url=normalized_url,
         port=resolved_port,
         proxy_port=resolved_proxy_port,
         harness_repo=normalized_repo,
+        sandbox_image=normalized_sandbox_image,
+        sandbox_python=normalized_sandbox_python,
         path=path,
     )
 
@@ -118,6 +131,8 @@ def read_daily_config(*, path: str | Path | None = None) -> DailyConfig:
         port=data.get("port", 8787),
         proxy_port=data.get("proxy_port", 18787),
         harness_repo=data.get("harness_repo"),
+        sandbox_image=data.get("sandbox_image"),
+        sandbox_python=data.get("sandbox_python"),
         path=target,
     )
     _check_daily_file_mode(target)
@@ -166,6 +181,10 @@ def render_daily_config(payload: dict[str, Any]) -> str:
             lines.append(f"phone_url: {config['phone_url']}")
         if config.get("harness_repo"):
             lines.append(f"harness_repo: {config['harness_repo']}")
+        if config.get("sandbox_image"):
+            lines.append("sandbox_image: configured")
+        if config.get("sandbox_python"):
+            lines.append(f"sandbox_python: {config['sandbox_python']}")
         lines.append("daily_command:")
         lines.append("  lai-gateway-daily --show-pair")
     elif payload.get("error"):
@@ -185,6 +204,10 @@ def shell_exports(config: DailyConfig) -> str:
         values["LAI_GATEWAY_PHONE_URL"] = config.phone_url
     if config.harness_repo:
         values["LAI_HARNESS_REPO_DIR"] = config.harness_repo
+    if config.sandbox_image:
+        values["LAI_REMOTE_SANDBOX_IMAGE"] = config.sandbox_image
+    if config.sandbox_python:
+        values["LAI_REMOTE_SANDBOX_PYTHON"] = config.sandbox_python
     return "\n".join(f"export {key}={shlex.quote(value)}" for key, value in values.items()) + "\n"
 
 
@@ -223,6 +246,24 @@ def _normalize_harness_repo(harness_repo: str | None) -> str | None:
     if "\n" in expanded or "\x00" in expanded:
         raise ConfigError("daily harness_repo must be a single path")
     return expanded
+
+
+def _normalize_sandbox_image(sandbox_image: str | None) -> str | None:
+    if not sandbox_image:
+        return None
+    image = sandbox_image.strip()
+    if not _SANDBOX_IMAGE_RE.fullmatch(image):
+        raise ConfigError("daily sandbox_image must be digest-pinned as <repository>[:tag]@sha256:<64 lowercase hex>")
+    return image
+
+
+def _normalize_sandbox_python(sandbox_python: str | None) -> str | None:
+    if not sandbox_python:
+        return None
+    executable = sandbox_python.strip()
+    if not _BARE_EXECUTABLE_RE.fullmatch(executable):
+        raise ConfigError("daily sandbox_python must be a bare executable name")
+    return executable
 
 
 def _check_daily_file_mode(path: Path) -> None:

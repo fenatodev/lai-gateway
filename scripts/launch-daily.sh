@@ -12,6 +12,8 @@ had_mobile_port=${LAI_GATEWAY_MOBILE_PORT+x}; original_mobile_port=${LAI_GATEWAY
 had_proxy_port=${LAI_GATEWAY_MOBILE_PROXY_PORT+x}; original_proxy_port=${LAI_GATEWAY_MOBILE_PROXY_PORT:-}
 had_phone_url=${LAI_GATEWAY_PHONE_URL+x}; original_phone_url=${LAI_GATEWAY_PHONE_URL:-}
 had_harness_repo=${LAI_HARNESS_REPO_DIR+x}; original_harness_repo=${LAI_HARNESS_REPO_DIR:-}
+had_sandbox_image=${LAI_REMOTE_SANDBOX_IMAGE+x}; original_sandbox_image=${LAI_REMOTE_SANDBOX_IMAGE:-}
+had_sandbox_python=${LAI_REMOTE_SANDBOX_PYTHON+x}; original_sandbox_python=${LAI_REMOTE_SANDBOX_PYTHON:-}
 daily_config_env=""
 if [ -n "${LAI_GATEWAY_DAILY_CONFIG:-}" ]; then
   daily_config_env=$("$python_bin" -m lai_gateway daily-config env --path "$LAI_GATEWAY_DAILY_CONFIG" 2>/dev/null || true)
@@ -27,11 +29,15 @@ if [ -n "$had_mobile_port" ]; then export LAI_GATEWAY_MOBILE_PORT="$original_mob
 if [ -n "$had_proxy_port" ]; then export LAI_GATEWAY_MOBILE_PROXY_PORT="$original_proxy_port"; fi
 if [ -n "$had_phone_url" ]; then export LAI_GATEWAY_PHONE_URL="$original_phone_url"; fi
 if [ -n "$had_harness_repo" ]; then export LAI_HARNESS_REPO_DIR="$original_harness_repo"; fi
+if [ -n "$had_sandbox_image" ]; then export LAI_REMOTE_SANDBOX_IMAGE="$original_sandbox_image"; fi
+if [ -n "$had_sandbox_python" ]; then export LAI_REMOTE_SANDBOX_PYTHON="$original_sandbox_python"; fi
 candidate_ip=${LAI_GATEWAY_MOBILE_IP:-}
 port=${LAI_GATEWAY_MOBILE_PORT:-8787}
 proxy_listen_host=${LAI_GATEWAY_MOBILE_PROXY_LISTEN_HOST:-127.0.0.1}
 proxy_listen_port=${LAI_GATEWAY_MOBILE_PROXY_PORT:-18787}
 harness_repo=${LAI_HARNESS_REPO_DIR:-"$HOME/dev/projects/lai-local-agent"}
+sandbox_image=${LAI_REMOTE_SANDBOX_IMAGE:-}
+sandbox_python=${LAI_REMOTE_SANDBOX_PYTHON:-}
 log_dir=${LAI_GATEWAY_LOG_DIR:-"$HOME/.local/state/lai-gateway"}
 start_model=1
 start_harness=1
@@ -267,6 +273,8 @@ say "daily_config: $([ "$daily_config_loaded" = "1" ] && printf loaded || printf
 say "mobile_target: ${candidate_ip}:${port}"
 say "proxy: http://${proxy_listen_host}:${proxy_listen_port}/ -> http://${candidate_ip}:${port}/"
 say "tailscale_serve_target: http://${proxy_listen_host}:${proxy_listen_port}"
+if [ -n "$sandbox_image" ]; then say "sandbox_image: configured"; fi
+if [ -n "$sandbox_python" ]; then say "sandbox_python: $sandbox_python"; fi
 phone_url=$(detect_phone_url || true)
 if [ -n "$phone_url" ]; then
   say "phone_url: $phone_url"
