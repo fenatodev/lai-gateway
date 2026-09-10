@@ -144,8 +144,8 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 return
             payload = collect_health_report(
                 config=self.server.config,
-                mobile_candidate_ip=self.server.server_address[0],
-                mobile_port=self.server.server_address[1],
+                mobile_candidate_ip=_mobile_candidate_from_server_bind(self.server.server_address[0]),
+                mobile_port=None if _is_loopback_bind(self.server.server_address[0]) else self.server.server_address[1],
             )
             self._send_json(HTTPStatus.OK, payload)
             return
@@ -154,8 +154,8 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 return
             payload = collect_ops_status(
                 config=self.server.config,
-                mobile_candidate_ip=self.server.server_address[0],
-                mobile_port=self.server.server_address[1],
+                mobile_candidate_ip=_mobile_candidate_from_server_bind(self.server.server_address[0]),
+                mobile_port=None if _is_loopback_bind(self.server.server_address[0]) else self.server.server_address[1],
             )
             self._attach_mobile_session_status(payload)
             self._send_json(HTTPStatus.OK, payload)
@@ -276,8 +276,8 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 return
             payload = collect_health_report(
                 config=self.server.config,
-                mobile_candidate_ip=self.server.server_address[0],
-                mobile_port=self.server.server_address[1],
+                mobile_candidate_ip=_mobile_candidate_from_server_bind(self.server.server_address[0]),
+                mobile_port=None if _is_loopback_bind(self.server.server_address[0]) else self.server.server_address[1],
             )
             try:
                 notify_payload = send_telegram_message(text=render_health_report(payload))
@@ -887,6 +887,13 @@ class GatewayHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+
+def _is_loopback_bind(bind: str) -> bool:
+    return bind in {"127.0.0.1", "localhost", "::1"}
+
+
+def _mobile_candidate_from_server_bind(bind: str) -> str | None:
+    return None if _is_loopback_bind(bind) else bind
 
 def _is_loopback_http_host(raw: str) -> bool:
     host = raw.rsplit("@", 1)[-1].split(":", 1)[0].strip("[]").lower()

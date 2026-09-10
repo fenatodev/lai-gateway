@@ -314,6 +314,42 @@ class GatewayUITest(unittest.TestCase):
         self.assertNotIn(TOKEN, body)
         self.assertNotIn("Bearer", body)
 
+    def test_gateway_health_and_ops_endpoints_do_not_force_loopback_mobile_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            health_payload = {
+                "operation": "health-report",
+                "overall": "warn",
+                "starts_server": False,
+                "modifies_files": False,
+                "checks": {"mcp_broker": "ready"},
+                "security": {
+                    "prints_tokens": False,
+                    "prints_pairing_secret": False,
+                    "prints_chat_reference": False,
+                },
+            }
+            ops_payload = {
+                "operation": "ops-status",
+                "overall": "warn",
+                "starts_server": False,
+                "modifies_files": False,
+                "security": {"prints_tokens": False},
+            }
+            with patch("lai_gateway.server.collect_health_report", return_value=health_payload) as health, patch(
+                "lai_gateway.server.collect_ops_status", return_value=ops_payload
+            ) as ops:
+                with RunningGateway(config) as gateway:
+                    read_url(f"{gateway.url}/v1/gateway/health-report")
+                    read_url(f"{gateway.url}/v1/gateway/ops-status")
+
+        self.assertIsNone(health.call_args.kwargs["mobile_candidate_ip"])
+        self.assertIsNone(health.call_args.kwargs["mobile_port"])
+        self.assertIsNone(ops.call_args.kwargs["mobile_candidate_ip"])
+        self.assertIsNone(ops.call_args.kwargs["mobile_port"])
+
     def test_gateway_health_report_endpoint_is_read_only_and_secret_free(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
             token_file = Path(tmp) / "token"
