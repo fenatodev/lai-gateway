@@ -3,6 +3,7 @@ set -euo pipefail
 
 repo_dir=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 python_bin=${PYTHON:-python3}
+export PYTHONPATH="$repo_dir${PYTHONPATH:+:$PYTHONPATH}"
 daily_config_loaded=0
 # Explicit environment must win over persisted defaults. The config loader prints
 # token-free shell exports, but those exports are only defaults, not a dictator.

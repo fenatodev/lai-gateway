@@ -631,10 +631,34 @@ class ScriptTest(unittest.TestCase):
                 check=True,
                 timeout=10,
             )
+            env_without_package_path = {**env}
+            env_without_package_path.pop("PYTHONPATH", None)
+            outside_repo_check = subprocess.run(
+                ["bash", str(repo / "scripts" / "launch-daily.sh"), "--check-only"],
+                cwd=tmp,
+                env=env_without_package_path,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=10,
+            )
             self.assertIn("daily_config: loaded", check_only.stdout)
             self.assertIn("mobile_target: 172.29.193.62:8787", check_only.stdout)
             self.assertIn("phone_url: http://example.tailnet.ts.net:8787/", check_only.stdout)
-            combined = set_result.stdout + set_result.stderr + env_result.stdout + env_result.stderr + check_only.stdout + check_only.stderr
+            self.assertIn("daily_config: loaded", outside_repo_check.stdout)
+            self.assertIn("mobile_target: 172.29.193.62:8787", outside_repo_check.stdout)
+            self.assertIn("phone_url: http://example.tailnet.ts.net:8787/", outside_repo_check.stdout)
+            combined = (
+                set_result.stdout
+                + set_result.stderr
+                + env_result.stdout
+                + env_result.stderr
+                + check_only.stdout
+                + check_only.stderr
+                + outside_repo_check.stdout
+                + outside_repo_check.stderr
+            )
             self.assertNotIn("Bearer", combined)
             self.assertNotIn(TOKEN, combined)
 
