@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from lai_gateway.config import GatewayConfig
+from lai_gateway.daily_config import validate_daily_config, write_daily_config
 from lai_gateway.errors import GatewayError
 from lai_gateway.ops import collect_ops_status, render_ops_status
 from lai_gateway.telegram import write_telegram_chat_file
@@ -75,6 +76,46 @@ class OpsStatusTest(unittest.TestCase):
             self.assertNotIn(pair_secret, stdout)
             self.assertNotIn(telegram_secret, stdout)
             self.assertNotIn("Bearer", stdout)
+
+    def test_ops_status_uses_daily_config_mobile_defaults_when_candidate_omitted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            root = Path(tmp)
+            token_file = root / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config_path = root / "daily.json"
+            daily = validate_daily_config(
+                candidate_ip="192.168.7.66",
+                port=18866,
+                harness_repo=str(root / "harness"),
+                path=config_path,
+            )
+            write_daily_config(daily, path=config_path)
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            mobile_payload = {
+                "overall": "ready",
+                "listener": {"active": True, "target": "192.168.7.66:18866"},
+                "mobile_access": {"recommended_url": "http://192.168.7.66:18866/", "links": []},
+                "next_steps": [],
+            }
+            with patch.dict(
+                os.environ,
+                {
+                    "LAI_GATEWAY_DAILY_CONFIG": str(config_path),
+                    "LAI_GATEWAY_MODEL_RUNS_FILE": str(root / "missing-model-runs.jsonl"),
+                    "LAI_GATEWAY_MODEL_CONFIG_FILE": str(root / "missing-model.json"),
+                },
+                clear=False,
+            ), patch("lai_gateway.ops.collect_mobile_status", return_value=mobile_payload) as mobile_status, patch(
+                "lai_gateway.ops.collect_model_status",
+                return_value={"overall": "ready", "network_calls": {"local_openai_probe": True}},
+            ):
+                payload = collect_ops_status(config=config)
+
+        mobile_status.assert_called_once()
+        self.assertEqual(mobile_status.call_args.kwargs["candidate_ip"], "192.168.7.66")
+        self.assertEqual(mobile_status.call_args.kwargs["port"], 18866)
+        self.assertEqual(payload["mobile"]["overall"], "ready")
+        self.assertNotIn(TOKEN, json.dumps(payload, sort_keys=True))
 
     def test_ops_status_warns_for_optional_telegram_or_mobile_work(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

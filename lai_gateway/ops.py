@@ -5,6 +5,7 @@ from typing import Any
 
 from . import __version__
 from .config import GatewayConfig
+from .daily_config import read_daily_config
 from .doctor import collect_doctor
 from .errors import ConfigError, GatewayError
 from .harness_client import HarnessClient
@@ -31,6 +32,10 @@ def collect_ops_status(
         config_error = str(exc)
 
     doctor = collect_doctor(resolved_config)
+    mobile_candidate_ip, mobile_port = _daily_mobile_defaults(
+        candidate_ip=mobile_candidate_ip,
+        port=mobile_port,
+    )
     port = mobile_port or (resolved_config.port if resolved_config else 8787)
     bind = resolved_config.bind if resolved_config else "127.0.0.1"
     mobile = collect_mobile_status(
@@ -141,6 +146,16 @@ def _harness_model_status(doctor: dict[str, Any]) -> str:
             return "ready" if check.get("status") == "ok" else str(check.get("status") or "unknown")
     return "unknown"
 
+
+
+def _daily_mobile_defaults(*, candidate_ip: str | None, port: int | None) -> tuple[str | None, int | None]:
+    if candidate_ip is not None and port is not None:
+        return candidate_ip, port
+    try:
+        daily = read_daily_config()
+    except ConfigError:
+        return candidate_ip, port
+    return candidate_ip or daily.candidate_ip, port or daily.port
 
 def _ops_overall(*, doctor: dict[str, Any], mobile: dict[str, Any], telegram: dict[str, Any], mcp: dict[str, Any] | None = None) -> str:
     if doctor.get("overall") == "blocked" or mobile.get("overall") == "blocked":

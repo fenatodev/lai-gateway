@@ -52,6 +52,10 @@ def resolve_daily_config_path(path: str | Path | None = None) -> Path:
     return Path(os.path.expanduser(str(path))) if path else default_daily_config_path()
 
 
+def resolve_effective_daily_config_path(path: str | Path | None = None) -> Path:
+    return resolve_daily_config_path(path or os.environ.get("LAI_GATEWAY_DAILY_CONFIG"))
+
+
 def validate_daily_config(
     *,
     candidate_ip: str,
@@ -110,7 +114,7 @@ def write_daily_config(
 
 
 def read_daily_config(*, path: str | Path | None = None) -> DailyConfig:
-    target = resolve_daily_config_path(path)
+    target = resolve_effective_daily_config_path(path)
     try:
         raw = target.read_text(encoding="utf-8")
     except FileNotFoundError as exc:
@@ -140,7 +144,7 @@ def read_daily_config(*, path: str | Path | None = None) -> DailyConfig:
 
 
 def collect_daily_config(*, path: str | Path | None = None) -> dict[str, Any]:
-    target = resolve_daily_config_path(path)
+    target = resolve_effective_daily_config_path(path)
     try:
         config = read_daily_config(path=target)
     except ConfigError as exc:
