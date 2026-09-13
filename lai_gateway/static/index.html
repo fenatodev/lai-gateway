@@ -24,6 +24,149 @@
       <p id="auth-banner" class="callout warn" aria-live="polite">Phone access needs pairing before private controls will work.</p>
     </header>
 
+    <article id="workbench-shell" class="card wide workbench-card workbench-shell-card">
+      <div class="workbench-shell-layout" aria-label="LAI Workbench shell">
+        <aside class="workbench-sidebar" aria-label="Workbench navigation">
+          <p class="eyebrow">local workbench</p>
+          <h2>LAI Workbench</h2>
+          <p class="muted">Chat-first control for Harness. Work stays sandboxed; review and apply remain explicit.</p>
+          <div class="workbench-topline" aria-label="Current workbench context">
+            <span>Project <strong id="local-project-label">not loaded</strong></span>
+            <span>Mode <strong id="local-mode-label">Observe</strong></span>
+            <span>Status <strong id="local-status-label">idle</strong></span>
+          </div>
+          <div class="mode-grid" aria-label="Three local workbench operating modes">
+            <section class="mode-card">
+              <h3>Observe</h3>
+              <p>Diagnose, plan, review, and check safety without writing files.</p>
+              <button type="button" data-local-mode-preset="observe">Use Observe</button>
+            </section>
+            <section class="mode-card">
+              <h3>Work</h3>
+              <p>Implement, fix, or refactor inside the isolated sandbox.</p>
+              <button type="button" data-local-mode-preset="work">Use Work</button>
+            </section>
+            <section class="mode-card">
+              <h3>Apply</h3>
+              <p>Review the proposed diff and promote only after validation.</p>
+              <button type="button" data-local-mode-preset="promote">Use Apply</button>
+            </section>
+          </div>
+          <div id="local-mode-flow" class="mode-flow" aria-label="Current local workbench phase">
+            <span id="local-flow-observe" class="flow-step muted">Observe</span>
+            <span id="local-flow-work" class="flow-step muted">Work</span>
+            <span id="local-flow-promote" class="flow-step muted">Apply</span>
+          </div>
+        </aside>
+        <section class="workbench-chat-center" aria-label="Main LAI chat">
+          <div id="local-chat-thread" class="chat-thread" aria-live="polite">
+            <div class="chat-bubble system-bubble">
+              <p class="eyebrow">chat</p>
+              <p>Use the composer below as the primary LAI interface. Observe is read-only; Work proposes sandboxed changes; Apply requires a reviewed patch.</p>
+            </div>
+            <p id="local-chat-summary" class="callout warn" aria-live="polite">Local workbench not loaded yet.</p>
+            <p id="local-next-step" class="callout warn" aria-live="polite">Load the contract and choose a workbench mode.</p>
+          </div>
+          <label class="chat-composer">Message
+            <textarea id="local-run-task" rows="7" maxlength="12000" placeholder="Ask LAI what to observe or change. Work mode will keep edits isolated until review."></textarea>
+          </label>
+          <div class="task-meta">
+            <span id="local-task-counter" class="muted">0 / 12000</span>
+            <span class="muted">Debug is collapsed unless IDs, raw events, or hashes are needed.</span>
+          </div>
+          <div class="primary-actions">
+            <button id="local-send-button" class="primary" data-action="create-local-chat-run">Send to LAI</button>
+            <button id="local-cancel-button" class="danger" data-action="cancel-local-chat-run" disabled>No active run</button>
+          </div>
+          <pre id="local-run-summary" class="compact-output" aria-live="polite">No local run summary yet.</pre>
+        </section>
+        <aside class="workbench-review-column" aria-label="Review and advanced controls">
+        <section id="local-review-panel" class="review-panel" aria-label="Reviewed change proposal" hidden>
+          <div class="review-header">
+            <div>
+              <p class="eyebrow">review</p>
+              <h3 id="local-review-title">No review loaded</h3>
+            </div>
+            <span id="local-review-status" class="pill muted">review unavailable</span>
+          </div>
+          <p id="local-review-summary" class="callout warn" aria-live="polite">Review appears only after an eligible work run returns a proposal.</p>
+          <dl class="review-evidence">
+            <div><dt>Validation</dt><dd id="local-review-validation">Missing</dd></div>
+            <div><dt>Files changed</dt><dd id="local-review-files-count">0</dd></div>
+            <div><dt>Patch</dt><dd id="local-review-patch">not available</dd></div>
+            <div><dt>Diff</dt><dd id="local-review-diff-state">Missing</dd></div>
+          </dl>
+          <div class="review-section">
+            <h4>Changed files</h4>
+            <ul id="local-review-files" class="review-files"><li>No changed files.</li></ul>
+          </div>
+          <div class="review-section">
+            <h4>Telemetry</h4>
+            <pre id="local-review-telemetry" class="compact-output">No telemetry available.</pre>
+          </div>
+          <div class="review-section">
+            <h4>Diff</h4>
+            <pre id="local-review-diff" class="review-diff">No diff loaded.</pre>
+          </div>
+          <div class="primary-actions review-actions">
+            <button id="local-review-apply-button" class="primary" data-action="apply-current-local-review" disabled>Apply reviewed change</button>
+            <button data-action="discard-current-local-review">Discard review</button>
+          </div>
+          <p id="local-review-result" class="muted" aria-live="polite">No review decision yet.</p>
+        </section>
+
+        <details class="debug-panel">
+          <summary>Advanced / Debug</summary>
+          <p class="muted">Raw contract, run IDs, patch hash, polling, review, and promotion controls remain available here for safe troubleshooting.</p>
+          <div class="form-row">
+            <label>Workspace
+              <select id="local-workspace"></select>
+            </label>
+            <label>Model
+              <select id="local-model"></select>
+            </label>
+            <label>Mode
+              <select id="local-run-mode">
+                <option value="plan">plan</option>
+                <option value="review">review</option>
+                <option value="diagnose">diagnose</option>
+                <option value="security">security</option>
+                <option value="release">release</option>
+                <option value="implement">implement</option>
+                <option value="fix">fix</option>
+                <option value="refactor">refactor</option>
+                <option value="ci-fix">ci-fix</option>
+              </select>
+            </label>
+          </div>
+          <div class="form-row">
+            <label>Run id
+              <input id="local-run-id" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="cr-...">
+            </label>
+            <label>Reviewed patch sha256
+              <input id="local-patch-sha" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="64 lowercase hex chars">
+            </label>
+          </div>
+          <div class="actions">
+            <button data-action="refresh-local-chat-contract">Refresh contract</button>
+            <button data-action="load-local-chat-workspaces">Load workspaces</button>
+            <button data-action="load-local-chat-models">Load models</button>
+            <button data-action="get-local-chat-events">Get events</button>
+            <button data-action="poll-local-chat-run">Poll run</button>
+            <button data-action="stop-local-chat-polling">Stop polling</button>
+            <button data-action="get-local-chat-review">Review diff</button>
+            <button data-action="promote-local-chat-run">Promote reviewed patch</button>
+          </div>
+          <pre id="local-chat-output" aria-live="polite">Not loaded.</pre>
+          <h3>Review / promotion</h3>
+          <pre id="local-review-output" aria-live="polite">Not loaded.</pre>
+        </details>
+        </aside>
+      </div>
+    </article>
+
+    <details class="ops-drawer">
+      <summary>Operations and diagnostics</summary>
     <section class="card wide mobile-guide" aria-label="Mobile pairing checklist">
       <div>
         <p class="eyebrow">phone setup</p>
@@ -160,132 +303,6 @@
         <pre id="sessions-output" aria-live="polite">Not loaded.</pre>
       </article>
 
-      <article class="card wide workbench-card">
-        <p class="eyebrow">local workbench</p>
-        <h2>LAI Workbench</h2>
-        <p class="muted">Chat-first control for the existing Harness local-chat contract. Work stays sandboxed; review and promotion stay explicit.</p>
-        <div class="workbench-topline" aria-label="Current workbench context">
-          <span>Project <strong id="local-project-label">not loaded</strong></span>
-          <span>Mode <strong id="local-mode-label">Observe</strong></span>
-          <span>Status <strong id="local-status-label">idle</strong></span>
-        </div>
-        <div class="mode-grid" aria-label="Three local workbench operating modes">
-          <section class="mode-card">
-            <h3>Observe</h3>
-            <p>Diagnose, plan, review, and check safety without writing files.</p>
-            <button type="button" data-local-mode-preset="observe">Use Observe</button>
-          </section>
-          <section class="mode-card">
-            <h3>Work</h3>
-            <p>Implement, fix, or refactor inside the isolated sandbox.</p>
-            <button type="button" data-local-mode-preset="work">Use Work</button>
-          </section>
-          <section class="mode-card">
-            <h3>Apply</h3>
-            <p>Review the proposed diff and promote only after validation.</p>
-            <button type="button" data-local-mode-preset="promote">Use Apply</button>
-          </section>
-        </div>
-        <div id="local-mode-flow" class="mode-flow" aria-label="Current local workbench phase">
-          <span id="local-flow-observe" class="flow-step muted">Observe</span>
-          <span id="local-flow-work" class="flow-step muted">Work</span>
-          <span id="local-flow-promote" class="flow-step muted">Apply</span>
-        </div>
-        <p id="local-chat-summary" class="callout warn" aria-live="polite">Local workbench not loaded yet.</p>
-        <p id="local-next-step" class="callout warn" aria-live="polite">Load the contract and choose a workbench mode.</p>
-        <label class="chat-composer">Message
-          <textarea id="local-run-task" rows="7" maxlength="12000" placeholder="Ask LAI what to observe or change. Work mode will keep edits isolated until review."></textarea>
-        </label>
-        <div class="task-meta">
-          <span id="local-task-counter" class="muted">0 / 12000</span>
-          <span class="muted">Use Debug only when IDs, raw events, or hashes are needed.</span>
-        </div>
-        <div class="primary-actions">
-          <button id="local-send-button" class="primary" data-action="create-local-chat-run">Send to LAI</button>
-          <button id="local-cancel-button" class="danger" data-action="cancel-local-chat-run" disabled>No active run</button>
-        </div>
-        <pre id="local-run-summary" class="compact-output" aria-live="polite">No local run summary yet.</pre>
-        <section id="local-review-panel" class="review-panel" aria-label="Reviewed change proposal" hidden>
-          <div class="review-header">
-            <div>
-              <p class="eyebrow">review</p>
-              <h3 id="local-review-title">No review loaded</h3>
-            </div>
-            <span id="local-review-status" class="pill muted">review unavailable</span>
-          </div>
-          <p id="local-review-summary" class="callout warn" aria-live="polite">Review appears only after an eligible work run returns a proposal.</p>
-          <dl class="review-evidence">
-            <div><dt>Validation</dt><dd id="local-review-validation">Missing</dd></div>
-            <div><dt>Files changed</dt><dd id="local-review-files-count">0</dd></div>
-            <div><dt>Patch</dt><dd id="local-review-patch">not available</dd></div>
-            <div><dt>Diff</dt><dd id="local-review-diff-state">Missing</dd></div>
-          </dl>
-          <div class="review-section">
-            <h4>Changed files</h4>
-            <ul id="local-review-files" class="review-files"><li>No changed files.</li></ul>
-          </div>
-          <div class="review-section">
-            <h4>Telemetry</h4>
-            <pre id="local-review-telemetry" class="compact-output">No telemetry available.</pre>
-          </div>
-          <div class="review-section">
-            <h4>Diff</h4>
-            <pre id="local-review-diff" class="review-diff">No diff loaded.</pre>
-          </div>
-          <div class="primary-actions review-actions">
-            <button id="local-review-apply-button" class="primary" data-action="apply-current-local-review" disabled>Apply reviewed change</button>
-            <button data-action="discard-current-local-review">Discard review</button>
-          </div>
-          <p id="local-review-result" class="muted" aria-live="polite">No review decision yet.</p>
-        </section>
-        <details class="debug-panel">
-          <summary>Advanced / Debug</summary>
-          <p class="muted">Raw contract, run IDs, patch hash, polling, review, and promotion controls remain available here for safe troubleshooting.</p>
-          <div class="form-row">
-            <label>Workspace
-              <select id="local-workspace"></select>
-            </label>
-            <label>Model
-              <select id="local-model"></select>
-            </label>
-            <label>Mode
-              <select id="local-run-mode">
-                <option value="plan">plan</option>
-                <option value="review">review</option>
-                <option value="diagnose">diagnose</option>
-                <option value="security">security</option>
-                <option value="release">release</option>
-                <option value="implement">implement</option>
-                <option value="fix">fix</option>
-                <option value="refactor">refactor</option>
-                <option value="ci-fix">ci-fix</option>
-              </select>
-            </label>
-          </div>
-          <div class="form-row">
-            <label>Run id
-              <input id="local-run-id" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="cr-...">
-            </label>
-            <label>Reviewed patch sha256
-              <input id="local-patch-sha" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="64 lowercase hex chars">
-            </label>
-          </div>
-          <div class="actions">
-            <button data-action="refresh-local-chat-contract">Refresh contract</button>
-            <button data-action="load-local-chat-workspaces">Load workspaces</button>
-            <button data-action="load-local-chat-models">Load models</button>
-            <button data-action="get-local-chat-events">Get events</button>
-            <button data-action="poll-local-chat-run">Poll run</button>
-            <button data-action="stop-local-chat-polling">Stop polling</button>
-            <button data-action="get-local-chat-review">Review diff</button>
-            <button data-action="promote-local-chat-run">Promote reviewed patch</button>
-          </div>
-          <pre id="local-chat-output" aria-live="polite">Not loaded.</pre>
-          <h3>Review / promotion</h3>
-          <pre id="local-review-output" aria-live="polite">Not loaded.</pre>
-        </details>
-      </article>
-
       <article class="card wide">
         <h2>Read-only run</h2>
         <div class="form-row">
@@ -332,6 +349,7 @@
         <ol id="run-history" class="history" aria-live="polite"></ol>
       </article>
     </section>
+    </details>
   </main>
   <script src="/assets/app.js" defer></script>
 </body>
