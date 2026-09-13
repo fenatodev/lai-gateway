@@ -1,6 +1,6 @@
 # 04 — Review panel
 
-Status: spec only. No implementation.
+Status: MVP implemented in Local Workbench. Backend gates unchanged.
 
 ## Goal
 

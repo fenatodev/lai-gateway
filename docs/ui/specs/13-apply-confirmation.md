@@ -1,6 +1,6 @@
 # 13 — Apply confirmation
 
-Status: spec only. No implementation.
+Status: MVP implemented in Local Workbench. Backend gates unchanged.
 
 ## Goal
 

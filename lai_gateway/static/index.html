@@ -205,6 +205,39 @@
           <button id="local-cancel-button" class="danger" data-action="cancel-local-chat-run" disabled>No active run</button>
         </div>
         <pre id="local-run-summary" class="compact-output" aria-live="polite">No local run summary yet.</pre>
+        <section id="local-review-panel" class="review-panel" aria-label="Reviewed change proposal" hidden>
+          <div class="review-header">
+            <div>
+              <p class="eyebrow">review</p>
+              <h3 id="local-review-title">No review loaded</h3>
+            </div>
+            <span id="local-review-status" class="pill muted">review unavailable</span>
+          </div>
+          <p id="local-review-summary" class="callout warn" aria-live="polite">Review appears only after an eligible work run returns a proposal.</p>
+          <dl class="review-evidence">
+            <div><dt>Validation</dt><dd id="local-review-validation">Missing</dd></div>
+            <div><dt>Files changed</dt><dd id="local-review-files-count">0</dd></div>
+            <div><dt>Patch</dt><dd id="local-review-patch">not available</dd></div>
+            <div><dt>Diff</dt><dd id="local-review-diff-state">Missing</dd></div>
+          </dl>
+          <div class="review-section">
+            <h4>Changed files</h4>
+            <ul id="local-review-files" class="review-files"><li>No changed files.</li></ul>
+          </div>
+          <div class="review-section">
+            <h4>Telemetry</h4>
+            <pre id="local-review-telemetry" class="compact-output">No telemetry available.</pre>
+          </div>
+          <div class="review-section">
+            <h4>Diff</h4>
+            <pre id="local-review-diff" class="review-diff">No diff loaded.</pre>
+          </div>
+          <div class="primary-actions review-actions">
+            <button id="local-review-apply-button" class="primary" data-action="apply-current-local-review" disabled>Apply reviewed change</button>
+            <button data-action="discard-current-local-review">Discard review</button>
+          </div>
+          <p id="local-review-result" class="muted" aria-live="polite">No review decision yet.</p>
+        </section>
         <details class="debug-panel">
           <summary>Advanced / Debug</summary>
           <p class="muted">Raw contract, run IDs, patch hash, polling, review, and promotion controls remain available here for safe troubleshooting.</p>
