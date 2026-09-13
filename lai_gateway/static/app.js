@@ -17,6 +17,7 @@ let activeLocalRunId = "";
 let activeLocalRunTerminal = true;
 let lastLocalMode = "diagnose";
 let currentLocalReview = null;
+const localChatRenderedRuns = new Set();
 const TASK_PRESETS = {
   plan: "Plan the next safe, high-impact step from the current project state.",
   review: "Review the current state and identify issues, risks, and quick wins.",
@@ -75,6 +76,78 @@ function clearLocalReviewState(reason = "") {
   resetLocalReviewPanel(reason || "No review loaded.");
   updateLocalExecutionControls("idle");
   if (reason) setLocalNextStep(reason, "warn");
+}
+
+
+function appendLocalChatTurn(kind, title, text) {
+  const thread = byId("local-chat-thread");
+  if (!thread) return;
+  const anchor = byId("local-chat-live-anchor");
+  const row = document.createElement("div");
+  row.className = kind === "user" ? "message-row user-row" : "message-row assistant-row";
+  const avatar = document.createElement("div");
+  avatar.className = "avatar";
+  avatar.textContent = kind === "user" ? "U" : "L";
+  const bubble = document.createElement("article");
+  bubble.className = kind === "user" ? "message-bubble user-bubble" : "message-bubble assistant-bubble";
+  const meta = document.createElement("div");
+  meta.className = "message-meta";
+  const strong = document.createElement("strong");
+  strong.textContent = title;
+  meta.appendChild(strong);
+  const body = document.createElement("p");
+  body.textContent = text;
+  bubble.appendChild(meta);
+  bubble.appendChild(body);
+  if (kind === "user") {
+    row.appendChild(document.createElement("span"));
+    row.appendChild(bubble);
+  } else {
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+  }
+  thread.insertBefore(row, anchor || null);
+  row.scrollIntoView({ block: "nearest" });
+}
+
+function appendLocalToolMessage(title, text, state = "running") {
+  const thread = byId("local-chat-thread");
+  if (!thread) return;
+  const anchor = byId("local-chat-live-anchor");
+  const card = document.createElement("article");
+  card.className = "tool-card transient-tool-card";
+  const header = document.createElement("div");
+  header.className = "tool-card-header";
+  const icon = document.createElement("span");
+  icon.className = "tool-icon";
+  icon.textContent = "⚙";
+  const copy = document.createElement("div");
+  const strong = document.createElement("strong");
+  strong.textContent = title;
+  const p = document.createElement("p");
+  p.textContent = text;
+  copy.appendChild(strong);
+  copy.appendChild(p);
+  const pill = document.createElement("span");
+  pill.className = `pill ${state}`;
+  pill.textContent = state;
+  header.appendChild(icon);
+  header.appendChild(copy);
+  header.appendChild(pill);
+  card.appendChild(header);
+  thread.insertBefore(card, anchor || null);
+  card.scrollIntoView({ block: "nearest" });
+}
+
+function updateLocalRunCard(title, summary, status, state = "muted") {
+  setText("local-run-card-title", title);
+  setText("local-run-card-summary", summary);
+  const pill = byId("local-run-card-status");
+  if (pill) {
+    pill.textContent = status;
+    pill.className = `pill ${state}`;
+  }
+  setText("local-conversation-mode", byId("local-mode-label")?.textContent || "Observe");
 }
 
 function show(targetId, payload) {
@@ -611,6 +684,7 @@ function setLocalChatContract(payload) {
   const work = Boolean(capabilities.local_chat_work_runs || capabilities.work_runs);
   const state = payload.negotiated ? "ready" : "warn";
   setLocalChatSummary(`workbench ${payload.negotiated ? "negotiated" : "not negotiated"}; work_runs=${work}`, state);
+  updateLocalRunCard("Contract", `local-chat negotiated=${Boolean(payload.negotiated)}; work_runs=${work}`, payload.negotiated ? "ready" : "warn", state);
   show("local-chat-output", payload);
 }
 
@@ -620,6 +694,7 @@ function setLocalWorkspaces(payload) {
   const selectedWorkspace = workspaces.find((workspace) => workspace.workspace_id === selected);
   setText("local-project-label", localWorkspaceLabel(selectedWorkspace));
   setLocalChatSummary(workspaces.length ? `Project selected · ${localWorkspaceLabel(selectedWorkspace)}` : "no local-chat workspace", workspaces.length ? "ready" : "danger");
+  updateLocalRunCard("Project", workspaces.length ? `Selected ${localWorkspaceLabel(selectedWorkspace)}` : "No local-chat workspace found", workspaces.length ? "ready" : "missing", workspaces.length ? "ready" : "danger");
   show("local-chat-output", payload);
 }
 
@@ -646,10 +721,18 @@ function setLocalRunFromPayload(payload) {
   updateLocalExecutionControls(status);
   setText("local-mode-label", localModeLabel(mode));
   setText("local-status-label", status);
+  setText("local-conversation-title", runId ? `Run ${runId}` : "LAI run");
+  setText("local-conversation-mode", localModeLabel(mode));
   const [nextStep, nextState, phase] = localNextStepForRun({ ...run, status, mode });
   updateLocalModeFlow(phase, nextState);
   setLocalNextStep(nextStep, nextState);
-  show("local-run-summary", summarizeLocalChildTelemetry({ ...run, status, mode }));
+  const childSummary = summarizeLocalChildTelemetry({ ...run, status, mode });
+  show("local-run-summary", childSummary);
+  updateLocalRunCard(`${localModeLabel(mode)} run`, `Status ${status}${runId ? ` · ${runId}` : ""}`, status, state);
+  if (runId && TERMINAL_STATUSES.has(status) && !localChatRenderedRuns.has(`${runId}:${status}`)) {
+    localChatRenderedRuns.add(`${runId}:${status}`);
+    appendLocalToolMessage("Run finished", `${localModeLabel(mode)} ended with ${status}. Review appears when a patch is eligible.`, state);
+  }
   setLocalChatSummary(`local ${mode} ${status}`, state);
   show("local-chat-output", payload);
 }
@@ -670,6 +753,8 @@ function setLocalReview(payload) {
       : "Review loaded but Apply is blocked until validation, diff, workspace, run, and patch evidence are complete.",
     state,
   );
+  updateLocalRunCard("Review", state === "ready" ? "Review is eligible for explicit Apply." : "Review loaded with blockers.", status, state);
+  appendLocalToolMessage("Review loaded", state === "ready" ? "Apply is available in the right rail." : "Apply is blocked until review evidence is complete.", state);
   setLocalChatSummary(`review ${status}`, state);
   show("local-review-output", payload);
 }
@@ -1111,6 +1196,8 @@ async function runAction(action) {
       const body = { mode, task, workspace_id: workspaceId, model_id: modelId };
       if (sessionId) body.session_id = sessionId;
       lastLocalChatCursor = 0;
+      appendLocalChatTurn("user", "You", task);
+      appendLocalToolMessage("Starting LAI run", `${localModeLabel(mode)} request queued through Gateway.`, "running");
       const payload = await requestJson("/v1/local-chat/runs", {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
