@@ -16,6 +16,7 @@ let lastLocalChatCursor = 0;
 let activeLocalRunId = "";
 let activeLocalRunTerminal = true;
 let lastLocalMode = "diagnose";
+let currentLocalReview = null;
 const TASK_PRESETS = {
   plan: "Plan the next safe, high-impact step from the current project state.",
   review: "Review the current state and identify issues, risks, and quick wins.",
@@ -71,6 +72,7 @@ function clearLocalReviewState(reason = "") {
   activeLocalRunId = "";
   activeLocalRunTerminal = true;
   lastLocalChatCursor = 0;
+  resetLocalReviewPanel(reason || "No review loaded.");
   updateLocalExecutionControls("idle");
   if (reason) setLocalNextStep(reason, "warn");
 }
@@ -399,6 +401,192 @@ function selectValue(id) {
   return item ? item.value.trim() : "";
 }
 
+function shortSha(value) {
+  return value ? value.slice(0, 12) : "not available";
+}
+
+function setListItems(id, values, emptyText) {
+  const list = byId(id);
+  if (!list) return;
+  list.replaceChildren();
+  const safeValues = values.filter(Boolean);
+  if (!safeValues.length) {
+    const item = document.createElement("li");
+    item.textContent = emptyText;
+    list.appendChild(item);
+    return;
+  }
+  for (const value of safeValues) {
+    const item = document.createElement("li");
+    item.textContent = value;
+    list.appendChild(item);
+  }
+}
+
+function reviewPayloadRoot(payload) {
+  return payload.review || payload.promotion || payload || {};
+}
+
+function changedPathsFromReview(payload) {
+  const review = reviewPayloadRoot(payload);
+  if (Array.isArray(review.changed_paths)) return review.changed_paths.filter(Boolean);
+  if (Array.isArray(payload.changed_paths)) return payload.changed_paths.filter(Boolean);
+  const files = Array.isArray(review.files) ? review.files : Array.isArray(payload.files) ? payload.files : [];
+  return files.map((file) => file.path || file.relative_path || file.name || "").filter(Boolean);
+}
+
+function validationStatusFromReview(payload) {
+  const review = reviewPayloadRoot(payload);
+  const validation = review.validation || payload.validation || review.validation_summary || {};
+  return review.validation_status || payload.validation_status || validation.status || validation.overall || "Missing";
+}
+
+function diffInfoFromReview(payload) {
+  const review = reviewPayloadRoot(payload);
+  const files = Array.isArray(review.files) ? review.files : Array.isArray(payload.files) ? payload.files : [];
+  const fileDiffs = files
+    .map((file) => {
+      const path = file.path || file.relative_path || file.name || "file";
+      const diff = file.diff || file.patch || file.unified_diff || "";
+      return diff ? `--- ${path}\n${diff}` : "";
+    })
+    .filter(Boolean);
+  const parts = [];
+  if (typeof review.diff === "string" && review.diff) parts.push(review.diff);
+  if (typeof payload.diff === "string" && payload.diff) parts.push(payload.diff);
+  if (typeof review.patch === "string" && review.patch) parts.push(review.patch);
+  parts.push(...fileDiffs);
+  const truncated = Boolean(review.diff_truncated || payload.diff_truncated || review.truncated || payload.truncated);
+  const text = parts.join("\n\n").trim();
+  return {
+    text,
+    state: text ? (truncated ? "Truncated" : "Available") : "Missing",
+    truncated,
+  };
+}
+
+function telemetryTextFromReview(payload) {
+  const review = reviewPayloadRoot(payload);
+  const telemetry = review.telemetry || payload.telemetry || review.metrics || payload.metrics || {};
+  const lines = [];
+  for (const [key, value] of Object.entries(telemetry)) {
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      lines.push(`${key}: ${value}`);
+    }
+  }
+  if (review.validation || payload.validation) lines.push(`validation: ${validationStatusFromReview(payload)}`);
+  if (review.status) lines.push(`review_status: ${review.status}`);
+  if (payload.status) lines.push(`payload_status: ${payload.status}`);
+  return lines.length ? lines.join("\n") : "No telemetry available.";
+}
+
+function reviewEvidenceFromPayload(payload) {
+  const review = reviewPayloadRoot(payload);
+  const patchSha = review.patch_sha256 || payload.patch_sha256 || "";
+  const runId = payload.control_run_id || review.control_run_id || selectValue("local-run-id");
+  const workspaceId = payload.workspace_id || review.workspace_id || selectValue("local-workspace");
+  const changedPaths = changedPathsFromReview(payload);
+  const validationStatus = validationStatusFromReview(payload);
+  const diffInfo = diffInfoFromReview(payload);
+  const stale = Boolean(review.stale || payload.stale || review.review_stale || payload.review_stale);
+  return { review, patchSha, runId, workspaceId, changedPaths, validationStatus, diffInfo, stale };
+}
+
+function validationPassed(status) {
+  return ["passed", "pass", "ok", "ready", "succeeded", "success"].includes(String(status || "").toLowerCase());
+}
+
+function applyBlockersForReview(evidence) {
+  const blockers = [];
+  if (!evidence.runId) blockers.push("run identity missing");
+  if (!evidence.workspaceId) blockers.push("workspace identity missing");
+  if (!/^[0-9a-f]{64}$/.test(evidence.patchSha)) blockers.push("patch hash missing");
+  if (!evidence.changedPaths.length) blockers.push("changed files missing");
+  if (!validationPassed(evidence.validationStatus)) blockers.push(`validation ${evidence.validationStatus || "missing"}`);
+  if (evidence.diffInfo.state !== "Available") blockers.push(`diff ${evidence.diffInfo.state.toLowerCase()}`);
+  if (evidence.diffInfo.truncated) blockers.push("diff truncated");
+  if (evidence.stale) blockers.push("review stale");
+  return blockers;
+}
+
+function resetLocalReviewPanel(reason = "No review loaded.") {
+  currentLocalReview = null;
+  const panel = byId("local-review-panel");
+  if (panel) panel.hidden = true;
+  setText("local-review-title", "No review loaded");
+  setPill("local-review-status", "review unavailable", "muted");
+  setCallout("local-review-summary", reason, "warn");
+  setText("local-review-validation", "Missing");
+  setText("local-review-files-count", "0");
+  setText("local-review-patch", "not available");
+  setText("local-review-diff-state", "Missing");
+  setListItems("local-review-files", [], "No changed files.");
+  show("local-review-telemetry", "No telemetry available.");
+  show("local-review-diff", "No diff loaded.");
+  setButtonState("local-review-apply-button", true, "Apply reviewed change");
+  setText("local-review-result", "No review decision yet.");
+}
+
+function renderReviewPanel(payload) {
+  const evidence = reviewEvidenceFromPayload(payload);
+  const blockers = applyBlockersForReview(evidence);
+  const applyReady = blockers.length === 0;
+  const panel = byId("local-review-panel");
+  if (panel) panel.hidden = false;
+  currentLocalReview = {
+    payload,
+    runId: evidence.runId,
+    workspaceId: evidence.workspaceId,
+    patchSha: evidence.patchSha,
+    changedCount: evidence.changedPaths.length,
+    validationStatus: evidence.validationStatus,
+    diffState: evidence.diffInfo.state,
+    blockers,
+  };
+  setText("local-review-title", evidence.changedPaths.length ? "Reviewed change proposal" : "Review loaded without changed files");
+  setPill("local-review-status", applyReady ? "ready to apply" : "apply blocked", applyReady ? "ready" : "warn");
+  setCallout(
+    "local-review-summary",
+    applyReady
+      ? "Review is complete. Apply will use the workspace, run id, and patch hash from this review payload."
+      : `Apply disabled: ${blockers.join(", ") || "review incomplete"}.`,
+    applyReady ? "ready" : "warn",
+  );
+  setText("local-review-validation", evidence.validationStatus || "Missing");
+  setText("local-review-files-count", String(evidence.changedPaths.length));
+  setText("local-review-patch", shortSha(evidence.patchSha));
+  setText("local-review-diff-state", evidence.diffInfo.state);
+  setListItems("local-review-files", evidence.changedPaths, "No changed files.");
+  show("local-review-telemetry", telemetryTextFromReview(payload));
+  show("local-review-diff", evidence.diffInfo.text || "No displayable diff in review payload. Open Advanced / Debug for raw metadata.");
+  setButtonState("local-review-apply-button", !applyReady, applyReady ? "Apply reviewed change" : "Apply blocked");
+  setText("local-review-result", applyReady ? "Awaiting explicit confirmation." : "Fix the blocked review state or load a fresh review before applying.");
+  return currentLocalReview;
+}
+
+async function loadLocalReviewForCurrentRun() {
+  const runId = selectValue("local-run-id");
+  const workspaceId = selectValue("local-workspace");
+  if (!runId) throw new Error("local run id is required");
+  if (!workspaceId) throw new Error("workspace is required");
+  const payload = await requestJson(`/v1/local-chat/runs/${encodeURIComponent(runId)}/review?workspace_id=${encodeURIComponent(workspaceId)}`);
+  setLocalReview(payload);
+  return payload;
+}
+
+async function maybeLoadReviewAfterTerminalRun(payload) {
+  const runId = payload.control_run_id || payload.run_id || selectValue("local-run-id");
+  const mode = payload.mode || selectValue("local-run-mode");
+  if (!payload.terminal || payload.status !== "succeeded" || !LOCAL_CHAT_WORK_MODES.has(mode) || !runId) return;
+  if (currentLocalReview && currentLocalReview.runId === runId) return;
+  try {
+    await loadLocalReviewForCurrentRun();
+  } catch (err) {
+    setLocalNextStep("Work run finished, but review could not be loaded. Open Advanced / Debug for raw events.", "warn");
+    show("local-review-output", String(err.message || err));
+  }
+}
+
 function setOptions(selectId, items, valueKey, labelFn) {
   const select = byId(selectId);
   if (!select) return "";
@@ -467,15 +655,21 @@ function setLocalRunFromPayload(payload) {
 }
 
 function setLocalReview(payload) {
-  const review = payload.review || payload;
+  const review = payload.review || payload.promotion || payload;
   const patchSha = review.patch_sha256 || payload.patch_sha256 || "";
   if (patchSha) byId("local-patch-sha").value = patchSha;
   const status = review.status || payload.status || "review loaded";
-  const state = patchSha ? "ready" : "warn";
+  const reviewState = renderReviewPanel(payload);
+  const state = reviewState && reviewState.blockers.length === 0 ? "ready" : "warn";
   setText("local-mode-label", "Apply");
   setText("local-status-label", status);
   updateLocalModeFlow("promote", state);
-  setLocalNextStep(patchSha ? "Review loaded. Verify the diff and patch hash before promotion." : "Review loaded without a patch hash. Promotion remains blocked.", state);
+  setLocalNextStep(
+    state === "ready"
+      ? "Review loaded. Apply is bound to this workspace, run, and patch hash."
+      : "Review loaded but Apply is blocked until validation, diff, workspace, run, and patch evidence are complete.",
+    state,
+  );
   setLocalChatSummary(`review ${status}`, state);
   show("local-review-output", payload);
 }
@@ -494,7 +688,10 @@ async function fetchLocalChatEvents() {
   if (Number.isInteger(payload.next_cursor)) lastLocalChatCursor = payload.next_cursor;
   setLocalRunFromPayload(payload);
   show("local-chat-output", payload);
-  if (payload.terminal) stopLocalChatPolling();
+  if (payload.terminal) {
+    stopLocalChatPolling();
+    await maybeLoadReviewAfterTerminalRun(payload);
+  }
   return payload;
 }
 
@@ -908,6 +1105,7 @@ async function runAction(action) {
       if (!task) throw new Error("task is required");
       if (!workspaceId) throw new Error("workspace is required");
       if (!activeLocalRunTerminal && activeLocalRunId) throw new Error("local run already active");
+      resetLocalReviewPanel("New run started. Previous review was cleared.");
       activeLocalRunTerminal = false;
       updateLocalExecutionControls("running");
       const body = { mode, task, workspace_id: workspaceId, model_id: modelId };
@@ -930,11 +1128,53 @@ async function runAction(action) {
       stopLocalChatPolling();
       setLocalChatSummary("local polling stopped", "warn");
     } else if (action === "get-local-chat-review") {
-      const runId = selectValue("local-run-id");
-      const workspaceId = selectValue("local-workspace");
-      if (!runId) throw new Error("local run id is required");
-      if (!workspaceId) throw new Error("workspace is required");
-      setLocalReview(await requestJson(`/v1/local-chat/runs/${encodeURIComponent(runId)}/review?workspace_id=${encodeURIComponent(workspaceId)}`));
+      await loadLocalReviewForCurrentRun();
+    } else if (action === "apply-current-local-review") {
+      if (!currentLocalReview) throw new Error("no current review is loaded");
+      if (currentLocalReview.blockers.length) throw new Error(`apply blocked: ${currentLocalReview.blockers.join(", ")}`);
+      const projectLabel = byId("local-project-label").textContent || currentLocalReview.workspaceId;
+      const confirmation = [
+        "Apply this reviewed change?",
+        `Project: ${projectLabel}`,
+        `Files changed: ${currentLocalReview.changedCount}`,
+        `Validation: ${currentLocalReview.validationStatus}`,
+        `Patch: ${shortSha(currentLocalReview.patchSha)}`,
+        "",
+        "This applies the reviewed patch through Harness promotion gates.",
+      ].join("\n");
+      if (!window.confirm(confirmation)) return;
+      setButtonState("local-review-apply-button", true, "Applying...");
+      const payload = await requestJson(`/v1/local-chat/runs/${encodeURIComponent(currentLocalReview.runId)}/promotion`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ workspace_id: currentLocalReview.workspaceId, patch_sha256: currentLocalReview.patchSha }),
+      });
+      const promotion = payload.promotion || payload;
+      const result = promotion.status || payload.status || "unknown";
+      show("local-review-output", payload);
+      if (["applied", "promoted", "succeeded", "success"].includes(String(result).toLowerCase())) {
+        currentLocalReview = null;
+        setPill("local-review-status", "applied", "ready");
+        setCallout("local-review-summary", "Backend confirmed the reviewed change was applied through promotion gates.", "ready");
+        setButtonState("local-review-apply-button", true, "Applied");
+        setText("local-review-result", "Applied. Active review cleared; source checkout state remains governed by Harness promotion output.");
+        setLocalNextStep("Promotion applied. Check the reported destination before any Git push or PR.", "ready");
+      } else if (["drift", "stale"].includes(String(result).toLowerCase())) {
+        setPill("local-review-status", "drift", "danger");
+        setCallout("local-review-summary", "Promotion reported drift. Load a fresh review before retrying.", "danger");
+        setButtonState("local-review-apply-button", true, "Fresh review required");
+      } else if (["rejected", "denied", "blocked", "failed"].includes(String(result).toLowerCase())) {
+        setPill("local-review-status", "rejected", "danger");
+        setCallout("local-review-summary", "Promotion was not applied. Review remains visible for inspection.", "danger");
+        setButtonState("local-review-apply-button", false, "Apply reviewed change");
+      } else {
+        setPill("local-review-status", "unknown result", "warn");
+        setCallout("local-review-summary", "Promotion result is unknown. Check status before retrying.", "warn");
+        setButtonState("local-review-apply-button", true, "Check status first");
+      }
+    } else if (action === "discard-current-local-review") {
+      resetLocalReviewPanel("Review discarded in the browser. Sandbox cleanup or rollback was not implied.");
+      setLocalNextStep("Review discarded locally. Select another run or start a new task.", "warn");
     } else if (action === "promote-local-chat-run") {
       const runId = selectValue("local-run-id");
       const workspaceId = selectValue("local-workspace");
