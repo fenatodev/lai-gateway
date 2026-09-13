@@ -201,8 +201,8 @@
           <span class="muted">Use Debug only when IDs, raw events, or hashes are needed.</span>
         </div>
         <div class="primary-actions">
-          <button class="primary" data-action="create-local-chat-run">Send to LAI</button>
-          <button class="danger" data-action="cancel-local-chat-run">Cancel active run</button>
+          <button id="local-send-button" class="primary" data-action="create-local-chat-run">Send to LAI</button>
+          <button id="local-cancel-button" class="danger" data-action="cancel-local-chat-run" disabled>No active run</button>
         </div>
         <pre id="local-run-summary" class="compact-output" aria-live="polite">No local run summary yet.</pre>
         <details class="debug-panel">
