@@ -43,6 +43,12 @@ function byId(id) {
   return document.getElementById(id);
 }
 
+function setText(id, text) {
+  const item = byId(id);
+  if (!item) return;
+  item.textContent = text;
+}
+
 function show(targetId, payload) {
   const target = byId(targetId);
   if (!target) return;
@@ -245,6 +251,12 @@ function applyPreset(mode) {
   updateTaskCounter();
 }
 
+function localModeLabel(mode) {
+  if (LOCAL_CHAT_WORK_MODES.has(mode)) return "Work";
+  if (mode === "review") return "Apply";
+  return "Observe";
+}
+
 function applyLocalModePreset(presetName) {
   const preset = LOCAL_MODE_PRESETS[presetName];
   if (!preset) return;
@@ -253,13 +265,15 @@ function applyLocalModePreset(presetName) {
   updateLocalTaskCounter();
   const state = presetName === "work" ? "running" : "ready";
   updateLocalModeFlow(presetName, state);
+  setText("local-mode-label", localModeLabel(preset.mode));
+  setText("local-status-label", "ready");
   const nextSteps = {
-    observe: "Observe mode is read-only. Use it for diagnosis, planning, review, security, and release checks.",
-    work: "Work mode writes only inside the isolated sandbox workspace. Review is required before promotion.",
-    promote: "Promote mode starts with review. Promotion still requires the reviewed patch hash.",
+    observe: "Observe is read-only. Use it for diagnosis, planning, review, security, and release checks.",
+    work: "Work writes only inside the isolated sandbox. Review is required before promotion.",
+    promote: "Apply starts with review. Promotion still requires the reviewed patch hash.",
   };
   setLocalNextStep(nextSteps[presetName], state);
-  setLocalChatSummary(`mode preset ${presetName}: ${preset.mode}`, state);
+  setLocalChatSummary(`${localModeLabel(preset.mode)} selected · ${preset.mode}`, state);
 }
 
 function setPill(id, text, state = "muted") {
@@ -273,6 +287,14 @@ function setPill(id, text, state = "muted") {
 function setLocalChatSummary(text, state = "warn") {
   setCallout("local-chat-summary", text, state);
   setPill("workbench-pill", text.length > 54 ? `${text.slice(0, 51)}...` : text, state);
+}
+
+function localWorkspaceLabel(workspace) {
+  if (!workspace) return "not loaded";
+  const name = workspace.display_name || workspace.repository_name || workspace.workspace_id;
+  const branch = workspace.branch ? ` · ${workspace.branch}` : "";
+  const clean = workspace.git_clean === false ? " · dirty" : " · clean";
+  return `${name}${branch}${clean}`;
 }
 
 function localModePhaseForMode(mode) {
@@ -375,13 +397,10 @@ function setLocalChatContract(payload) {
 
 function setLocalWorkspaces(payload) {
   const workspaces = Array.isArray(payload.workspaces) ? payload.workspaces : [];
-  const selected = setOptions("local-workspace", workspaces, "workspace_id", (workspace) => {
-    const name = workspace.display_name || workspace.repository_name || workspace.workspace_id;
-    const branch = workspace.branch ? ` · ${workspace.branch}` : "";
-    const clean = workspace.git_clean === false ? " · dirty" : " · clean";
-    return `${name}${branch}${clean}`;
-  });
-  setLocalChatSummary(workspaces.length ? `workspace selected ${selected}` : "no local-chat workspace", workspaces.length ? "ready" : "danger");
+  const selected = setOptions("local-workspace", workspaces, "workspace_id", localWorkspaceLabel);
+  const selectedWorkspace = workspaces.find((workspace) => workspace.workspace_id === selected);
+  setText("local-project-label", localWorkspaceLabel(selectedWorkspace));
+  setLocalChatSummary(workspaces.length ? `Project selected · ${localWorkspaceLabel(selectedWorkspace)}` : "no local-chat workspace", workspaces.length ? "ready" : "danger");
   show("local-chat-output", payload);
 }
 
@@ -403,6 +422,8 @@ function setLocalRunFromPayload(payload) {
   const status = run.status || payload.status || "unknown";
   const mode = run.mode || payload.mode || selectValue("local-run-mode") || "unknown";
   const state = TERMINAL_STATUSES.has(status) ? (status === "succeeded" ? "ready" : "danger") : "running";
+  setText("local-mode-label", localModeLabel(mode));
+  setText("local-status-label", status);
   const [nextStep, nextState, phase] = localNextStepForRun({ ...run, status, mode });
   updateLocalModeFlow(phase, nextState);
   setLocalNextStep(nextStep, nextState);
@@ -417,6 +438,8 @@ function setLocalReview(payload) {
   if (patchSha) byId("local-patch-sha").value = patchSha;
   const status = review.status || payload.status || "review loaded";
   const state = patchSha ? "ready" : "warn";
+  setText("local-mode-label", "Apply");
+  setText("local-status-label", status);
   updateLocalModeFlow("promote", state);
   setLocalNextStep(patchSha ? "Review loaded. Verify the diff and patch hash before promotion." : "Review loaded without a patch hash. Promotion remains blocked.", state);
   setLocalChatSummary(`review ${status}`, state);
@@ -1014,17 +1037,21 @@ document.addEventListener("DOMContentLoaded", () => {
   const localModeSelect = byId("local-run-mode");
   if (localModeSelect) {
     localModeSelect.addEventListener("change", () => {
-      const phase = localModePhaseForMode(localModeSelect.value);
-      updateLocalModeFlow(phase, phase === "work" ? "running" : "ready");
+      const mode = selectValue("local-run-mode");
+      const phase = localModePhaseForMode(mode);
+      const state = phase === "work" ? "running" : "ready";
+      setText("local-mode-label", localModeLabel(mode));
+      updateLocalModeFlow(phase, state);
       setLocalNextStep(
         phase === "work"
-          ? "Work mode writes only inside the isolated sandbox workspace. Review is required before promotion."
+          ? "Work writes only inside the isolated sandbox. Review is required before promotion."
           : phase === "promote"
-            ? "Promote mode starts with review. Promotion still requires the reviewed patch hash."
-            : "Observe mode is read-only. Use it for diagnosis, planning, review, security, and release checks.",
-        phase === "work" ? "running" : "ready",
+            ? "Apply starts with review. Promotion still requires the reviewed patch hash."
+            : "Observe is read-only. Use it for diagnosis, planning, review, security, and release checks.",
+        state,
       );
     });
+    setText("local-mode-label", localModeLabel(localModeSelect.value));
     updateLocalModeFlow(localModePhaseForMode(localModeSelect.value), "ready");
   }
   const tokenBox = byId("gateway-token");
