@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- Add final Workbench transition docs covering checkpoint, post-restore runbook, handoff, visual QA, restore validation, and frozen pre-transition scope.
 - Add a Workbench UI spec pack covering information architecture, composer, run states, review, Debug, sidebar, visual system, security UX, and acceptance fixtures.
 - Guard the minimal workbench execution controls against duplicate sends and mode/context changes while a local run is active.
 - Add the LAI Workbench UI architecture spec and start the minimal shell by keeping chat/mode/status primary while moving technical workbench controls into collapsed Debug.
