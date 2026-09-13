@@ -182,6 +182,13 @@
           </section>
         </div>
         <p id="local-chat-summary" class="callout warn" aria-live="polite">Local workbench not loaded yet.</p>
+        <div id="local-mode-flow" class="mode-flow" aria-label="Current local workbench phase">
+          <span id="local-flow-observe" class="flow-step muted">Observe</span>
+          <span id="local-flow-work" class="flow-step muted">Work</span>
+          <span id="local-flow-promote" class="flow-step muted">Promote</span>
+        </div>
+        <p id="local-next-step" class="callout warn" aria-live="polite">Load the contract and choose a workbench mode.</p>
+        <pre id="local-run-summary" class="compact-output" aria-live="polite">No local run summary yet.</pre>
         <div class="form-row">
           <label>Workspace
             <select id="local-workspace"></select>

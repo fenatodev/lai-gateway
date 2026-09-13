@@ -252,6 +252,13 @@ function applyLocalModePreset(presetName) {
   byId("local-run-task").value = preset.task;
   updateLocalTaskCounter();
   const state = presetName === "work" ? "running" : "ready";
+  updateLocalModeFlow(presetName, state);
+  const nextSteps = {
+    observe: "Observe mode is read-only. Use it for diagnosis, planning, review, security, and release checks.",
+    work: "Work mode writes only inside the isolated sandbox workspace. Review is required before promotion.",
+    promote: "Promote mode starts with review. Promotion still requires the reviewed patch hash.",
+  };
+  setLocalNextStep(nextSteps[presetName], state);
   setLocalChatSummary(`mode preset ${presetName}: ${preset.mode}`, state);
 }
 
@@ -266,6 +273,72 @@ function setPill(id, text, state = "muted") {
 function setLocalChatSummary(text, state = "warn") {
   setCallout("local-chat-summary", text, state);
   setPill("workbench-pill", text.length > 54 ? `${text.slice(0, 51)}...` : text, state);
+}
+
+function localModePhaseForMode(mode) {
+  if (LOCAL_CHAT_WORK_MODES.has(mode)) return "work";
+  if (mode === "review") return "promote";
+  return "observe";
+}
+
+function setLocalNextStep(text, state = "warn") {
+  setCallout("local-next-step", text, state);
+}
+
+function updateLocalModeFlow(phase = "observe", state = "warn") {
+  const order = ["observe", "work", "promote"];
+  if (!order.includes(phase)) phase = "observe";
+  let reachedActive = false;
+  for (const item of order) {
+    const step = byId(`local-flow-${item}`);
+    if (!step) continue;
+    if (item === phase) {
+      reachedActive = true;
+      step.className = `flow-step ${state}`;
+    } else if (!reachedActive && order.indexOf(item) < order.indexOf(phase)) {
+      step.className = "flow-step ready";
+    } else {
+      step.className = "flow-step muted";
+    }
+  }
+}
+
+function summarizeLocalChildTelemetry(run) {
+  const child = run.workspace_child_summary || {};
+  const validation = run.workspace_last_validation || {};
+  const lines = [
+    `run: ${run.control_run_id || run.run_id || "unknown"}`,
+    `mode: ${run.mode || "unknown"}`,
+    `status: ${run.status || "unknown"}${run.timed_out ? " · timed out" : ""}`,
+  ];
+  if (child.tool_call_count !== undefined || child.write_call_count !== undefined || child.validation_call_count !== undefined) {
+    lines.push(`telemetry: tools=${child.tool_call_count || 0} writes=${child.write_call_count || 0} validations=${child.validation_call_count || 0}`);
+    lines.push(`paths: modified=${child.modified_path_count || 0} recent=${child.recent_path_count || 0}`);
+  }
+  if (child.last_phase || child.last_tool) {
+    lines.push(`last: ${child.last_phase || "unknown"} via ${child.last_tool || "unknown"}`);
+  }
+  if (validation.status || child.last_validation_status) {
+    lines.push(`validation: ${validation.status || child.last_validation_status} exit=${validation.exit_code ?? child.last_validation_exit_code ?? "unknown"}`);
+  }
+  return lines.join("\n");
+}
+
+function localNextStepForRun(run) {
+  const status = run.status || "unknown";
+  if (LOCAL_CHAT_WORK_MODES.has(run.mode || "") && status === "succeeded") {
+    return ["Work run succeeded. Review the diff, verify the patch hash, then promote only if the result is expected.", "ready", "promote"];
+  }
+  if (status === "failed" || status === "timed_out") {
+    return ["Run failed. Inspect the telemetry summary and events before retrying or changing the task.", "danger", localModePhaseForMode(run.mode || "")];
+  }
+  if (status === "cancelled" || status === "canceled") {
+    return ["Run cancelled. Start a new bounded task when ready.", "warn", localModePhaseForMode(run.mode || "")];
+  }
+  if (!TERMINAL_STATUSES.has(status)) {
+    return ["Run is active. Wait for terminal status before review or promotion.", "running", localModePhaseForMode(run.mode || "")];
+  }
+  return ["Read-only run finished. Use Work for isolated changes or Promote after a reviewed patch.", "ready", localModePhaseForMode(run.mode || "")];
 }
 
 function selectValue(id) {
@@ -330,6 +403,10 @@ function setLocalRunFromPayload(payload) {
   const status = run.status || payload.status || "unknown";
   const mode = run.mode || payload.mode || selectValue("local-run-mode") || "unknown";
   const state = TERMINAL_STATUSES.has(status) ? (status === "succeeded" ? "ready" : "danger") : "running";
+  const [nextStep, nextState, phase] = localNextStepForRun({ ...run, status, mode });
+  updateLocalModeFlow(phase, nextState);
+  setLocalNextStep(nextStep, nextState);
+  show("local-run-summary", summarizeLocalChildTelemetry({ ...run, status, mode }));
   setLocalChatSummary(`local ${mode} ${status}`, state);
   show("local-chat-output", payload);
 }
@@ -339,7 +416,10 @@ function setLocalReview(payload) {
   const patchSha = review.patch_sha256 || payload.patch_sha256 || "";
   if (patchSha) byId("local-patch-sha").value = patchSha;
   const status = review.status || payload.status || "review loaded";
-  setLocalChatSummary(`review ${status}`, patchSha ? "ready" : "warn");
+  const state = patchSha ? "ready" : "warn";
+  updateLocalModeFlow("promote", state);
+  setLocalNextStep(patchSha ? "Review loaded. Verify the diff and patch hash before promotion." : "Review loaded without a patch hash. Promotion remains blocked.", state);
+  setLocalChatSummary(`review ${status}`, state);
   show("local-review-output", payload);
 }
 
@@ -931,6 +1011,22 @@ document.addEventListener("DOMContentLoaded", () => {
   updateLocalTaskCounter();
   const localTaskBox = byId("local-run-task");
   if (localTaskBox) localTaskBox.addEventListener("input", updateLocalTaskCounter);
+  const localModeSelect = byId("local-run-mode");
+  if (localModeSelect) {
+    localModeSelect.addEventListener("change", () => {
+      const phase = localModePhaseForMode(localModeSelect.value);
+      updateLocalModeFlow(phase, phase === "work" ? "running" : "ready");
+      setLocalNextStep(
+        phase === "work"
+          ? "Work mode writes only inside the isolated sandbox workspace. Review is required before promotion."
+          : phase === "promote"
+            ? "Promote mode starts with review. Promotion still requires the reviewed patch hash."
+            : "Observe mode is read-only. Use it for diagnosis, planning, review, security, and release checks.",
+        phase === "work" ? "running" : "ready",
+      );
+    });
+    updateLocalModeFlow(localModePhaseForMode(localModeSelect.value), "ready");
+  }
   const tokenBox = byId("gateway-token");
   if (tokenBox) {
     tokenBox.addEventListener("keydown", (event) => {
