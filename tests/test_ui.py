@@ -114,6 +114,9 @@ class GatewayUITest(unittest.TestCase):
                 self.assertIn('Advanced / Debug', html)
                 self.assertIn('<details class="debug-panel">', html)
                 self.assertIn('Send to LAI', html)
+                self.assertIn('id="local-send-button"', html)
+                self.assertIn('id="local-cancel-button"', html)
+                self.assertIn('No active run', html)
                 self.assertIn('Use Observe', html)
                 self.assertIn('Use Work', html)
                 self.assertIn('Use Apply', html)
@@ -225,6 +228,10 @@ class GatewayUITest(unittest.TestCase):
         self.assertIn("localWorkspaceLabel", js)
         self.assertIn('setText("local-project-label"', js)
         self.assertIn('setText("local-status-label"', js)
+        self.assertIn("updateLocalExecutionControls", js)
+        self.assertIn("local run already active", js)
+        self.assertIn("A run is active. Cancel or wait before changing mode.", js)
+        self.assertIn("clearLocalReviewState", js)
         self.assertIn("local-next-step", js)
         self.assertIn("/v1/harness/mcp/status", js)
         self.assertIn("/v1/harness/mcp/tools", js)
@@ -309,12 +316,19 @@ class GatewayUITest(unittest.TestCase):
         self.assertNotIn("Bearer", tools_body)
 
     def test_gateway_mobile_access_endpoint_returns_local_qr_without_tokens(self) -> None:
+        fake_access = {
+            "operation": "mobile-access",
+            "qr_svg": "<svg></svg>",
+            "security": {"qr_contains_token": False},
+        }
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
             token_file = Path(tmp) / "token"
             token_file.write_text(TOKEN, encoding="utf-8")
             config = GatewayConfig(harness_url=harness.url, token_file=token_file)
-            with RunningGateway(config) as gateway:
-                status, headers, body = read_url(f"{gateway.url}/v1/gateway/mobile-access")
+            with patch("lai_gateway.server.collect_mobile_access", return_value=fake_access) as mocked_collect:
+                with RunningGateway(config) as gateway:
+                    status, headers, body = read_url(f"{gateway.url}/v1/gateway/mobile-access")
+        mocked_collect.assert_called_once()
         self.assertEqual(status, 200)
         self.assertEqual(headers["cache-control"], "no-store")
         payload = __import__("json").loads(body)

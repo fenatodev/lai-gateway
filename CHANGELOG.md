@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- Guard the minimal workbench execution controls against duplicate sends and mode/context changes while a local run is active.
 - Add the LAI Workbench UI architecture spec and start the minimal shell by keeping chat/mode/status primary while moving technical workbench controls into collapsed Debug.
 - Add a Local Workbench phase tracker, next-step guidance, and compact child-run telemetry summary so Observe, Work, and Promote status is visible without reading raw JSON.
 - Add a three-mode Local Workbench guide with Observe, Work, and Promote presets so the loopback UI exposes the intended operating flow without adding Gateway authority.

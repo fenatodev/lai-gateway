@@ -13,6 +13,9 @@ let sessionCountdownTimer = null;
 let lastMobileUrl = "";
 let localChatPollTimer = null;
 let lastLocalChatCursor = 0;
+let activeLocalRunId = "";
+let activeLocalRunTerminal = true;
+let lastLocalMode = "diagnose";
 const TASK_PRESETS = {
   plan: "Plan the next safe, high-impact step from the current project state.",
   review: "Review the current state and identify issues, risks, and quick wins.",
@@ -47,6 +50,29 @@ function setText(id, text) {
   const item = byId(id);
   if (!item) return;
   item.textContent = text;
+}
+
+function setButtonState(id, disabled, text = "") {
+  const button = byId(id);
+  if (!button) return;
+  button.disabled = disabled;
+  if (text) button.textContent = text;
+}
+
+function updateLocalExecutionControls(status = "idle") {
+  const running = !TERMINAL_STATUSES.has(status) && status !== "idle" && Boolean(activeLocalRunId);
+  setButtonState("local-send-button", running, running ? "Run active" : "Send to LAI");
+  setButtonState("local-cancel-button", !running, running ? "Cancel active run" : "No active run");
+}
+
+function clearLocalReviewState(reason = "") {
+  byId("local-run-id").value = "";
+  byId("local-patch-sha").value = "";
+  activeLocalRunId = "";
+  activeLocalRunTerminal = true;
+  lastLocalChatCursor = 0;
+  updateLocalExecutionControls("idle");
+  if (reason) setLocalNextStep(reason, "warn");
 }
 
 function show(targetId, payload) {
@@ -260,7 +286,12 @@ function localModeLabel(mode) {
 function applyLocalModePreset(presetName) {
   const preset = LOCAL_MODE_PRESETS[presetName];
   if (!preset) return;
+  if (!activeLocalRunTerminal) {
+    setLocalNextStep("A run is active. Cancel or wait before changing mode.", "warn");
+    return;
+  }
   byId("local-run-mode").value = preset.mode;
+  lastLocalMode = preset.mode;
   byId("local-run-task").value = preset.task;
   updateLocalTaskCounter();
   const state = presetName === "work" ? "running" : "ready";
@@ -422,6 +453,9 @@ function setLocalRunFromPayload(payload) {
   const status = run.status || payload.status || "unknown";
   const mode = run.mode || payload.mode || selectValue("local-run-mode") || "unknown";
   const state = TERMINAL_STATUSES.has(status) ? (status === "succeeded" ? "ready" : "danger") : "running";
+  if (runId) activeLocalRunId = runId;
+  activeLocalRunTerminal = TERMINAL_STATUSES.has(status);
+  updateLocalExecutionControls(status);
   setText("local-mode-label", localModeLabel(mode));
   setText("local-status-label", status);
   const [nextStep, nextState, phase] = localNextStepForRun({ ...run, status, mode });
@@ -466,6 +500,8 @@ async function fetchLocalChatEvents() {
 
 function startLocalChatPolling() {
   stopLocalChatPolling();
+  activeLocalRunTerminal = false;
+  updateLocalExecutionControls(selectValue("local-run-id") ? "running" : "idle");
   setLocalChatSummary("polling local run", "running");
   localChatPollTimer = window.setInterval(() => {
     fetchLocalChatEvents().catch((err) => {
@@ -871,6 +907,9 @@ async function runAction(action) {
       if (!LOCAL_CHAT_MODES.has(mode)) throw new Error("unsupported local-chat mode");
       if (!task) throw new Error("task is required");
       if (!workspaceId) throw new Error("workspace is required");
+      if (!activeLocalRunTerminal && activeLocalRunId) throw new Error("local run already active");
+      activeLocalRunTerminal = false;
+      updateLocalExecutionControls("running");
       const body = { mode, task, workspace_id: workspaceId, model_id: modelId };
       if (sessionId) body.session_id = sessionId;
       lastLocalChatCursor = 0;
@@ -1037,7 +1076,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const localModeSelect = byId("local-run-mode");
   if (localModeSelect) {
     localModeSelect.addEventListener("change", () => {
+      if (!activeLocalRunTerminal) {
+        localModeSelect.value = lastLocalMode;
+        setLocalNextStep("A run is active. Cancel or wait before changing mode.", "warn");
+        return;
+      }
+      clearLocalReviewState("Mode changed. Previous review/run selection was cleared.");
       const mode = selectValue("local-run-mode");
+      lastLocalMode = mode;
       const phase = localModePhaseForMode(mode);
       const state = phase === "work" ? "running" : "ready";
       setText("local-mode-label", localModeLabel(mode));
@@ -1051,8 +1097,19 @@ document.addEventListener("DOMContentLoaded", () => {
         state,
       );
     });
+    lastLocalMode = localModeSelect.value;
     setText("local-mode-label", localModeLabel(localModeSelect.value));
     updateLocalModeFlow(localModePhaseForMode(localModeSelect.value), "ready");
+    updateLocalExecutionControls("idle");
+  }
+  const localWorkspaceSelect = byId("local-workspace");
+  if (localWorkspaceSelect) {
+    localWorkspaceSelect.addEventListener("change", () => {
+      clearLocalReviewState("Workspace changed. Previous review/run selection was cleared.");
+      const selectedOption = localWorkspaceSelect.options[localWorkspaceSelect.selectedIndex];
+      setText("local-project-label", selectedOption ? selectedOption.textContent : "not loaded");
+      runAction("load-local-chat-models");
+    });
   }
   const tokenBox = byId("gateway-token");
   if (tokenBox) {
