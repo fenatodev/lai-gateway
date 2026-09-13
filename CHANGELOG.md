@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- Add a Workbench UI spec pack covering information architecture, composer, run states, review, Debug, sidebar, visual system, security UX, and acceptance fixtures.
 - Guard the minimal workbench execution controls against duplicate sends and mode/context changes while a local run is active.
 - Add the LAI Workbench UI architecture spec and start the minimal shell by keeping chat/mode/status primary while moving technical workbench controls into collapsed Debug.
 - Add a Local Workbench phase tracker, next-step guidance, and compact child-run telemetry summary so Observe, Work, and Promote status is visible without reading raw JSON.
