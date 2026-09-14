@@ -43,11 +43,11 @@ def read_url(url: str) -> tuple[int, dict[str, str], str]:
 
 
 class AdapterRegistryTest(unittest.TestCase):
-    def test_mcp_is_first_governed_adapter_without_tool_execution(self) -> None:
+    def test_mcp_foundation_remains_governed_without_tool_execution(self) -> None:
         payload = collect_adapter_registry()
         self.assertEqual(payload["overall"], "ready")
-        self.assertEqual(payload["count"], 1)
-        adapter = payload["adapters"][0]
+        self.assertGreaterEqual(payload["count"], 1)
+        adapter = next(item for item in payload["adapters"] if item["id"] == "mcp")
         self.assertEqual(adapter["id"], "mcp")
         self.assertTrue(adapter["requires_policy_check"])
         self.assertFalse(adapter["executes_tools"])
@@ -56,8 +56,24 @@ class AdapterRegistryTest(unittest.TestCase):
         self.assertFalse(payload["security"]["tool_execution_enabled"])
         self.assertFalse(payload["security"]["grants_permissions"])
 
+    def test_browser_adapter_contract_is_registered_without_execution(self) -> None:
+        payload = collect_adapter_registry(adapter_id="browser")
+        self.assertEqual(payload["overall"], "ready")
+        self.assertEqual(payload["count"], 1)
+        adapter = payload["adapters"][0]
+        self.assertEqual(adapter["id"], "browser")
+        self.assertEqual(adapter["autonomy"], "contract_only")
+        self.assertEqual(adapter["entrypoints"], [])
+        self.assertEqual(adapter["granted_capabilities"], [])
+        self.assertTrue(adapter["requires_policy_check"])
+        self.assertFalse(adapter["executes_tools"])
+        self.assertFalse(adapter["network_access_enabled"])
+        self.assertFalse(adapter["credentialed_access_enabled"])
+        self.assertIn("browser.authenticated_session", adapter["human_approval_required_for"])
+        self.assertFalse(payload["security"]["tool_execution_enabled"])
+
     def test_adapter_filter_and_cli_are_secret_free(self) -> None:
-        missing = collect_adapter_registry(adapter_id="browser")
+        missing = collect_adapter_registry(adapter_id="missing")
         self.assertEqual(missing["overall"], "missing")
         rendered = render_adapter_registry(collect_adapter_registry(adapter_id="mcp"))
         result = subprocess.run(
