@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, urlparse
 
 from . import __version__
 from .access import collect_mobile_access
+from .adapters import collect_adapter_registry
 from .health import collect_health_report, render_health_report
 from .ops import collect_ops_status
 from .skills import collect_skills_registry
@@ -170,6 +171,13 @@ class GatewayHandler(BaseHTTPRequestHandler):
             if not self._authorize_gateway_api(parsed.path):
                 return
             self._send_json(HTTPStatus.OK, collect_dev_control_policy())
+            return
+        if parsed.path == "/v1/gateway/adapters":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            adapter_id = values.get("adapter_id", [None])[0] or None
+            self._send_json(HTTPStatus.OK, collect_adapter_registry(adapter_id=adapter_id))
             return
         if parsed.path == "/v1/gateway/ops-status":
             if not self._authorize_gateway_api(parsed.path):
@@ -485,6 +493,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/chat",
             "/v1/gateway/skills",
             "/v1/gateway/dev-control",
+            "/v1/gateway/adapters",
             "/v1/gateway/model-status",
             "/v1/gateway/model-plan",
             "/v1/gateway/model-files",

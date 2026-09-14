@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .adapters import collect_adapter_registry, render_adapter_registry
 from .bridge import collect_mobile_bridge, render_mobile_bridge
 from .access import collect_mobile_access, render_mobile_access
 from .config import GatewayConfig
@@ -387,6 +388,9 @@ def main(argv: list[str] | None = None) -> int:
     telegram_status.add_argument("--token-file", default=None, help="telegram bot token file; defaults to ~/.config/lai-gateway/telegram-bot-token")
     telegram_status.add_argument("--chat-id", default=None, help="telegram chat id; defaults to LAI_GATEWAY_TELEGRAM_CHAT_ID")
     telegram_status.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    adapters_parser = sub.add_parser("adapters", help="list governed LAI adapters without executing tools")
+    adapters_parser.add_argument("--adapter", help="show one adapter id", default=None)
+    adapters_parser.add_argument("--json", action="store_true", help="print JSON")
     mcp_parser = sub.add_parser("mcp", help="inspect the harness MCP broker foundation without executing MCP tools")
     mcp_sub = mcp_parser.add_subparsers(dest="mcp_command")
     mcp_sub.add_parser("status", help="read MCP broker status from the harness")
@@ -435,6 +439,13 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
+        if args.command == "adapters":
+            payload = collect_adapter_registry(adapter_id=args.adapter)
+            if not args.json:
+                print(render_adapter_registry(payload))
+                return 0 if payload["overall"] == "ready" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] == "ready" else 1
         if args.command == "daily-config":
             if args.daily_config_command == "set":
                 daily = validate_daily_config(
