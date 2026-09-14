@@ -7,6 +7,7 @@ import sys
 import tempfile
 import threading
 import unittest
+import warnings
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
@@ -659,6 +660,14 @@ class ModelStatusTest(unittest.TestCase):
         self.assertNotIn(MODEL_API_KEY, result.stdout + result.stderr)
         self.assertNotIn("Bearer", result.stdout + result.stderr)
         self.assertNotIn("Return only this exact one-line", result.stdout + result.stderr)
+
+    def test_model_module_compiles_without_return_in_finally_warning(self) -> None:
+        source = Path("lai_gateway/model.py").read_text(encoding="utf-8")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", SyntaxWarning)
+            compile(source, "lai_gateway/model.py", "exec")
+        messages = [str(item.message) for item in caught]
+        self.assertNotIn("'return' in a 'finally' block", "\n".join(messages))
 
     def test_model_task_record_writes_prompt_free_secret_free_jsonl(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, FakeOpenAIModelsServer() as server:

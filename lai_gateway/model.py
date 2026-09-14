@@ -545,12 +545,10 @@ def append_model_run(payload: dict[str, Any], *, path: Path | None = None) -> di
     record = _model_run_record(payload)
     flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
     fd = os.open(str(target), flags, 0o600)
-    try:
-        with os.fdopen(fd, "a", encoding="utf-8") as handle:
-            handle.write(json.dumps(record, sort_keys=True) + "\n")
-    finally:
-        if not os.path.exists(target):
-            return {"status": "error", "path": str(target), "detail": "record file was not created"}
+    with os.fdopen(fd, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, sort_keys=True) + "\n")
+    if not os.path.exists(target):
+        return {"status": "error", "path": str(target), "detail": "record file was not created"}
     try:
         os.chmod(target, 0o600)
     except OSError:
