@@ -11,7 +11,24 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
 
-from lai_gateway.model import collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_smoke, collect_model_status, collect_model_task, render_model_eval, render_model_files, render_model_plan, render_model_runs, render_model_smoke, render_model_status, render_model_task
+from lai_gateway.model import (
+    collect_model_chat,
+    collect_model_eval,
+    collect_model_files,
+    collect_model_plan,
+    collect_model_runs,
+    collect_model_smoke,
+    collect_model_status,
+    collect_model_task,
+    render_model_chat,
+    render_model_eval,
+    render_model_files,
+    render_model_plan,
+    render_model_runs,
+    render_model_smoke,
+    render_model_status,
+    render_model_task,
+)
 from lai_gateway.model import _model_smoke_messages, write_model_runtime_config
 
 
@@ -54,7 +71,14 @@ class FakeOpenAIModelsHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 return
             request_body = self.rfile.read(int(self.headers.get("Content-Length", "0") or "0")).decode("utf-8", errors="replace")
-            content = "def lai_add(a, b): return a + b" if "lai_add" in request_body else ('{"lai_json_status":"ok","count":2}' if "lai_json_status" in request_body else "LAI_SMOKE_OK")
+            if "plain-chat-question" in request_body:
+                content = "resposta direta do lai"
+            elif "lai_add" in request_body:
+                content = "def lai_add(a, b): return a + b"
+            elif "lai_json_status" in request_body:
+                content = '{"lai_json_status":"ok","count":2}'
+            else:
+                content = "LAI_SMOKE_OK"
             body = json.dumps({"choices": [{"message": {"content": content}}]}).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -64,7 +88,14 @@ class FakeOpenAIModelsHandler(BaseHTTPRequestHandler):
             return
         if self.path == "/v1/chat/completions":
             request_body = self.rfile.read(int(self.headers.get("Content-Length", "0") or "0")).decode("utf-8", errors="replace")
-            content = "def lai_add(a, b): return a + b" if "lai_add" in request_body else ('{"lai_json_status":"ok","count":2}' if "lai_json_status" in request_body else "LAI_SMOKE_OK")
+            if "plain-chat-question" in request_body:
+                content = "resposta direta do lai"
+            elif "lai_add" in request_body:
+                content = "def lai_add(a, b): return a + b"
+            elif "lai_json_status" in request_body:
+                content = '{"lai_json_status":"ok","count":2}'
+            else:
+                content = "LAI_SMOKE_OK"
             body = json.dumps({"choices": [{"message": {"content": content}}]}).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -304,6 +335,43 @@ class ModelStatusTest(unittest.TestCase):
                     "LAI_GATEWAY_MODEL_NAME": "local-code-model",
                 },
                 task="code-mini",
+            )
+        self.assertEqual(payload["overall"], "blocked")
+        self.assertFalse(payload["network_calls"]["local_openai_chat_completion"])
+        opener.assert_not_called()
+
+    def test_model_chat_reaches_loopback_without_echoing_prompt(self) -> None:
+        prompt = "plain-chat-question segredo-local-nao-ecoar"
+        with FakeOpenAIModelsServer() as server:
+            payload = collect_model_chat(
+                env={
+                    "LAI_GATEWAY_MODEL_BASE_URL": server.url,
+                    "LAI_GATEWAY_MODEL_NAME": "local-code-model",
+                },
+                prompt=prompt,
+                timeout_seconds=10.0,
+            )
+        rendered = render_model_chat(payload)
+        text = json.dumps(payload, sort_keys=True) + rendered
+        self.assertEqual(payload["operation"], "model-chat")
+        self.assertEqual(payload["overall"], "ready")
+        self.assertEqual(payload["message"], "resposta direta do lai")
+        self.assertTrue(payload["network_calls"]["local_openai_chat_completion"])
+        self.assertFalse(payload["starts_server"])
+        self.assertFalse(payload["modifies_files"])
+        self.assertFalse(payload["downloads_models"])
+        self.assertFalse(payload["security"]["creates_harness_run"])
+        self.assertNotIn("segredo-local-nao-ecoar", text)
+        self.assertNotIn("Bearer", text)
+
+    def test_model_chat_blocks_public_urls_before_network(self) -> None:
+        with patch("urllib.request.urlopen") as opener:
+            payload = collect_model_chat(
+                env={
+                    "LAI_GATEWAY_MODEL_BASE_URL": "http://8.8.8.8:11434",
+                    "LAI_GATEWAY_MODEL_NAME": "local-code-model",
+                },
+                prompt="plain-chat-question",
             )
         self.assertEqual(payload["overall"], "blocked")
         self.assertFalse(payload["network_calls"]["local_openai_chat_completion"])

@@ -368,6 +368,92 @@ def render_model_task(payload: dict[str, Any]) -> str:
 
 
 
+def collect_model_chat(
+    *,
+    env: dict[str, str] | None = None,
+    prompt: str,
+    timeout_seconds: float = 60.0,
+    max_tokens: int = 768,
+) -> dict[str, Any]:
+    """Run one bounded conversation turn against the configured local model."""
+    message = (prompt or "").strip()
+    if not message or len(message) > 12000:
+        return {
+            "product": "lai-gateway",
+            "version": __version__,
+            "operation": "model-chat",
+            "overall": "blocked",
+            "message": "",
+            "starts_server": False,
+            "modifies_files": False,
+            "downloads_models": False,
+            "network_calls": {"local_openai_chat_completion": False},
+            "security": {
+                "prints_tokens": False,
+                "starts_server": False,
+                "modifies_files": False,
+                "downloads_models": False,
+                "executes_tools": False,
+                "creates_harness_run": False,
+                "echoes_user_prompt": False,
+            },
+        }
+    values = _model_values(env)
+    started = time.monotonic()
+    result = _run_conversation_chat_completion(
+        values.get("LAI_GATEWAY_MODEL_BASE_URL", "").strip(),
+        model_name=values.get("LAI_GATEWAY_MODEL_NAME", "").strip(),
+        api_key=_model_api_key_from_env(values),
+        prompt=message,
+        max_tokens=max(64, min(int(max_tokens), 2048)),
+        temperature=0.2,
+        timeout_seconds=timeout_seconds,
+    )
+    elapsed_ms = round((time.monotonic() - started) * 1000, 1)
+    overall = result.get("status", "blocked")
+    if result.get("status") == "ready" and result.get("message"):
+        overall = "ready"
+    payload = {
+        "product": "lai-gateway",
+        "version": __version__,
+        "operation": "model-chat",
+        "overall": overall,
+        "message": result.get("message", ""),
+        "starts_server": False,
+        "modifies_files": False,
+        "downloads_models": False,
+        "network_calls": {"local_openai_chat_completion": bool(result.get("network_call"))},
+        "model_config": _model_env_config(values),
+        "result": {key: value for key, value in result.items() if key != "message"},
+        "elapsed_ms": elapsed_ms,
+        "security": {
+            "prints_tokens": False,
+            "starts_server": False,
+            "modifies_files": False,
+            "downloads_models": False,
+            "executes_tools": False,
+            "creates_harness_run": False,
+            "echoes_user_prompt": False,
+        },
+    }
+    return payload
+
+
+def render_model_chat(payload: dict[str, Any]) -> str:
+    lines = [
+        f"lai-gateway model-chat: {payload['overall']}",
+        f"version: {payload['version']}",
+        "starts_server: false",
+        "modifies_files: false",
+        "downloads_models: false",
+        "executes_tools: false",
+        f"elapsed_ms: {payload['elapsed_ms']}",
+    ]
+    if payload.get("result", {}).get("detail"):
+        lines.append(f"detail: {payload['result']['detail']}")
+    return "\n".join(lines)
+
+
 def collect_model_eval(
     *,
     env: dict[str, str] | None = None,
@@ -1278,6 +1364,51 @@ class LocalModelClient:
                 "detail": str(exc)[:180],
             }
         return {"status": "ready", "network_call": True, "auth_used": self.auth_used, "payload": parsed}
+
+
+def _run_conversation_chat_completion(
+    base_url: str | None,
+    *,
+    model_name: str,
+    api_key: str = "",
+    prompt: str,
+    max_tokens: int,
+    temperature: float,
+    timeout_seconds: float = 60.0,
+) -> dict[str, Any]:
+    client = LocalModelClient(
+        base_url,
+        model_name=model_name,
+        api_key=api_key,
+        timeout_seconds=timeout_seconds,
+    )
+    error = client.readiness_error(require_model=True)
+    if error is not None:
+        return error
+    response = client.chat_completion(
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Você é o LAI em modo conversa direta. Responda em pt-BR, "
+                    "sem executar ferramentas, sem iniciar runs e sem solicitar ações externas."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
+        max_tokens=max_tokens,
+        temperature=temperature,
+    )
+    if response["status"] != "ready":
+        return {key: value for key, value in response.items() if key != "payload"}
+    text = _chat_completion_text(response.get("payload")).strip()
+    return {
+        "status": "ready" if text else "mismatch",
+        "network_call": True,
+        "auth_used": client.auth_used,
+        "response_chars": len(text),
+        "message": text[:8000],
+    }
 
 
 def _probe_openai_compatible(base_url: str | None, *, api_key: str = "") -> dict[str, Any]:

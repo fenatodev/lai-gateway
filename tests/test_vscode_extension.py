@@ -22,7 +22,7 @@ class VSCodeExtensionTest(unittest.TestCase):
         self.assertEqual(participants[0]["id"], "lai.assistant")
         self.assertEqual(participants[0]["name"], "lai")
         command_names = {item["name"] for item in participants[0]["commands"]}
-        self.assertEqual(command_names, {"health", "workbench", "pasta"})
+        self.assertEqual(command_names, {"health", "workbench", "pasta", "plan"})
 
     def test_lai_chat_extension_is_loopback_and_read_only_by_default(self) -> None:
         manifest = json.loads((EXT_DIR / "package.json").read_text(encoding="utf-8"))
@@ -37,8 +37,12 @@ class VSCodeExtensionTest(unittest.TestCase):
         self.assertIn("/v1/local-chat/workspaces", source)
         self.assertIn("vscode.openFolder", source)
         self.assertIn("/v1/gateway/health-report", source)
+        self.assertIn("/v1/gateway/chat", source)
+        self.assertIn("Conversa direta no LAI local", source)
+        self.assertIn('command === "plan"', source)
         self.assertIn("/v1/harness/runs", source)
         self.assertIn('mode: "plan"', source)
+        self.assertIn('mode: "conversation"', source)
         self.assertNotIn("/v1/local-chat/runs", source)
         self.assertNotIn("0.0.0.0", source)
         self.assertNotIn("192.168.", source)

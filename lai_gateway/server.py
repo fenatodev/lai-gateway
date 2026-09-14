@@ -28,7 +28,15 @@ from .harness_client import (
     is_control_run_id,
     is_control_session_id,
 )
-from .model import collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_status, collect_model_task
+from .model import (
+    collect_model_chat,
+    collect_model_eval,
+    collect_model_files,
+    collect_model_plan,
+    collect_model_runs,
+    collect_model_status,
+    collect_model_task,
+)
 from .telegram import send_telegram_message
 
 _REQUEST_BODY_MAX_BYTES = 64 * 1024
@@ -307,6 +315,21 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 },
             })
             return
+        if parsed.path == "/v1/gateway/chat":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            body = self._read_gateway_chat_body()
+            if body is None:
+                return
+            self._send_json(
+                HTTPStatus.OK,
+                collect_model_chat(
+                    prompt=body["message"],
+                    timeout_seconds=float(body["timeout_seconds"]),
+                    max_tokens=int(body["max_tokens"]),
+                ),
+            )
+            return
         if parsed.path == "/v1/local-chat/runs":
             if not self._authorize_local_chat_api():
                 return
@@ -445,6 +468,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/health-report",
             "/v1/gateway/health-report/telegram",
             "/v1/gateway/ops-status",
+            "/v1/gateway/chat",
             "/v1/gateway/model-status",
             "/v1/gateway/model-plan",
             "/v1/gateway/model-files",
@@ -771,6 +795,27 @@ class GatewayHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": unsupported_error})
             return None
         return payload
+
+    def _read_gateway_chat_body(self) -> dict[str, str | int | float] | None:
+        payload = self._read_json_object(
+            allowed_keys={"message", "timeout_seconds", "max_tokens"},
+            unsupported_error="unsupported_gateway_chat_fields",
+        )
+        if payload is None:
+            return None
+        message = payload.get("message")
+        timeout = payload.get("timeout_seconds", 60.0)
+        max_tokens = payload.get("max_tokens", 768)
+        if not isinstance(message, str) or not message.strip() or len(message) > 12000:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_gateway_chat_body"})
+            return None
+        if not isinstance(timeout, int | float) or not 1 <= float(timeout) <= 120:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_gateway_chat_body"})
+            return None
+        if not isinstance(max_tokens, int) or not 64 <= max_tokens <= 2048:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_gateway_chat_body"})
+            return None
+        return {"message": message.strip(), "timeout_seconds": float(timeout), "max_tokens": max_tokens}
 
     def _read_mcp_policy_body(self) -> dict[str, str | None] | None:
         payload = self._read_json_object(
