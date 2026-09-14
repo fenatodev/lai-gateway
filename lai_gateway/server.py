@@ -19,6 +19,7 @@ from .health import collect_health_report, render_health_report
 from .ops import collect_ops_status
 from .skills import collect_skills_registry
 from .config import GatewayConfig, read_gateway_access_token, validate_gateway_bind
+from .dev_control import collect_dev_control_policy
 from .tokens import read_valid_gateway_pairing_token
 from .errors import ConfigError, GatewayError, HarnessHTTPError
 from .harness_client import (
@@ -164,6 +165,11 @@ class GatewayHandler(BaseHTTPRequestHandler):
             values = parse_qs(parsed.query, keep_blank_values=True)
             skill_id = values.get("skill_id", [None])[0] or None
             self._send_json(HTTPStatus.OK, collect_skills_registry(skill_id=skill_id))
+            return
+        if parsed.path == "/v1/gateway/dev-control":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            self._send_json(HTTPStatus.OK, collect_dev_control_policy())
             return
         if parsed.path == "/v1/gateway/ops-status":
             if not self._authorize_gateway_api(parsed.path):
@@ -478,6 +484,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/ops-status",
             "/v1/gateway/chat",
             "/v1/gateway/skills",
+            "/v1/gateway/dev-control",
             "/v1/gateway/model-status",
             "/v1/gateway/model-plan",
             "/v1/gateway/model-files",
