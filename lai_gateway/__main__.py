@@ -43,6 +43,7 @@ from .service import (
     render_service_plan,
     render_service_remove,
 )
+from .skills import collect_skills_registry, render_skills_registry
 from .telegram import (
     collect_telegram_preflight,
     discover_telegram_chats,
@@ -205,6 +206,9 @@ def main(argv: list[str] | None = None) -> int:
     daily_config_env.add_argument("--path", default=None, help="daily config file path; defaults to ~/.config/lai-gateway/daily.json")
     daily_config_env.add_argument("--json", action="store_true", help="print machine-readable JSON instead of shell exports")
 
+    skills_parser = sub.add_parser("skills", help="list local LAI skills without granting permissions")
+    skills_parser.add_argument("--skill", help="show one skill id", default=None)
+    skills_parser.add_argument("--json", action="store_true", help="print JSON")
     service_plan_parser = sub.add_parser("service-plan", help="plan a token-free systemd user service for mobile serving")
     service_plan_parser.add_argument("--candidate-ip", required=True, help="private LAN IP for mobile serving")
     service_plan_parser.add_argument("--port", type=int, default=None, help="gateway/mobile port")
@@ -459,6 +463,13 @@ def main(argv: list[str] | None = None) -> int:
             daily_config_parser.print_help()
             return 0
         config = GatewayConfig.from_env()
+        if args.command == "skills":
+            payload = collect_skills_registry(skill_id=args.skill)
+            if not args.json:
+                print(render_skills_registry(payload))
+                return 0 if payload["overall"] == "ready" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] == "ready" else 1
         if args.command == "ops-status":
             payload = collect_ops_status(
                 config=config,
