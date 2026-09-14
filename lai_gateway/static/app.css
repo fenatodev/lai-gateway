@@ -340,3 +340,137 @@ pre { background: #f8fafc; color: #1f2937; border-color: var(--lai-border); }
   .user-bubble { max-width: 100%; }
   .chat-input-dock { padding: 14px; }
 }
+
+/* PR58 clean pt-BR workbench: ChatGPT-like interaction with LAI side rails. */
+.clean-workbench-app { background: var(--lai-bg); }
+.clean-chat-shell { min-height: 100vh; }
+.clean-shell-layout {
+  grid-template-columns: 306px minmax(560px, 1fr) 340px;
+  height: 100vh;
+  min-height: 720px;
+}
+.clean-left-rail,
+.clean-right-rail {
+  overflow: auto;
+  gap: 14px;
+}
+.clean-chat-main {
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+.clean-chat-header {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  min-height: 84px;
+}
+.clean-tabs .tab { font-weight: 700; }
+.clean-transcript-panel {
+  justify-content: flex-start;
+  min-height: 0;
+  padding-top: 22px;
+}
+.clean-chat-input-dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+}
+.clean-project-card,
+.clean-session-list,
+.sidebar-menu,
+.compact-run-card,
+.clean-debug-panel,
+.clean-ops-drawer {
+  box-shadow: none;
+}
+.compact-label {
+  margin: 8px 0;
+  font-size: .88rem;
+}
+.project-actions,
+.surface-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.project-actions button,
+.surface-actions button {
+  width: 100%;
+  justify-content: center;
+}
+.sidebar-menu {
+  border: 1px solid var(--lai-border);
+  background: var(--lai-panel-soft);
+  border-radius: 16px;
+  padding: 12px;
+}
+.sidebar-menu > summary,
+.compact-run-card > summary,
+.clean-review-details > summary {
+  cursor: pointer;
+  font-weight: 800;
+  list-style: none;
+}
+.sidebar-menu > summary::-webkit-details-marker,
+.compact-run-card > summary::-webkit-details-marker,
+.clean-review-details > summary::-webkit-details-marker { display: none; }
+.compact-run-card { padding: 0; overflow: hidden; }
+.compact-run-card > summary {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+}
+.compact-run-card > summary small {
+  display: block;
+  color: var(--lai-muted);
+  margin-top: 3px;
+}
+.compact-run-card > p,
+.compact-run-card > pre { margin-inline: 14px; }
+.compact-run-card > pre { margin-bottom: 14px; }
+.compact-tools-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+.compact-panel {
+  box-shadow: none;
+  padding: 14px;
+  border-radius: 14px;
+}
+.clean-ops-drawer {
+  margin: 0;
+  padding: 12px;
+  background: var(--lai-panel-soft);
+}
+.clean-ops-drawer[open] { max-height: 72vh; overflow: auto; }
+.clean-review-details {
+  border: 1px solid var(--lai-border);
+  border-radius: 12px;
+  padding: 10px;
+  background: #fff;
+}
+.clean-review-details + .clean-review-details { margin-top: 10px; }
+.clean-review-details pre { max-height: 260px; }
+.message-row.status-row .message-bubble {
+  background: var(--lai-primary-soft);
+  border: 1px solid #bfd3ff;
+}
+.message-row.status-row .avatar { background: var(--lai-primary); }
+textarea#local-run-task { min-height: 72px; }
+@media (max-width: 1180px) {
+  .clean-shell-layout { grid-template-columns: 280px minmax(440px, 1fr); height: auto; min-height: 100vh; }
+  .clean-right-rail { grid-column: 1 / -1; max-height: none; }
+}
+@media (max-width: 820px) {
+  .clean-shell-layout { display: flex; flex-direction: column; height: auto; }
+  .clean-chat-main { min-height: 72vh; }
+  .clean-left-rail { order: 2; }
+  .clean-chat-main { order: 1; }
+  .clean-right-rail { order: 3; }
+  .clean-chat-header { position: static; }
+  .clean-chat-input-dock { position: sticky; bottom: 0; }
+  .clean-transcript-panel { min-height: 42vh; }
+}

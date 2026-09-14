@@ -14,11 +14,15 @@ class VSCodeExtensionTest(unittest.TestCase):
         self.assertEqual(manifest["publisher"], "fenatodev")
         self.assertEqual(manifest["main"], "./extension.js")
         self.assertIn("onChatParticipant:lai.assistant", manifest["activationEvents"])
+
+        self.assertIn("onCommand:lai.openFolder", manifest["activationEvents"])
+        views = manifest["contributes"]["views"]["explorer"]
+        self.assertTrue(any(view["id"] == "lai.projects" for view in views))
         participants = manifest["contributes"]["chatParticipants"]
         self.assertEqual(participants[0]["id"], "lai.assistant")
         self.assertEqual(participants[0]["name"], "lai")
         command_names = {item["name"] for item in participants[0]["commands"]}
-        self.assertEqual(command_names, {"health", "workbench"})
+        self.assertEqual(command_names, {"health", "workbench", "pasta"})
 
     def test_lai_chat_extension_is_loopback_and_read_only_by_default(self) -> None:
         manifest = json.loads((EXT_DIR / "package.json").read_text(encoding="utf-8"))
@@ -26,6 +30,12 @@ class VSCodeExtensionTest(unittest.TestCase):
         self.assertEqual(gateway_setting["default"], "http://127.0.0.1:8787")
         source = (EXT_DIR / "extension.js").read_text(encoding="utf-8")
         self.assertIn("createChatParticipant", source)
+        self.assertIn("registerTreeDataProvider", source)
+        self.assertIn("registerUriHandler", source)
+        self.assertIn("openFolderOrRepository", source)
+        self.assertIn("gatewayWorkspacePicks", source)
+        self.assertIn("/v1/local-chat/workspaces", source)
+        self.assertIn("vscode.openFolder", source)
         self.assertIn("/v1/gateway/health-report", source)
         self.assertIn("/v1/harness/runs", source)
         self.assertIn('mode: "plan"', source)
