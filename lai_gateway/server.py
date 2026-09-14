@@ -17,6 +17,7 @@ from . import __version__
 from .access import collect_mobile_access
 from .health import collect_health_report, render_health_report
 from .ops import collect_ops_status
+from .skills import collect_skills_registry
 from .config import GatewayConfig, read_gateway_access_token, validate_gateway_bind
 from .tokens import read_valid_gateway_pairing_token
 from .errors import ConfigError, GatewayError, HarnessHTTPError
@@ -156,6 +157,13 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 mobile_port=None if _is_loopback_bind(self.server.server_address[0]) else self.server.server_address[1],
             )
             self._send_json(HTTPStatus.OK, payload)
+            return
+        if parsed.path == "/v1/gateway/skills":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            skill_id = values.get("skill_id", [None])[0] or None
+            self._send_json(HTTPStatus.OK, collect_skills_registry(skill_id=skill_id))
             return
         if parsed.path == "/v1/gateway/ops-status":
             if not self._authorize_gateway_api(parsed.path):
@@ -469,6 +477,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/health-report/telegram",
             "/v1/gateway/ops-status",
             "/v1/gateway/chat",
+            "/v1/gateway/skills",
             "/v1/gateway/model-status",
             "/v1/gateway/model-plan",
             "/v1/gateway/model-files",
