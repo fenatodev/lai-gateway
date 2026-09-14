@@ -15,6 +15,7 @@ from .config import GatewayConfig
 from .contract import summarize_contract
 from .doctor import collect_doctor, render_doctor
 from .daily_config import collect_daily_config, read_daily_config, render_daily_config, shell_exports, validate_daily_config, write_daily_config
+from .dev_control import collect_dev_control_policy, render_dev_control_policy
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .health import collect_health_report, render_health_report
@@ -247,6 +248,8 @@ def main(argv: list[str] | None = None) -> int:
     stack_parser.add_argument("--check-only", action="store_true", help="print the planned local stack without starting services")
     stack_parser.add_argument("--timeout-seconds", type=float, default=30.0, help="seconds to wait for services to become ready")
     stack_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    dev_control_parser = sub.add_parser("dev-control", help="show read-only LAI controlled-dev policy")
+    dev_control_parser.add_argument("--json", action="store_true", help="print JSON")
     dev_parser = sub.add_parser("dev", help="check harness and serve the local gateway UI")
     dev_parser.add_argument("--bind", default=None, help="gateway bind address allowed by config policy")
     dev_parser.add_argument("--port", type=int, default=None, help="gateway port")
@@ -425,6 +428,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"lai-gateway {__version__}")
         return 0
     try:
+        if args.command == "dev-control":
+            payload = collect_dev_control_policy()
+            if not args.json:
+                print(render_dev_control_policy(payload))
+                return 0
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
         if args.command == "daily-config":
             if args.daily_config_command == "set":
                 daily = validate_daily_config(
