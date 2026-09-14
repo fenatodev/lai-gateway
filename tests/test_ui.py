@@ -616,6 +616,47 @@ class GatewayUITest(unittest.TestCase):
         self.assertNotIn(TOKEN, body)
         self.assertNotIn("Bearer", body)
 
+    def test_gateway_chat_endpoint_is_direct_secret_free_and_does_not_touch_harness(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with patch("lai_gateway.server.collect_model_chat") as collect:
+                collect.return_value = {
+                    "operation": "model-chat",
+                    "overall": "ready",
+                    "message": "resposta direta",
+                    "starts_server": False,
+                    "modifies_files": False,
+                    "downloads_models": False,
+                    "security": {
+                        "prints_tokens": False,
+                        "executes_tools": False,
+                        "creates_harness_run": False,
+                        "echoes_user_prompt": False,
+                    },
+                }
+                with RunningGateway(config) as gateway:
+                    status, headers, body = read_url(
+                        f"{gateway.url}/v1/gateway/chat",
+                        data=json.dumps({
+                            "message": "mensagem comum",
+                            "timeout_seconds": 5,
+                            "max_tokens": 128,
+                        }).encode("utf-8"),
+                        method="POST",
+                    )
+        collect.assert_called_once_with(prompt="mensagem comum", timeout_seconds=5.0, max_tokens=128)
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        payload = json.loads(body)
+        self.assertEqual(payload["operation"], "model-chat")
+        self.assertFalse(payload["security"]["creates_harness_run"])
+        self.assertFalse(payload["security"]["executes_tools"])
+        self.assertNotIn("mensagem comum", body)
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
+
 
     def test_gateway_model_task_endpoint_is_read_only_and_secret_free(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
@@ -775,6 +816,41 @@ class GatewayUITest(unittest.TestCase):
         self.assertEqual(payload["recommended"]["name"], "local-code-q4_k_m")
         self.assertNotIn(TOKEN, body)
         self.assertNotIn("Bearer", body)
+    def test_private_gateway_chat_requires_gateway_auth(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            access_file = Path(tmp) / "access-token"
+            pair_file = Path(tmp) / "pair-token.json"
+            access = create_gateway_access_token(access_file, include_token=True)["token"]
+            create_gateway_pairing_token(pair_file, ttl_seconds=600)
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            body = json.dumps({"message": "mensagem privada"}).encode("utf-8")
+            with RunningGateway(config) as gateway:
+                try:
+                    read_url(f"{gateway.url}/v1/gateway/chat", data=body, method="POST")
+                except Exception as exc:
+                    self.assertIn("HTTP Error 401", str(exc))
+                with patch("lai_gateway.server.collect_model_chat") as collect:
+                    collect.return_value = {"operation": "model-chat", "overall": "ready", "message": "ok"}
+                    status, _headers, response_body = read_url(
+                        f"{gateway.url}/v1/gateway/chat",
+                        headers={"Authorization": f"Bearer {access}"},
+                        data=body,
+                        method="POST",
+                    )
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(response_body)["operation"], "model-chat")
+        self.assertNotIn(access, response_body)
+        self.assertNotIn(TOKEN, response_body)
+        self.assertNotIn("mensagem privada", response_body)
+
 
     def test_private_model_task_requires_gateway_auth(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

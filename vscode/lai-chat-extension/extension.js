@@ -179,20 +179,38 @@ async function handleChatRequest(request, _context, stream, _token) {
     stream.markdown(compactHealthMarkdown(payload));
     return {};
   }
-  stream.progress("Criando run read-only de plano no LAI...");
-  const task = prompt.slice(0, 12000);
-  const payload = await requestJson("POST", "/v1/harness/runs", { mode: "plan", task });
-  const run = payload.run || payload;
-  const runId = run.control_run_id || run.run_id || "desconhecido";
-  const status = run.status || "enfileirado";
+  if (command === "plan") {
+    stream.progress("Criando run read-only de plano no LAI...");
+    const task = prompt.slice(0, 12000);
+    const payload = await requestJson("POST", "/v1/harness/runs", { mode: "plan", task });
+    const run = payload.run || payload;
+    const runId = run.control_run_id || run.run_id || "desconhecido";
+    const status = run.status || "enfileirado";
+    stream.markdown([
+      `Run **read-only** de plano enfileirado: \`${runId}\`.`,
+      "",
+      `Status: ${status}`,
+      "",
+      "Para alterar código, use `@lai /workbench`; o Workbench mantém alterações em sandbox e exige revisão antes de aplicar."
+    ].join("\n"));
+    return { metadata: { runId, mode: "plan" } };
+  }
+  stream.progress("Conversa direta no LAI local...");
+  const payload = await requestJson("POST", "/v1/gateway/chat", {
+    message: prompt.slice(0, 12000),
+    max_tokens: 768,
+    timeout_seconds: 60,
+  });
+  if (payload.overall === "ready" && payload.message) {
+    stream.markdown(payload.message);
+    return { metadata: { mode: "conversation" } };
+  }
   stream.markdown([
-    `Run **read-only** de plano enfileirado: \`${runId}\`.`,
+    "Conversa direta indisponível no modelo local configurado.",
     "",
-    `Status: ${status}`,
-    "",
-    "Para alterar código, use `@lai /workbench`; o Workbench mantém alterações em sandbox e exige revisão antes de aplicar."
+    "Use `@lai /health` para diagnóstico ou `@lai /plan <pedido>` para criar um plano read-only no Harness."
   ].join("\n"));
-  return { metadata: { runId, mode: "plan" } };
+  return { metadata: { mode: "conversation", status: payload.overall || "blocked" } };
 }
 
 class LaiProjectsProvider {
