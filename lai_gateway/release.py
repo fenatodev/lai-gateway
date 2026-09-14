@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .tool_mediation import run_process
 
 _VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$")
 
@@ -24,8 +25,9 @@ class Check:
 
 
 def _run_git(args: list[str], repo: Path) -> tuple[int, str, str]:
-    proc = subprocess.run(
+    proc = run_process(
         ["git", *args],
+        capability="release_git_read",
         cwd=repo,
         text=True,
         stdout=subprocess.PIPE,

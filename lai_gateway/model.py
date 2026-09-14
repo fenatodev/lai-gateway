@@ -15,6 +15,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from . import __version__
+from .tool_mediation import run_process
 
 _MODEL_RUNTIME_COMMANDS = (
     "ollama",
@@ -1220,7 +1221,7 @@ def _wsl_default_gateway() -> str | None:
     if not _is_wsl():
         return None
     try:
-        result = subprocess.run(["ip", "route"], text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False, timeout=2)
+        result = run_process(["ip", "route"], capability="local_system_probe", text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False, timeout=2)
     except OSError:
         return None
     for line in result.stdout.splitlines():
@@ -1728,7 +1729,7 @@ def _model_plan_warnings(*, backend: str, status: dict[str, Any]) -> list[str]:
 
 def _first_lscpu_value(label: str) -> str | None:
     try:
-        result = subprocess.run(["lscpu"], text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False, timeout=2)
+        result = run_process(["lscpu"], capability="local_system_probe", text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False, timeout=2)
     except OSError:
         return None
     prefix = f"{label}:"
@@ -1740,7 +1741,7 @@ def _first_lscpu_value(label: str) -> str | None:
 
 def _memory_total_gib() -> float | None:
     try:
-        result = subprocess.run(["free", "-b"], text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False, timeout=2)
+        result = run_process(["free", "-b"], capability="local_system_probe", text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False, timeout=2)
     except OSError:
         return None
     for line in result.stdout.splitlines():

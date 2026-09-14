@@ -3,6 +3,8 @@ from __future__ import annotations
 import ipaddress
 import json
 import subprocess
+
+from .tool_mediation import run_process
 from pathlib import Path
 from typing import Any
 
@@ -231,7 +233,7 @@ def _tailscale_hosts() -> list[str]:
     hosts: list[str] = []
     for cmd in (["tailscale", "ip", "-4"], ["tailscale.exe", "ip", "-4"]):
         try:
-            result = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=3, check=False)
+            result = run_process(cmd, capability="network_discovery", text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=3, check=False)
         except (OSError, subprocess.TimeoutExpired):
             continue
         hosts.extend(line.strip() for line in result.stdout.splitlines())
@@ -248,8 +250,9 @@ def _powershell_ip_rows() -> list[dict[str, Any]]:
         "Select-Object IPAddress,InterfaceAlias,PrefixLength | ConvertTo-Json -Compress"
     )
     try:
-        result = subprocess.run(
+        result = run_process(
             ["powershell.exe", "-NoProfile", "-Command", script],
+            capability="network_discovery",
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
