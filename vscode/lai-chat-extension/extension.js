@@ -274,7 +274,6 @@ function activate(context) {
         return {};
       }
     });
-    participant.iconPath = new vscode.ThemeIcon("sparkle");
     context.subscriptions.push(participant);
   }
 }
