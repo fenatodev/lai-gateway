@@ -24,6 +24,37 @@ _GOVERNED_ADAPTERS: tuple[dict[str, Any], ...] = (
         "status": "foundation_only",
         "purpose": "Inspect MCP broker metadata and classify tool calls without executing tools.",
     },
+    {
+        "id": "browser",
+        "title": "Browser automation contract",
+        "kind": "capability_adapter",
+        "domain": "web",
+        "channels": ["gateway", "workbench"],
+        "autonomy": "contract_only",
+        "entrypoints": [],
+        "requested_capabilities": [
+            "browser.plan",
+            "browser.navigate_public",
+            "browser.extract_public",
+            "browser.screenshot_public",
+        ],
+        "granted_capabilities": [],
+        "executes_tools": False,
+        "grants_permissions": False,
+        "requires_policy_check": True,
+        "network_access_enabled": False,
+        "credentialed_access_enabled": False,
+        "human_approval_required_for": [
+            "browser.navigate_public",
+            "browser.authenticated_session",
+            "browser.form_submit",
+            "browser.click_external",
+            "browser.download_file",
+            "network_side_effect",
+        ],
+        "status": "contract_only",
+        "purpose": "Declare browser automation boundaries before exposing any browser execution surface.",
+    },
 )
 
 
