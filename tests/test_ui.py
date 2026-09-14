@@ -142,6 +142,8 @@ class GatewayUITest(unittest.TestCase):
                 self.assertIn('debug-panel', html)
                 self.assertIn('Enviar ao LAI', html)
                 self.assertIn('id="local-send-button"', html)
+                self.assertIn("Pressione Enter para enviar", html)
+                self.assertIn("Shift+Enter para nova linha", html)
                 self.assertIn('id="local-cancel-button"', html)
                 self.assertIn('Sem run ativo', html)
                 self.assertIn('Usar Observar', html)
