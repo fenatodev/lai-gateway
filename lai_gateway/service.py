@@ -10,6 +10,7 @@ from typing import Any
 from . import __version__
 from .config import DEFAULT_PORT, GatewayConfig
 from .errors import ConfigError
+from .tool_mediation import run_process
 from .lan import _safe_lan_ip
 
 DEFAULT_SERVICE_NAME = "lai-gateway-mobile.service"
@@ -257,8 +258,9 @@ def _systemd_user_status() -> dict[str, Any]:
     if shutil.which("systemctl") is None:
         return {"systemctl_available": False, "available": False, "detail": "systemctl not found"}
     try:
-        completed = subprocess.run(
+        completed = run_process(
             ["systemctl", "--user", "show-environment"],
+            capability="local_system_probe",
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

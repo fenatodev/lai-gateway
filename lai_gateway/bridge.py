@@ -11,6 +11,7 @@ from . import __version__
 from .config import DEFAULT_PORT
 from .errors import ConfigError
 from .access import collect_mobile_access
+from .tool_mediation import run_process
 
 _TAILSCALE_CGNAT = ipaddress.ip_network("100.64.0.0/10")
 
@@ -279,7 +280,7 @@ def _execute_windows_bridge(commands: list[str], *, runner: Runner | None = None
 
 
 def _run_powershell_command(args: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15, check=False)
+    return run_process(args, capability="windows_bridge", text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15, check=False)
 
 
 def _summarize_output(raw: str) -> str:

@@ -15,6 +15,7 @@ from urllib.request import Request, urlopen
 from .config import GatewayConfig, read_control_token
 from .daily_config import read_daily_config
 from .harness_client import HarnessClient
+from .tool_mediation import run_process, start_background_process
 
 DEFAULT_HARNESS_REPO = Path("~/dev/projects/lai-local-agent").expanduser()
 DEFAULT_LOG_DIR = Path("~/.local/state/lai-gateway").expanduser()
@@ -220,8 +221,9 @@ def _run_model_start(harness_repo: Path) -> dict[str, Any]:
     if not _command_exists("lai-server-start"):
         return {"name": "model", "status": "skipped", "reason": "lai-server-start not found"}
     try:
-        result = subprocess.run(
+        result = run_process(
             ["lai-server-start"],
+            capability="local_stack_start",
             cwd=str(harness_repo) if harness_repo.exists() else None,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -250,8 +252,9 @@ def _start_harness(config: GatewayConfig, harness_repo: Path, log_dir: Path) -> 
     log_path = log_dir / "lai-harness-serve.log"
     command = ["lai", "serve", "--bind", bind, "--port", port]
     with log_path.open("ab") as handle:
-        proc = subprocess.Popen(
+        proc = start_background_process(
             command,
+            capability="local_stack_start",
             cwd=str(harness_repo),
             stdout=handle,
             stderr=subprocess.STDOUT,
@@ -279,8 +282,9 @@ def _start_gateway(config: GatewayConfig, port: int, log_dir: Path) -> dict[str,
     log_path = log_dir / "lai-gateway-dev.log"
     command = [sys.executable, "-m", "lai_gateway", "dev", "--bind", config.bind, "--port", str(port), "--no-open"]
     with log_path.open("ab") as handle:
-        proc = subprocess.Popen(
+        proc = start_background_process(
             command,
+            capability="local_stack_start",
             stdout=handle,
             stderr=subprocess.STDOUT,
             stdin=subprocess.DEVNULL,
