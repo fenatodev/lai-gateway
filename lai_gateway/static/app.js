@@ -18,25 +18,26 @@ let activeLocalRunTerminal = true;
 let lastLocalMode = "diagnose";
 let currentLocalReview = null;
 const localChatRenderedRuns = new Set();
+const localChatRenderedEvents = new Set();
 const TASK_PRESETS = {
-  plan: "Plan the next safe, high-impact step from the current project state.",
-  review: "Review the current state and identify issues, risks, and quick wins.",
-  diagnose: "Diagnose the current problem and suggest read-only verification steps.",
-  security: "Perform a security-focused review of the current state and boundaries.",
-  release: "Check release readiness and identify blockers before publication.",
+  plan: "Planeje o próximo passo seguro e de maior impacto a partir do estado atual do projeto.",
+  review: "Revise o estado atual e identifique problemas, riscos e melhorias rápidas.",
+  diagnose: "Diagnostique o problema atual e sugira verificações read-only.",
+  security: "Faça uma revisão focada em segurança do estado atual e dos limites.",
+  release: "Cheque prontidão de release e identifique bloqueios antes da publicação.",
 };
 const LOCAL_MODE_PRESETS = {
   observe: {
     mode: "diagnose",
-    task: "Diagnose the current repository state using read-only evidence. Identify blockers, missing setup, and the next safe verification step.",
+    task: "Diagnostique o estado atual do repositório com evidências read-only. Identifique bloqueios, setup faltante e próximo passo seguro.",
   },
   work: {
     mode: "implement",
-    task: "Implement one bounded change in the isolated sandbox workspace. Keep the source checkout unchanged, validate the result, and leave promotion for review.",
+    task: "Implemente uma alteração delimitada no workspace isolado do sandbox. Mantenha o checkout fonte intacto, valide e deixe a promoção para revisão.",
   },
   promote: {
     mode: "review",
-    task: "Review the selected isolated work-run diff. Verify the patch hash and list promotion risks before using the Promote reviewed patch button.",
+    task: "Revise o diff do run isolado selecionado. Verifique o hash do patch e liste riscos antes de promover.",
   },
 };
 
@@ -63,8 +64,8 @@ function setButtonState(id, disabled, text = "") {
 
 function updateLocalExecutionControls(status = "idle") {
   const running = !TERMINAL_STATUSES.has(status) && status !== "idle" && Boolean(activeLocalRunId);
-  setButtonState("local-send-button", running, running ? "Run active" : "Send to LAI");
-  setButtonState("local-cancel-button", !running, running ? "Cancel active run" : "No active run");
+  setButtonState("local-send-button", running, running ? "Run ativo" : "Enviar ao LAI");
+  setButtonState("local-cancel-button", !running, running ? "Cancelar run ativo" : "Sem run ativo");
 }
 
 function clearLocalReviewState(reason = "") {
@@ -73,7 +74,7 @@ function clearLocalReviewState(reason = "") {
   activeLocalRunId = "";
   activeLocalRunTerminal = true;
   lastLocalChatCursor = 0;
-  resetLocalReviewPanel(reason || "No review loaded.");
+  resetLocalReviewPanel(reason || "Nenhuma revisão carregada.");
   updateLocalExecutionControls("idle");
   if (reason) setLocalNextStep(reason, "warn");
 }
@@ -84,12 +85,12 @@ function appendLocalChatTurn(kind, title, text) {
   if (!thread) return;
   const anchor = byId("local-chat-live-anchor");
   const row = document.createElement("div");
-  row.className = kind === "user" ? "message-row user-row" : "message-row assistant-row";
+  row.className = kind === "user" ? "message-row user-row" : kind === "status" ? "message-row status-row" : "message-row assistant-row";
   const avatar = document.createElement("div");
   avatar.className = "avatar";
-  avatar.textContent = kind === "user" ? "U" : "L";
+  avatar.textContent = kind === "user" ? "V" : kind === "status" ? "•" : "L";
   const bubble = document.createElement("article");
-  bubble.className = kind === "user" ? "message-bubble user-bubble" : "message-bubble assistant-bubble";
+  bubble.className = kind === "user" ? "message-bubble user-bubble" : kind === "status" ? "message-bubble assistant-bubble status-bubble" : "message-bubble assistant-bubble";
   const meta = document.createElement("div");
   meta.className = "message-meta";
   const strong = document.createElement("strong");
@@ -147,7 +148,7 @@ function updateLocalRunCard(title, summary, status, state = "muted") {
     pill.textContent = status;
     pill.className = `pill ${state}`;
   }
-  setText("local-conversation-mode", byId("local-mode-label")?.textContent || "Observe");
+  setText("local-conversation-mode", byId("local-mode-label")?.textContent || "Observar");
 }
 
 function show(targetId, payload) {
@@ -173,7 +174,7 @@ function isLoopbackHost() {
 }
 
 function showPairRequiredOutputs() {
-  const message = "Pair this phone first, then refresh this panel.";
+  const message = "Pareie este celular primeiro e atualize este painel.";
   for (const id of ["health-output", "ops-output", "status-output", "model-output", "mcp-output", "sessions-output", "runs-output", "run-events-output"]) {
     show(id, message);
     const target = byId(id);
@@ -204,8 +205,8 @@ function currentBrowserUrl() {
 function setMobileAccess(payload) {
   const browserUrl = currentBrowserUrl();
   lastMobileUrl = browserUrl || payload.recommended_url || "";
-  byId("mobile-access-url").textContent = lastMobileUrl || "No mobile URL detected.";
-  const label = browserUrl ? "mobile current browser URL" : (payload.recommended_kind ? `mobile ${payload.recommended_kind}` : "mobile URL unavailable");
+  byId("mobile-access-url").textContent = lastMobileUrl || "Nenhuma URL mobile detectada.";
+  const label = browserUrl ? "URL mobile do navegador atual" : (payload.recommended_kind ? `mobile ${payload.recommended_kind}` : "URL mobile indisponível");
   setPill("mobile-access-kind", label, lastMobileUrl ? "ready" : "danger");
   setMobileQr(payload.qr_svg || "");
   show("mobile-access-output", browserUrl ? { ...payload, active_phone_url: browserUrl } : payload);
@@ -213,14 +214,14 @@ function setMobileAccess(payload) {
 
 
 function setModelStatus(payload) {
-  const overall = payload.overall || "unknown";
+  const overall = payload.overall || "desconhecido";
   const state = overall === "ready" ? "ready" : overall === "blocked" ? "danger" : "running";
   show("model-output", payload);
-  setCheck("check-model", `Model ${overall}.`, state);
+  setCheck("check-model", `Modelo ${overall}.`, state);
 }
 
 function setMcpStatus(payload) {
-  const overall = payload.overall || payload.mcp_overall || "unknown";
+  const overall = payload.overall || payload.mcp_overall || "desconhecido";
   const state = overall === "ready" ? "ready" : overall === "blocked" ? "danger" : "running";
   const serverCount = Number.isInteger(payload.server_count) ? payload.server_count : 0;
   const executionEnabled = Boolean(
@@ -229,7 +230,7 @@ function setMcpStatus(payload) {
   setPill("mcp-pill", `mcp ${overall}${serverCount ? ` · ${serverCount}` : ""}`, executionEnabled ? "danger" : state);
   setCheck(
     "check-mcp",
-    executionEnabled ? "MCP tool execution is enabled." : `MCP ${overall}; tool execution denied.`,
+    executionEnabled ? "Execução de tools MCP habilitada." : `MCP ${overall}; execução de tools negada.`,
     executionEnabled ? "danger" : state,
   );
   clearPairRequiredOutput("mcp-output");
@@ -250,15 +251,15 @@ function compactHealthText(payload) {
   const network = payload.network_calls || {};
   const security = payload.security || {};
   const lines = [
-    `lai-gateway health-report: ${payload.overall || "unknown"}`,
-    `version: ${payload.version || "unknown"}`,
+    `lai-gateway health-report: ${payload.overall || "desconhecido"}`,
+    `version: ${payload.version || "desconhecido"}`,
     "scope: read-only daily operations snapshot",
-    `doctor: ${checks.doctor || "unknown"}`,
-    `harness_model: ${checks.harness_model || "unknown"}`,
-    `mobile: ${checks.mobile || "unknown"} listener_active=${Boolean(mobile.listener_active)}`,
-    `telegram: ${checks.telegram || "unknown"} send_enabled=${Boolean(telegram.send_enabled)}`,
-    `model: ${checks.gateway_model_probe || "unknown"} runs=${checks.model_runs || 0}`,
-    `mcp_broker: ${checks.mcp_broker || "unknown"} servers=${mcp.server_count || 0} execution_enabled=${Boolean(mcp.execution_enabled)}`,
+    `doctor: ${checks.doctor || "desconhecido"}`,
+    `harness_model: ${checks.harness_model || "desconhecido"}`,
+    `mobile: ${checks.mobile || "desconhecido"} listener_active=${Boolean(mobile.listener_active)}`,
+    `telegram: ${checks.telegram || "desconhecido"} send_enabled=${Boolean(telegram.send_enabled)}`,
+    `model: ${checks.gateway_model_probe || "desconhecido"} runs=${checks.model_runs || 0}`,
+    `mcp_broker: ${checks.mcp_broker || "desconhecido"} servers=${mcp.server_count || 0} execution_enabled=${Boolean(mcp.execution_enabled)}`,
     `network_calls: harness_local=${Boolean(network.harness_local)} model_local=${Boolean(network.model_local)} telegram=false`,
     `security: tokens=${Boolean(security.prints_tokens)} pairing_secret=${Boolean(security.prints_pairing_secret)} writes=${Boolean(security.modifies_files)} starts_server=${Boolean(security.starts_server)}`,
   ];
@@ -271,31 +272,31 @@ function compactHealthText(payload) {
 }
 
 function healthSummaryText(payload) {
-  const overall = payload.overall || "unknown";
+  const overall = payload.overall || "desconhecido";
   const checks = payload.checks || {};
   const nextSteps = Array.isArray(payload.next_steps) ? payload.next_steps.length : 0;
-  const mobile = checks.mobile || "unknown";
-  const telegram = checks.telegram || "unknown";
-  const model = checks.gateway_model_probe || "unknown";
-  const mcp = checks.mcp_broker || "unknown";
+  const mobile = checks.mobile || "desconhecido";
+  const telegram = checks.telegram || "desconhecido";
+  const model = checks.gateway_model_probe || "desconhecido";
+  const mcp = checks.mcp_broker || "desconhecido";
   if (overall === "ready" && nextSteps === 0) {
-    return "All systems ready. Mobile, Telegram, model, and MCP checks are ready.";
+    return "Todos os sistemas estão prontos. Mobile, Telegram, modelo e MCP verificados.";
   }
   if (overall === "blocked") {
-    return `Health blocked. Review ${nextSteps || "the"} next step${nextSteps === 1 ? "" : "s"} before using remote controls.`;
+    return `Saúde bloqueada. Revise ${nextSteps || "o"} próximo passo${nextSteps === 1 ? "" : "s"} antes de usar controles remotos.`;
   }
-  return `Health ${overall}; ${nextSteps} next step${nextSteps === 1 ? "" : "s"}. Mobile ${mobile}, Telegram ${telegram}, model ${model}, MCP ${mcp}.`;
+  return `Saúde ${overall}; ${nextSteps} próximo passo${nextSteps === 1 ? "" : "s"}. Mobile ${mobile}, Telegram ${telegram}, modelo ${model}, MCP ${mcp}.`;
 }
 
 function setHealthReport(payload) {
-  const overall = payload.overall || "unknown";
+  const overall = payload.overall || "desconhecido";
   const nextSteps = Array.isArray(payload.next_steps) ? payload.next_steps.length : 0;
   const state = overall === "ready" && nextSteps === 0 ? "ready" : overall === "blocked" ? "danger" : "warn";
   setPill("ops-pill", `health ${overall}`, state);
   const checks = payload.checks || {};
-  const mobile = checks.mobile || "unknown";
-  const telegram = checks.telegram || "unknown";
-  const mcp = checks.mcp_broker || "unknown";
+  const mobile = checks.mobile || "desconhecido";
+  const telegram = checks.telegram || "desconhecido";
+  const mcp = checks.mcp_broker || "desconhecido";
   setCallout("health-summary", healthSummaryText(payload), state);
   setCheck("check-access", `Health: mobile ${mobile}, telegram ${telegram}, MCP ${mcp}.`, state);
   clearPairRequiredOutput("health-output");
@@ -303,12 +304,12 @@ function setHealthReport(payload) {
 }
 
 function setOpsStatus(payload) {
-  const overall = payload.overall || "unknown";
+  const overall = payload.overall || "desconhecido";
   const state = overall === "ready" ? "ready" : overall === "blocked" ? "danger" : "running";
-  const doctor = payload.doctor && payload.doctor.overall ? payload.doctor.overall : "unknown";
+  const doctor = payload.doctor && payload.doctor.overall ? payload.doctor.overall : "desconhecido";
   const mobileSession = payload.mobile_session && payload.mobile_session.overall === "ready" ? "session ready" : "";
-  const mobile = mobileSession || (payload.mobile && payload.mobile.overall ? payload.mobile.overall : "unknown");
-  const telegram = payload.telegram && payload.telegram.overall ? payload.telegram.overall : "unknown";
+  const mobile = mobileSession || (payload.mobile && payload.mobile.overall ? payload.mobile.overall : "desconhecido");
+  const telegram = payload.telegram && payload.telegram.overall ? payload.telegram.overall : "desconhecido";
   setCheck("check-access", `Ops: doctor ${doctor}, mobile ${mobile}, telegram ${telegram}.`, state);
   clearPairRequiredOutput("ops-output");
   show("ops-output", payload);
@@ -318,7 +319,7 @@ async function copyMobileUrl() {
   const text = lastMobileUrl || byId("mobile-access-url").textContent;
   if (navigator.clipboard && navigator.clipboard.writeText) {
     await navigator.clipboard.writeText(text || "");
-    setPill("mobile-access-kind", "mobile URL copied", "ready");
+    setPill("mobile-access-kind", "URL mobile copiada", "ready");
   } else {
     show("mobile-access-output", `${text}\n\nClipboard API unavailable.`);
   }
@@ -353,16 +354,16 @@ function applyPreset(mode) {
 }
 
 function localModeLabel(mode) {
-  if (LOCAL_CHAT_WORK_MODES.has(mode)) return "Work";
-  if (mode === "review") return "Apply";
-  return "Observe";
+  if (LOCAL_CHAT_WORK_MODES.has(mode)) return "Trabalhar";
+  if (mode === "review") return "Aplicar";
+  return "Observar";
 }
 
 function applyLocalModePreset(presetName) {
   const preset = LOCAL_MODE_PRESETS[presetName];
   if (!preset) return;
   if (!activeLocalRunTerminal) {
-    setLocalNextStep("A run is active. Cancel or wait before changing mode.", "warn");
+    setLocalNextStep("Há um run ativo. Cancele ou aguarde antes de mudar o modo.", "warn");
     return;
   }
   byId("local-run-mode").value = preset.mode;
@@ -374,9 +375,9 @@ function applyLocalModePreset(presetName) {
   setText("local-mode-label", localModeLabel(preset.mode));
   setText("local-status-label", "ready");
   const nextSteps = {
-    observe: "Observe is read-only. Use it for diagnosis, planning, review, security, and release checks.",
-    work: "Work writes only inside the isolated sandbox. Review is required before promotion.",
-    promote: "Apply starts with review. Promotion still requires the reviewed patch hash.",
+    observe: "Observar é read-only. Use para diagnóstico, planejamento, revisão, segurança e checagem de release.",
+    work: "Trabalhar escreve apenas dentro do sandbox isolado. Revisão é obrigatória antes da promoção.",
+    promote: "Aplicar começa pela revisão. A promoção ainda exige o hash do patch revisado.",
   };
   setLocalNextStep(nextSteps[presetName], state);
   setLocalChatSummary(`${localModeLabel(preset.mode)} selected · ${preset.mode}`, state);
@@ -396,7 +397,7 @@ function setLocalChatSummary(text, state = "warn") {
 }
 
 function localWorkspaceLabel(workspace) {
-  if (!workspace) return "not loaded";
+  if (!workspace) return "não carregado";
   const name = workspace.display_name || workspace.repository_name || workspace.workspace_id;
   const branch = workspace.branch ? ` · ${workspace.branch}` : "";
   const clean = workspace.git_clean === false ? " · dirty" : " · clean";
@@ -435,38 +436,38 @@ function summarizeLocalChildTelemetry(run) {
   const child = run.workspace_child_summary || {};
   const validation = run.workspace_last_validation || {};
   const lines = [
-    `run: ${run.control_run_id || run.run_id || "unknown"}`,
-    `mode: ${run.mode || "unknown"}`,
-    `status: ${run.status || "unknown"}${run.timed_out ? " · timed out" : ""}`,
+    `run: ${run.control_run_id || run.run_id || "desconhecido"}`,
+    `mode: ${run.mode || "desconhecido"}`,
+    `status: ${run.status || "desconhecido"}${run.timed_out ? " · timed out" : ""}`,
   ];
   if (child.tool_call_count !== undefined || child.write_call_count !== undefined || child.validation_call_count !== undefined) {
     lines.push(`telemetry: tools=${child.tool_call_count || 0} writes=${child.write_call_count || 0} validations=${child.validation_call_count || 0}`);
     lines.push(`paths: modified=${child.modified_path_count || 0} recent=${child.recent_path_count || 0}`);
   }
   if (child.last_phase || child.last_tool) {
-    lines.push(`last: ${child.last_phase || "unknown"} via ${child.last_tool || "unknown"}`);
+    lines.push(`last: ${child.last_phase || "desconhecido"} via ${child.last_tool || "desconhecido"}`);
   }
   if (validation.status || child.last_validation_status) {
-    lines.push(`validation: ${validation.status || child.last_validation_status} exit=${validation.exit_code ?? child.last_validation_exit_code ?? "unknown"}`);
+    lines.push(`validation: ${validation.status || child.last_validation_status} exit=${validation.exit_code ?? child.last_validation_exit_code ?? "desconhecido"}`);
   }
   return lines.join("\n");
 }
 
 function localNextStepForRun(run) {
-  const status = run.status || "unknown";
+  const status = run.status || "desconhecido";
   if (LOCAL_CHAT_WORK_MODES.has(run.mode || "") && status === "succeeded") {
-    return ["Work run succeeded. Review the diff, verify the patch hash, then promote only if the result is expected.", "ready", "promote"];
+    return ["Run de trabalho concluído. Revise o diff, confira o hash e aplique apenas se o resultado estiver correto.", "ready", "promote"];
   }
   if (status === "failed" || status === "timed_out") {
-    return ["Run failed. Inspect the telemetry summary and events before retrying or changing the task.", "danger", localModePhaseForMode(run.mode || "")];
+    return ["Run falhou. Inspecione telemetria e eventos antes de tentar novamente ou alterar a tarefa.", "danger", localModePhaseForMode(run.mode || "")];
   }
   if (status === "cancelled" || status === "canceled") {
-    return ["Run cancelled. Start a new bounded task when ready.", "warn", localModePhaseForMode(run.mode || "")];
+    return ["Run cancelado. Inicie uma nova tarefa delimitada quando estiver pronto.", "warn", localModePhaseForMode(run.mode || "")];
   }
   if (!TERMINAL_STATUSES.has(status)) {
-    return ["Run is active. Wait for terminal status before review or promotion.", "running", localModePhaseForMode(run.mode || "")];
+    return ["Run ativo. Aguarde status terminal antes de revisar ou promover.", "running", localModePhaseForMode(run.mode || "")];
   }
-  return ["Read-only run finished. Use Work for isolated changes or Promote after a reviewed patch.", "ready", localModePhaseForMode(run.mode || "")];
+  return ["Run read-only finalizado. Use Trabalhar para alterações isoladas ou Aplicar após revisão.", "ready", localModePhaseForMode(run.mode || "")];
 }
 
 function selectValue(id) {
@@ -475,7 +476,7 @@ function selectValue(id) {
 }
 
 function shortSha(value) {
-  return value ? value.slice(0, 12) : "not available";
+  return value ? value.slice(0, 12) : "indisponível";
 }
 
 function setListItems(id, values, emptyText) {
@@ -511,7 +512,7 @@ function changedPathsFromReview(payload) {
 function validationStatusFromReview(payload) {
   const review = reviewPayloadRoot(payload);
   const validation = review.validation || payload.validation || review.validation_summary || {};
-  return review.validation_status || payload.validation_status || validation.status || validation.overall || "Missing";
+  return review.validation_status || payload.validation_status || validation.status || validation.overall || "Ausente";
 }
 
 function diffInfoFromReview(payload) {
@@ -533,7 +534,7 @@ function diffInfoFromReview(payload) {
   const text = parts.join("\n\n").trim();
   return {
     text,
-    state: text ? (truncated ? "Truncated" : "Available") : "Missing",
+    state: text ? (truncated ? "Truncado" : "Disponível") : "Ausente",
     truncated,
   };
 }
@@ -550,7 +551,7 @@ function telemetryTextFromReview(payload) {
   if (review.validation || payload.validation) lines.push(`validation: ${validationStatusFromReview(payload)}`);
   if (review.status) lines.push(`review_status: ${review.status}`);
   if (payload.status) lines.push(`payload_status: ${payload.status}`);
-  return lines.length ? lines.join("\n") : "No telemetry available.";
+  return lines.length ? lines.join("\n") : "Nenhuma telemetria disponível.";
 }
 
 function reviewEvidenceFromPayload(payload) {
@@ -571,33 +572,33 @@ function validationPassed(status) {
 
 function applyBlockersForReview(evidence) {
   const blockers = [];
-  if (!evidence.runId) blockers.push("run identity missing");
-  if (!evidence.workspaceId) blockers.push("workspace identity missing");
-  if (!/^[0-9a-f]{64}$/.test(evidence.patchSha)) blockers.push("patch hash missing");
-  if (!evidence.changedPaths.length) blockers.push("changed files missing");
+  if (!evidence.runId) blockers.push("identidade do run ausente");
+  if (!evidence.workspaceId) blockers.push("identidade do workspace ausente");
+  if (!/^[0-9a-f]{64}$/.test(evidence.patchSha)) blockers.push("hash do patch ausente");
+  if (!evidence.changedPaths.length) blockers.push("arquivos alterados ausentes");
   if (!validationPassed(evidence.validationStatus)) blockers.push(`validation ${evidence.validationStatus || "missing"}`);
-  if (evidence.diffInfo.state !== "Available") blockers.push(`diff ${evidence.diffInfo.state.toLowerCase()}`);
-  if (evidence.diffInfo.truncated) blockers.push("diff truncated");
-  if (evidence.stale) blockers.push("review stale");
+  if (evidence.diffInfo.state !== "Disponível") blockers.push(`diff ${evidence.diffInfo.state.toLowerCase()}`);
+  if (evidence.diffInfo.truncated) blockers.push("diff truncado");
+  if (evidence.stale) blockers.push("revisão obsoleta");
   return blockers;
 }
 
-function resetLocalReviewPanel(reason = "No review loaded.") {
+function resetLocalReviewPanel(reason = "Nenhuma revisão carregada.") {
   currentLocalReview = null;
   const panel = byId("local-review-panel");
   if (panel) panel.hidden = true;
-  setText("local-review-title", "No review loaded");
-  setPill("local-review-status", "review unavailable", "muted");
+  setText("local-review-title", "Nenhuma revisão carregada");
+  setPill("local-review-status", "revisão indisponível", "muted");
   setCallout("local-review-summary", reason, "warn");
-  setText("local-review-validation", "Missing");
+  setText("local-review-validation", "Ausente");
   setText("local-review-files-count", "0");
-  setText("local-review-patch", "not available");
-  setText("local-review-diff-state", "Missing");
-  setListItems("local-review-files", [], "No changed files.");
-  show("local-review-telemetry", "No telemetry available.");
-  show("local-review-diff", "No diff loaded.");
-  setButtonState("local-review-apply-button", true, "Apply reviewed change");
-  setText("local-review-result", "No review decision yet.");
+  setText("local-review-patch", "indisponível");
+  setText("local-review-diff-state", "Ausente");
+  setListItems("local-review-files", [], "Nenhum arquivo alterado.");
+  show("local-review-telemetry", "Nenhuma telemetria disponível.");
+  show("local-review-diff", "Nenhum diff carregado.");
+  setButtonState("local-review-apply-button", true, "Aplicar alteração revisada");
+  setText("local-review-result", "Nenhuma decisão de revisão ainda.");
 }
 
 function renderReviewPanel(payload) {
@@ -616,32 +617,32 @@ function renderReviewPanel(payload) {
     diffState: evidence.diffInfo.state,
     blockers,
   };
-  setText("local-review-title", evidence.changedPaths.length ? "Reviewed change proposal" : "Review loaded without changed files");
-  setPill("local-review-status", applyReady ? "ready to apply" : "apply blocked", applyReady ? "ready" : "warn");
+  setText("local-review-title", evidence.changedPaths.length ? "Proposta de alteração revisada" : "Revisão carregada sem arquivos alterados");
+  setPill("local-review-status", applyReady ? "pronto para aplicar" : "aplicação bloqueada", applyReady ? "ready" : "warn");
   setCallout(
     "local-review-summary",
     applyReady
-      ? "Review is complete. Apply will use the workspace, run id, and patch hash from this review payload."
-      : `Apply disabled: ${blockers.join(", ") || "review incomplete"}.`,
+      ? "Revisão completa. Aplicar usará workspace, run id e hash de patch desta revisão."
+      : `Aplicação desabilitada: ${blockers.join(", ") || "revisão incompleta"}.`,
     applyReady ? "ready" : "warn",
   );
-  setText("local-review-validation", evidence.validationStatus || "Missing");
+  setText("local-review-validation", evidence.validationStatus || "Ausente");
   setText("local-review-files-count", String(evidence.changedPaths.length));
   setText("local-review-patch", shortSha(evidence.patchSha));
   setText("local-review-diff-state", evidence.diffInfo.state);
-  setListItems("local-review-files", evidence.changedPaths, "No changed files.");
+  setListItems("local-review-files", evidence.changedPaths, "Nenhum arquivo alterado.");
   show("local-review-telemetry", telemetryTextFromReview(payload));
-  show("local-review-diff", evidence.diffInfo.text || "No displayable diff in review payload. Open Advanced / Debug for raw metadata.");
-  setButtonState("local-review-apply-button", !applyReady, applyReady ? "Apply reviewed change" : "Apply blocked");
-  setText("local-review-result", applyReady ? "Awaiting explicit confirmation." : "Fix the blocked review state or load a fresh review before applying.");
+  show("local-review-diff", evidence.diffInfo.text || "Nenhum diff exibível no payload de revisão. Abra Debug avançado para metadados brutos.");
+  setButtonState("local-review-apply-button", !applyReady, applyReady ? "Aplicar alteração revisada" : "Aplicação bloqueada");
+  setText("local-review-result", applyReady ? "Aguardando confirmação explícita." : "Corrija o bloqueio da revisão ou carregue uma revisão nova antes de aplicar.");
   return currentLocalReview;
 }
 
 async function loadLocalReviewForCurrentRun() {
   const runId = selectValue("local-run-id");
   const workspaceId = selectValue("local-workspace");
-  if (!runId) throw new Error("local run id is required");
-  if (!workspaceId) throw new Error("workspace is required");
+  if (!runId) throw new Error("run id local obrigatório");
+  if (!workspaceId) throw new Error("workspace obrigatório");
   const payload = await requestJson(`/v1/local-chat/runs/${encodeURIComponent(runId)}/review?workspace_id=${encodeURIComponent(workspaceId)}`);
   setLocalReview(payload);
   return payload;
@@ -655,7 +656,7 @@ async function maybeLoadReviewAfterTerminalRun(payload) {
   try {
     await loadLocalReviewForCurrentRun();
   } catch (err) {
-    setLocalNextStep("Work run finished, but review could not be loaded. Open Advanced / Debug for raw events.", "warn");
+    setLocalNextStep("Run de trabalho finalizou, mas a revisão não pôde ser carregada. Abra o Debug avançado para eventos brutos.", "warn");
     show("local-review-output", String(err.message || err));
   }
 }
@@ -683,8 +684,8 @@ function setLocalChatContract(payload) {
   const capabilities = payload.capabilities || {};
   const work = Boolean(capabilities.local_chat_work_runs || capabilities.work_runs);
   const state = payload.negotiated ? "ready" : "warn";
-  setLocalChatSummary(`workbench ${payload.negotiated ? "negotiated" : "not negotiated"}; work_runs=${work}`, state);
-  updateLocalRunCard("Contract", `local-chat negotiated=${Boolean(payload.negotiated)}; work_runs=${work}`, payload.negotiated ? "ready" : "warn", state);
+  setLocalChatSummary(`workbench ${payload.negotiated ? "negociado" : "não negociado"}; work_runs=${work}`, state);
+  updateLocalRunCard("Contrato", `local-chat negociado=${Boolean(payload.negotiated)}; work_runs=${work}`, payload.negotiated ? "ready" : "warn", state);
   show("local-chat-output", payload);
 }
 
@@ -693,8 +694,8 @@ function setLocalWorkspaces(payload) {
   const selected = setOptions("local-workspace", workspaces, "workspace_id", localWorkspaceLabel);
   const selectedWorkspace = workspaces.find((workspace) => workspace.workspace_id === selected);
   setText("local-project-label", localWorkspaceLabel(selectedWorkspace));
-  setLocalChatSummary(workspaces.length ? `Project selected · ${localWorkspaceLabel(selectedWorkspace)}` : "no local-chat workspace", workspaces.length ? "ready" : "danger");
-  updateLocalRunCard("Project", workspaces.length ? `Selected ${localWorkspaceLabel(selectedWorkspace)}` : "No local-chat workspace found", workspaces.length ? "ready" : "missing", workspaces.length ? "ready" : "danger");
+  setLocalChatSummary(workspaces.length ? `Projeto selecionado · ${localWorkspaceLabel(selectedWorkspace)}` : "nenhum workspace local-chat", workspaces.length ? "ready" : "danger");
+  updateLocalRunCard("Projeto", workspaces.length ? `Selecionado ${localWorkspaceLabel(selectedWorkspace)}` : "Nenhum workspace local-chat encontrado", workspaces.length ? "ready" : "missing", workspaces.length ? "ready" : "danger");
   show("local-chat-output", payload);
 }
 
@@ -705,7 +706,7 @@ function setLocalModels(payload) {
     const available = model.available === false ? " · unavailable" : " · available";
     return `${label}${available}`;
   });
-  setLocalChatSummary(models.length ? `model selected ${selected}` : "no local-chat model", models.length ? "ready" : "danger");
+  setLocalChatSummary(models.length ? `modelo selecionado ${selected}` : "nenhum modelo local-chat", models.length ? "ready" : "danger");
   show("local-chat-output", payload);
 }
 
@@ -713,8 +714,8 @@ function setLocalRunFromPayload(payload) {
   const run = payload.run || payload;
   const runId = run.control_run_id || run.run_id || payload.control_run_id;
   if (runId) byId("local-run-id").value = runId;
-  const status = run.status || payload.status || "unknown";
-  const mode = run.mode || payload.mode || selectValue("local-run-mode") || "unknown";
+  const status = run.status || payload.status || "desconhecido";
+  const mode = run.mode || payload.mode || selectValue("local-run-mode") || "desconhecido";
   const state = TERMINAL_STATUSES.has(status) ? (status === "succeeded" ? "ready" : "danger") : "running";
   if (runId) activeLocalRunId = runId;
   activeLocalRunTerminal = TERMINAL_STATUSES.has(status);
@@ -731,7 +732,7 @@ function setLocalRunFromPayload(payload) {
   updateLocalRunCard(`${localModeLabel(mode)} run`, `Status ${status}${runId ? ` · ${runId}` : ""}`, status, state);
   if (runId && TERMINAL_STATUSES.has(status) && !localChatRenderedRuns.has(`${runId}:${status}`)) {
     localChatRenderedRuns.add(`${runId}:${status}`);
-    appendLocalToolMessage("Run finished", `${localModeLabel(mode)} ended with ${status}. Review appears when a patch is eligible.`, state);
+    appendLocalToolMessage("Run finalizado", `${localModeLabel(mode)} finalizou com ${status}. A revisão aparece quando houver patch elegível.`, state);
   }
   setLocalChatSummary(`local ${mode} ${status}`, state);
   show("local-chat-output", payload);
@@ -744,32 +745,55 @@ function setLocalReview(payload) {
   const status = review.status || payload.status || "review loaded";
   const reviewState = renderReviewPanel(payload);
   const state = reviewState && reviewState.blockers.length === 0 ? "ready" : "warn";
-  setText("local-mode-label", "Apply");
+  setText("local-mode-label", "Aplicar");
   setText("local-status-label", status);
   updateLocalModeFlow("promote", state);
   setLocalNextStep(
     state === "ready"
-      ? "Review loaded. Apply is bound to this workspace, run, and patch hash."
-      : "Review loaded but Apply is blocked until validation, diff, workspace, run, and patch evidence are complete.",
+      ? "Revisão carregada. Aplicar está preso a workspace, run e hash do patch."
+      : "Revisão carregada, mas Aplicar está bloqueado até validação, diff, workspace, run e evidência de patch ficarem completos.",
     state,
   );
-  updateLocalRunCard("Review", state === "ready" ? "Review is eligible for explicit Apply." : "Review loaded with blockers.", status, state);
-  appendLocalToolMessage("Review loaded", state === "ready" ? "Apply is available in the right rail." : "Apply is blocked until review evidence is complete.", state);
-  setLocalChatSummary(`review ${status}`, state);
+  updateLocalRunCard("Revisão", state === "ready" ? "Revisão elegível para aplicação explícita." : "Revisão carregada com bloqueios.", status, state);
+  appendLocalToolMessage("Revisão carregada", state === "ready" ? "Aplicar está disponível na barra lateral direita." : "Aplicar fica bloqueado até a revisão ficar completa.", state);
+  setLocalChatSummary(`revisão ${status}`, state);
   show("local-review-output", payload);
 }
 
 async function loadLocalChatModelsForSelectedWorkspace() {
   const workspaceId = selectValue("local-workspace");
-  if (!workspaceId) throw new Error("workspace is required");
+  if (!workspaceId) throw new Error("workspace obrigatório");
   return requestJson(`/v1/local-chat/models?workspace_id=${encodeURIComponent(workspaceId)}`);
+}
+
+function localEventDisplayText(event) {
+  const name = event.event || event.type || event.phase || "evento";
+  const status = event.status || event.state || "em andamento";
+  const tool = event.tool || event.tool_name || event.last_tool || "";
+  const phase = event.phase && event.phase !== name ? ` · fase ${event.phase}` : "";
+  const via = tool ? ` · via ${tool}` : "";
+  return `${name} · ${status}${phase}${via}`;
+}
+
+function renderLocalChatEvents(events, runId) {
+  for (const event of events) {
+    if (!event || typeof event !== "object") continue;
+    const name = event.event || event.type || event.phase || "evento";
+    const status = event.status || event.state || "em andamento";
+    const cursor = event.cursor ?? event.sequence ?? event.index ?? "";
+    const key = `${runId || "run"}:${cursor}:${name}:${status}`;
+    if (localChatRenderedEvents.has(key)) continue;
+    localChatRenderedEvents.add(key);
+    appendLocalChatTurn("status", "LAI trabalhando", localEventDisplayText(event));
+  }
 }
 
 async function fetchLocalChatEvents() {
   const runId = selectValue("local-run-id");
-  if (!runId) throw new Error("local run id is required");
+  if (!runId) throw new Error("run id local obrigatório");
   const payload = await requestJson(`/v1/local-chat/runs/${encodeURIComponent(runId)}/events?cursor=${lastLocalChatCursor}`);
   const events = Array.isArray(payload.events) ? payload.events : [];
+  renderLocalChatEvents(events, runId);
   if (Number.isInteger(payload.next_cursor)) lastLocalChatCursor = payload.next_cursor;
   setLocalRunFromPayload(payload);
   show("local-chat-output", payload);
@@ -784,7 +808,7 @@ function startLocalChatPolling() {
   stopLocalChatPolling();
   activeLocalRunTerminal = false;
   updateLocalExecutionControls(selectValue("local-run-id") ? "running" : "idle");
-  setLocalChatSummary("polling local run", "running");
+  setLocalChatSummary("acompanhando run local", "running");
   localChatPollTimer = window.setInterval(() => {
     fetchLocalChatEvents().catch((err) => {
       stopLocalChatPolling();
@@ -798,6 +822,16 @@ function stopLocalChatPolling() {
     window.clearInterval(localChatPollTimer);
     localChatPollTimer = null;
   }
+}
+
+function openVSCodeFolderHandoff() {
+  const uri = "vscode://fenatodev.lai-chat/open-folder";
+  appendLocalToolMessage(
+    "Abrindo VS Code",
+    "Autorize o navegador a abrir o VS Code. No painel LAI, use Abrir pasta/repositório para escolher ou focar o projeto.",
+    "running",
+  );
+  window.location.href = uri;
 }
 
 function gatewayAuthHeaders() {
@@ -828,8 +862,8 @@ async function requestJson(path, options = {}) {
 
 function updateGatewayAuthState(status, ok) {
   if (!gatewayAccessToken) {
-    byId("gateway-access-state").textContent = "No gateway token loaded in page memory.";
-    setCheck("check-access", "Pair token not loaded yet.", "muted");
+    byId("gateway-access-state").textContent = "Nenhum token do Gateway carregado na memória da página.";
+    setCheck("check-access", "Token de pareamento ainda não carregado.", "muted");
     return;
   }
   if (ok) {
@@ -839,20 +873,20 @@ function updateGatewayAuthState(status, ok) {
     return;
   }
   if (status === 401) {
-    byId("gateway-access-state").textContent = "Loaded token is missing, invalid, or expired.";
-    setCallout("gateway-auth-result", "Token was not accepted or the mobile session expired. Generate a fresh pair token and try again.", "danger");
-    setAuthBanner("Pairing failed or mobile session expired. Generate a fresh pair token and try again.", "danger");
-    setCheck("check-access", "Pair token missing, invalid, or expired.", "danger");
+    byId("gateway-access-state").textContent = "Token carregado ausente, inválido ou expirado.";
+    setCallout("gateway-auth-result", "Token não aceito ou sessão mobile expirada. Gere um novo token de pareamento e tente novamente.", "danger");
+    setAuthBanner("Pareamento falhou ou sessão mobile expirou. Gere um novo token de pareamento e tente novamente.", "danger");
+    setCheck("check-access", "Token de pareamento ausente, inválido ou expirado.", "danger");
   } else if (status === 403) {
-    byId("gateway-access-state").textContent = "Loaded token was rejected by the gateway.";
-    setCallout("gateway-auth-result", "Token rejected by gateway.", "danger");
-    setAuthBanner("Token rejected by gateway.", "danger");
-    setCheck("check-access", "Loaded token rejected.", "danger");
+    byId("gateway-access-state").textContent = "Token carregado rejeitado pelo Gateway.";
+    setCallout("gateway-auth-result", "Token rejeitado pelo Gateway.", "danger");
+    setAuthBanner("Token rejeitado pelo Gateway.", "danger");
+    setCheck("check-access", "Token carregado rejeitado.", "danger");
   } else if (status === 429) {
-    byId("gateway-access-state").textContent = "Too many failed token attempts. Wait before retrying.";
-    setCallout("gateway-auth-result", "Too many failed token attempts. Wait before retrying.", "danger");
-    setAuthBanner("Too many failed token attempts. Wait before retrying.", "danger");
-    setCheck("check-access", "Token attempts rate limited.", "danger");
+    byId("gateway-access-state").textContent = "Muitas tentativas inválidas de token. Aguarde antes de tentar novamente.";
+    setCallout("gateway-auth-result", "Muitas tentativas inválidas de token. Aguarde antes de tentar novamente.", "danger");
+    setAuthBanner("Muitas tentativas inválidas de token. Aguarde antes de tentar novamente.", "danger");
+    setCheck("check-access", "Tentativas de token limitadas.", "danger");
   }
 }
 
@@ -860,15 +894,15 @@ function parseSessionExpiresAt(raw) {
   const value = (raw || "").trim();
   if (!value) return null;
   const instant = Date.parse(value);
-  if (Number.isNaN(instant)) throw new Error("session expiration must be an ISO timestamp");
+  if (Number.isNaN(instant)) throw new Error("expiração de sessão precisa ser um timestamp ISO");
   return instant;
 }
 
 function tokenKindLabel() {
-  if (gatewayTokenKind === "session") return "Mobile session";
-  if (gatewayTokenKind === "pair") return "Pair token";
-  if (gatewayTokenKind === "permanent") return "Gateway token";
-  return "No token";
+  if (gatewayTokenKind === "session") return "Sessão mobile";
+  if (gatewayTokenKind === "pair") return "Token de pareamento";
+  if (gatewayTokenKind === "permanent") return "Token do Gateway";
+  return "Sem token";
 }
 
 async function exchangeMobileSession(pairToken) {
@@ -882,25 +916,25 @@ async function exchangeMobileSession(pairToken) {
     startSessionCountdown();
     return payload;
   }
-  throw new Error("gateway did not return a mobile session token");
+  throw new Error("Gateway não retornou token de sessão mobile");
 }
 
 function renderSessionCountdown() {
   const target = byId("pairing-state");
   if (gatewayTokenKind !== "session" || sessionExpiresAt === null) {
-    target.textContent = "No mobile session timer loaded.";
+    target.textContent = "Nenhum temporizador de sessão mobile carregado.";
     target.className = "muted";
     return;
   }
   const remainingSeconds = Math.max(0, Math.floor((sessionExpiresAt - Date.now()) / 1000));
   if (remainingSeconds <= 0) {
-    target.textContent = "Mobile session expired. Forget it and pair again with a fresh token.";
+    target.textContent = "Sessão mobile expirada. Esqueça o token e pareie novamente.";
     target.className = "danger-text";
     return;
   }
   const minutes = Math.floor(remainingSeconds / 60);
   const seconds = remainingSeconds % 60;
-  target.textContent = `Mobile session: ${minutes}m ${String(seconds).padStart(2, "0")}s remaining.`;
+  target.textContent = `Sessão mobile: ${minutes}m ${String(seconds).padStart(2, "0")}s restantes.`;
   target.className = remainingSeconds < 60 ? "warn-text" : "muted";
 }
 
@@ -924,14 +958,14 @@ function setSessionFromPayload(payload) {
   if (session && session.session_id) {
     byId("session-id").value = session.session_id;
     setPill("active-session-pill", `session ${session.session_id}`, "ready");
-    setCheck("check-session", `Session selected: ${session.session_id}`, "ready");
+    setCheck("check-session", `Sessão selecionada: ${session.session_id}`, "ready");
   }
 }
 
 function summarizeRun(run) {
-  const id = run.control_run_id || run.run_id || "unknown";
-  const status = run.status || "unknown";
-  const mode = run.mode || "unknown";
+  const id = run.control_run_id || run.run_id || "desconhecido";
+  const status = run.status || "desconhecido";
+  const mode = run.mode || "desconhecido";
   return `${id} · ${mode} · ${status}`;
 }
 
@@ -942,8 +976,8 @@ function recordRun(run) {
   if (existing >= 0) runHistory.splice(existing, 1);
   runHistory.unshift({
     control_run_id: runId,
-    mode: run.mode || "unknown",
-    status: run.status || "unknown",
+    mode: run.mode || "desconhecido",
+    status: run.status || "desconhecido",
     finished_at: run.finished_at || "",
   });
   runHistory.splice(8);
@@ -980,16 +1014,16 @@ function setRunFromPayload(payload) {
 function renderRunEvents(payload) {
   const events = Array.isArray(payload.events) ? payload.events : [];
   const runId = payload.control_run_id || "unknown run";
-  const status = payload.status || "unknown";
+  const status = payload.status || "desconhecido";
   const lines = [`${runId} · ${status}${payload.terminal ? " · terminal" : ""}`];
   if (!events.length) {
-    lines.push("No timeline events reported yet.");
+    lines.push("Nenhum evento de linha do tempo reportado ainda.");
     return lines.join("\n");
   }
   for (const event of events) {
-    const label = event.event || event.name || "event";
+    const label = event.event || event.name || "evento";
     const eventStatus = event.status ? ` · ${event.status}` : "";
-    const at = event.at || "time unknown";
+    const at = event.at || "hora desconhecida";
     const details = event.details && Object.keys(event.details).length
       ? ` · ${JSON.stringify(event.details)}`
       : "";
@@ -1001,7 +1035,7 @@ function renderRunEvents(payload) {
 function setRunEventsFromPayload(payload) {
   lastRunEventsPayload = payload;
   const events = Array.isArray(payload.events) ? payload.events : [];
-  const status = payload.status || "unknown";
+  const status = payload.status || "desconhecido";
   const state = payload.terminal ? (status === "succeeded" ? "ready" : "danger") : "running";
   show("run-events-output", renderRunEvents(payload));
   setPill("active-run-pill", `run events ${events.length} · ${status}`, state);
@@ -1009,7 +1043,7 @@ function setRunEventsFromPayload(payload) {
 
 async function fetchSelectedRunEvents() {
   const runId = byId("run-id").value.trim();
-  if (!runId) throw new Error("run id is required");
+  if (!runId) throw new Error("run id obrigatório");
   const payload = await requestJson(`/v1/harness/runs/${encodeURIComponent(runId)}/events`);
   setRunEventsFromPayload(payload);
   return payload;
@@ -1017,7 +1051,7 @@ async function fetchSelectedRunEvents() {
 
 async function pollSelectedRun() {
   const runId = byId("run-id").value.trim();
-  if (!runId) throw new Error("run id is required");
+  if (!runId) throw new Error("run id obrigatório");
   const payload = await requestJson(`/v1/harness/runs/${encodeURIComponent(runId)}`);
   setRunFromPayload(payload);
   show("runs-output", payload);
@@ -1029,7 +1063,7 @@ async function pollSelectedRun() {
 
 function startRunPolling() {
   stopRunPolling();
-  setPill("active-run-pill", "polling selected run", "running");
+  setPill("active-run-pill", "acompanhando run selecionado", "running");
   runPollTimer = window.setInterval(() => {
     pollSelectedRun().catch((err) => {
       stopRunPolling();
@@ -1047,8 +1081,8 @@ function stopRunPolling() {
 
 function clearSession() {
   byId("session-id").value = "";
-  setPill("active-session-pill", "no active session", "muted");
-  setCheck("check-session", "No active session selected.", "muted");
+  setPill("active-session-pill", "sem sessão ativa", "muted");
+  setCheck("check-session", "Nenhuma sessão ativa selecionada.", "muted");
 }
 
 async function revokeMobileSessionIfLoaded() {
@@ -1065,7 +1099,7 @@ async function copyRunOutput() {
   const text = run && typeof run.stdout === "string" ? run.stdout : byId("runs-output").textContent;
   if (navigator.clipboard && navigator.clipboard.writeText) {
     await navigator.clipboard.writeText(text || "");
-    setPill("active-run-pill", "output copied", "ready");
+    setPill("active-run-pill", "saída copiada", "ready");
   } else {
     show("runs-output", `${text}\n\nClipboard API unavailable.`);
   }
@@ -1080,30 +1114,30 @@ async function runAction(action) {
       sessionExpiresAt = null;
       byId("gateway-token").value = "";
       if (!gatewayAccessToken) {
-        byId("gateway-access-state").textContent = "No gateway token loaded in page memory.";
-        setCallout("gateway-auth-result", "Paste a pair token before pairing this phone.", "danger");
-        setAuthBanner("Paste a pair token before using private controls.", "warn");
-        setCheck("check-access", "Pair token not loaded yet.", "muted");
+        byId("gateway-access-state").textContent = "Nenhum token do Gateway carregado na memória da página.";
+        setCallout("gateway-auth-result", "Cole um token de pareamento antes de parear este celular.", "danger");
+        setAuthBanner("Cole um token de pareamento antes de usar controles privados.", "warn");
+        setCheck("check-access", "Token de pareamento ainda não carregado.", "muted");
         return;
       }
       byId("gateway-access-state").textContent = `${selectedTokenKind === "pair" ? "Pair" : "Gateway"} token loaded in page memory. Validating now...`;
-      setCallout("gateway-auth-result", "Validating token with the gateway...", "warn");
-      setAuthBanner("Validating phone pairing...", "warn");
+      setCallout("gateway-auth-result", "Validando token com o Gateway...", "warn");
+      setAuthBanner("Validando pareamento do celular...", "warn");
       setCheck("check-access", `${selectedTokenKind === "pair" ? "Pair" : "Gateway"} token validating.`, "running");
       let sessionPayload = null;
       if (selectedTokenKind === "pair") {
         sessionPayload = await exchangeMobileSession(gatewayAccessToken);
-        setCallout("gateway-auth-result", "Paired successfully. Mobile session unlocked for this page.", "ready");
-        setAuthBanner("Phone paired. Temporary mobile session is active in this page only.", "ready");
+        setCallout("gateway-auth-result", "Pareado com sucesso. Sessão mobile liberada nesta página.", "ready");
+        setAuthBanner("Celular pareado. Sessão mobile temporária ativa só nesta página.", "ready");
       } else {
         startSessionCountdown();
-        setCallout("gateway-auth-result", "Gateway token accepted. Private controls are unlocked for this page.", "ready");
-        setAuthBanner("Gateway token accepted. Private controls are unlocked in this page only.", "ready");
+        setCallout("gateway-auth-result", "Token do Gateway aceito. Controles privados liberados nesta página.", "ready");
+        setAuthBanner("Token do Gateway aceito. Controles privados liberados só nesta página.", "ready");
       }
       const payload = await requestJson("/v1/gateway/health-report");
       setHealthReport(payload);
       if (sessionPayload && sessionPayload.expires_at) {
-        setCallout("gateway-auth-result", `Paired successfully. Mobile session expires at ${sessionPayload.expires_at}.`, "ready");
+        setCallout("gateway-auth-result", `Pareado com sucesso. Sessão mobile expira em ${sessionPayload.expires_at}.`, "ready");
       }
       await runAction("refresh-readiness");
     } else if (action === "forget-gateway-token") {
@@ -1114,10 +1148,10 @@ async function runAction(action) {
       stopSessionCountdown();
       byId("gateway-token").value = "";
       byId("pair-expires-at").value = "";
-      byId("gateway-access-state").textContent = "No gateway token loaded in page memory.";
-      setCallout("gateway-auth-result", "Token forgotten. Paste a new pair token to unlock this phone.", "warn");
-      setAuthBanner("Phone is not paired. Private controls are locked.", "warn");
-      setCheck("check-access", "Pair token not loaded yet.", "muted");
+      byId("gateway-access-state").textContent = "Nenhum token do Gateway carregado na memória da página.";
+      setCallout("gateway-auth-result", "Token esquecido. Cole um novo token de pareamento para liberar este celular.", "warn");
+      setAuthBanner("Celular não pareado. Controles privados bloqueados.", "warn");
+      setCheck("check-access", "Token de pareamento ainda não carregado.", "muted");
       renderSessionCountdown();
       if (!isLoopbackHost()) showPairRequiredOutputs();
     } else if (action === "refresh-token-countdown") {
@@ -1131,11 +1165,11 @@ async function runAction(action) {
       setHealthReport(await requestJson("/v1/gateway/health-report"));
     } else if (action === "send-health-report-telegram") {
       clearPairRequiredOutput("health-output");
-      setCallout("health-telegram-result", "Sending health report to Telegram...", "warn");
+      setCallout("health-telegram-result", "Enviando relatório de saúde ao Telegram...", "warn");
       const payload = await requestJson("/v1/gateway/health-report/telegram", { method: "POST" });
       setHealthReport(payload.health_report || payload);
       const notify = payload.telegram_notify || {};
-      setCallout("health-telegram-result", notify.sent ? `Health report sent to Telegram. message_id=${notify.message_id || "unknown"}` : "Telegram delivery did not report success.", notify.sent ? "ready" : "danger");
+      setCallout("health-telegram-result", notify.sent ? `Relatório de saúde enviado ao Telegram. message_id=${notify.message_id || "desconhecido"}` : "Entrega no Telegram não reportou sucesso.", notify.sent ? "ready" : "danger");
     } else if (action === "refresh-ops-status") {
       clearPairRequiredOutput("ops-output");
       setOpsStatus(await requestJson("/v1/gateway/ops-status"));
@@ -1154,23 +1188,23 @@ async function runAction(action) {
       setModelStatus(await requestJson("/v1/gateway/model-status"));
     } else if (action === "refresh-model-plan") {
       const payload = await requestJson("/v1/gateway/model-plan");
-      setPill("model-pill", `model plan ${payload.overall || "unknown"}`, payload.overall === "ready_to_prepare" ? "ready" : "warn");
+      setPill("model-pill", `model plan ${payload.overall || "desconhecido"}`, payload.overall === "ready_to_prepare" ? "ready" : "warn");
       show("model-output", payload);
     } else if (action === "refresh-model-files") {
       const payload = await requestJson("/v1/gateway/model-files?max_results=10");
-      setPill("model-pill", `model files ${payload.models_found || 0}`, payload.recommended ? "ready" : "warn");
+      setPill("model-pill", `arquivos de modelo ${payload.models_found || 0}`, payload.recommended ? "ready" : "warn");
       show("model-output", payload);
     } else if (action === "run-model-task") {
       const payload = await requestJson("/v1/gateway/model-task?task=code-mini&timeout_seconds=60");
-      setPill("model-pill", `model task ${payload.overall || "unknown"}`, payload.overall === "ready" ? "ready" : "warn");
+      setPill("model-pill", `model task ${payload.overall || "desconhecido"}`, payload.overall === "ready" ? "ready" : "warn");
       show("model-output", payload);
     } else if (action === "run-model-eval") {
       const payload = await requestJson("/v1/gateway/model-eval?timeout_seconds=60");
-      setPill("model-pill", `model eval ${payload.overall || "unknown"}`, payload.overall === "ready" ? "ready" : "warn");
+      setPill("model-pill", `model eval ${payload.overall || "desconhecido"}`, payload.overall === "ready" ? "ready" : "warn");
       show("model-output", payload);
     } else if (action === "refresh-model-runs") {
       const payload = await requestJson("/v1/gateway/model-runs?limit=20");
-      setPill("model-pill", `model runs ${payload.count || 0}`, payload.count ? "ready" : "warn");
+      setPill("model-pill", `runs do modelo ${payload.count || 0}`, payload.count ? "ready" : "warn");
       show("model-output", payload);
     } else if (action === "refresh-local-chat-contract") {
       setLocalChatContract(await requestJson("/v1/local-chat/contract"));
@@ -1186,25 +1220,26 @@ async function runAction(action) {
       const workspaceId = selectValue("local-workspace");
       const modelId = selectValue("local-model") || "default";
       const sessionId = selectValue("session-id");
-      if (!LOCAL_CHAT_MODES.has(mode)) throw new Error("unsupported local-chat mode");
-      if (!task) throw new Error("task is required");
-      if (!workspaceId) throw new Error("workspace is required");
-      if (!activeLocalRunTerminal && activeLocalRunId) throw new Error("local run already active");
-      resetLocalReviewPanel("New run started. Previous review was cleared.");
+      if (!LOCAL_CHAT_MODES.has(mode)) throw new Error("modo local-chat não suportado");
+      if (!task) throw new Error("tarefa obrigatória");
+      if (!workspaceId) throw new Error("workspace obrigatório");
+      if (!activeLocalRunTerminal && activeLocalRunId) throw new Error("já existe um run local ativo");
+      resetLocalReviewPanel("Novo run iniciado. Revisão anterior limpa.");
       activeLocalRunTerminal = false;
       updateLocalExecutionControls("running");
       const body = { mode, task, workspace_id: workspaceId, model_id: modelId };
       if (sessionId) body.session_id = sessionId;
       lastLocalChatCursor = 0;
-      appendLocalChatTurn("user", "You", task);
-      appendLocalToolMessage("Starting LAI run", `${localModeLabel(mode)} request queued through Gateway.`, "running");
+      localChatRenderedEvents.clear();
+      appendLocalChatTurn("user", "Você", task);
+      appendLocalToolMessage("Iniciando run do LAI", `${localModeLabel(mode)} enfileirado pelo Gateway.`, "running");
       const payload = await requestJson("/v1/local-chat/runs", {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
         body: JSON.stringify(body),
       });
       setLocalRunFromPayload(payload);
-      if (LOCAL_CHAT_WORK_MODES.has(mode)) setLocalChatSummary(`local ${mode} queued; review before promotion`, "running");
+      if (LOCAL_CHAT_WORK_MODES.has(mode)) setLocalChatSummary(`local ${mode} enfileirado; revise antes de promover`, "running");
       startLocalChatPolling();
     } else if (action === "get-local-chat-events") {
       await fetchLocalChatEvents();
@@ -1213,63 +1248,63 @@ async function runAction(action) {
       startLocalChatPolling();
     } else if (action === "stop-local-chat-polling") {
       stopLocalChatPolling();
-      setLocalChatSummary("local polling stopped", "warn");
+      setLocalChatSummary("polling local parado", "warn");
     } else if (action === "get-local-chat-review") {
       await loadLocalReviewForCurrentRun();
     } else if (action === "apply-current-local-review") {
-      if (!currentLocalReview) throw new Error("no current review is loaded");
-      if (currentLocalReview.blockers.length) throw new Error(`apply blocked: ${currentLocalReview.blockers.join(", ")}`);
+      if (!currentLocalReview) throw new Error("nenhuma revisão atual carregada");
+      if (currentLocalReview.blockers.length) throw new Error(`aplicação bloqueada: ${currentLocalReview.blockers.join(", ")}`);
       const projectLabel = byId("local-project-label").textContent || currentLocalReview.workspaceId;
       const confirmation = [
-        "Apply this reviewed change?",
-        `Project: ${projectLabel}`,
-        `Files changed: ${currentLocalReview.changedCount}`,
-        `Validation: ${currentLocalReview.validationStatus}`,
+        "Aplicar esta alteração revisada?",
+        `Projeto: ${projectLabel}`,
+        `Arquivos alterados: ${currentLocalReview.changedCount}`,
+        `Validação: ${currentLocalReview.validationStatus}`,
         `Patch: ${shortSha(currentLocalReview.patchSha)}`,
         "",
-        "This applies the reviewed patch through Harness promotion gates.",
+        "Isto aplica o patch revisado pelos gates de promoção do Harness.",
       ].join("\n");
       if (!window.confirm(confirmation)) return;
-      setButtonState("local-review-apply-button", true, "Applying...");
+      setButtonState("local-review-apply-button", true, "Aplicando...");
       const payload = await requestJson(`/v1/local-chat/runs/${encodeURIComponent(currentLocalReview.runId)}/promotion`, {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
         body: JSON.stringify({ workspace_id: currentLocalReview.workspaceId, patch_sha256: currentLocalReview.patchSha }),
       });
       const promotion = payload.promotion || payload;
-      const result = promotion.status || payload.status || "unknown";
+      const result = promotion.status || payload.status || "desconhecido";
       show("local-review-output", payload);
-      if (["applied", "promoted", "succeeded", "success"].includes(String(result).toLowerCase())) {
+      if (["aplicado", "promoted", "succeeded", "success"].includes(String(result).toLowerCase())) {
         currentLocalReview = null;
-        setPill("local-review-status", "applied", "ready");
-        setCallout("local-review-summary", "Backend confirmed the reviewed change was applied through promotion gates.", "ready");
-        setButtonState("local-review-apply-button", true, "Applied");
-        setText("local-review-result", "Applied. Active review cleared; source checkout state remains governed by Harness promotion output.");
-        setLocalNextStep("Promotion applied. Check the reported destination before any Git push or PR.", "ready");
+        setPill("local-review-status", "aplicado", "ready");
+        setCallout("local-review-summary", "Backend confirmou que a alteração revisada passou pelos gates de promoção.", "ready");
+        setButtonState("local-review-apply-button", true, "Aplicado");
+        setText("local-review-result", "Aplicado. Active review cleared; source checkout state remains governed by Harness promotion output.");
+        setLocalNextStep("Promoção aplicada. Confira o destino relatado antes de qualquer push ou PR.", "ready");
       } else if (["drift", "stale"].includes(String(result).toLowerCase())) {
         setPill("local-review-status", "drift", "danger");
-        setCallout("local-review-summary", "Promotion reported drift. Load a fresh review before retrying.", "danger");
-        setButtonState("local-review-apply-button", true, "Fresh review required");
+        setCallout("local-review-summary", "Promoção indicou drift. Carregue uma revisão nova antes de tentar novamente.", "danger");
+        setButtonState("local-review-apply-button", true, "Revisão nova obrigatória");
       } else if (["rejected", "denied", "blocked", "failed"].includes(String(result).toLowerCase())) {
         setPill("local-review-status", "rejected", "danger");
-        setCallout("local-review-summary", "Promotion was not applied. Review remains visible for inspection.", "danger");
-        setButtonState("local-review-apply-button", false, "Apply reviewed change");
+        setCallout("local-review-summary", "Promoção não aplicada. A revisão permanece visível para inspeção.", "danger");
+        setButtonState("local-review-apply-button", false, "Aplicar alteração revisada");
       } else {
-        setPill("local-review-status", "unknown result", "warn");
-        setCallout("local-review-summary", "Promotion result is unknown. Check status before retrying.", "warn");
-        setButtonState("local-review-apply-button", true, "Check status first");
+        setPill("local-review-status", "resultado desconhecido", "warn");
+        setCallout("local-review-summary", "Resultado da promoção desconhecido. Cheque o status antes de tentar novamente.", "warn");
+        setButtonState("local-review-apply-button", true, "Checar status primeiro");
       }
     } else if (action === "discard-current-local-review") {
-      resetLocalReviewPanel("Review discarded in the browser. Sandbox cleanup or rollback was not implied.");
-      setLocalNextStep("Review discarded locally. Select another run or start a new task.", "warn");
+      resetLocalReviewPanel("Revisão descartada no navegador. Isso não limpa sandbox nem faz rollback.");
+      setLocalNextStep("Revisão descartada localmente. Selecione outro run ou inicie nova tarefa.", "warn");
     } else if (action === "promote-local-chat-run") {
       const runId = selectValue("local-run-id");
       const workspaceId = selectValue("local-workspace");
       const patchSha = selectValue("local-patch-sha");
-      if (!runId) throw new Error("local run id is required");
-      if (!workspaceId) throw new Error("workspace is required");
-      if (!/^[0-9a-f]{64}$/.test(patchSha)) throw new Error("reviewed patch sha256 is required");
-      if (!window.confirm(`Promote reviewed patch ${patchSha.slice(0, 12)} for ${runId}?`)) return;
+      if (!runId) throw new Error("run id local obrigatório");
+      if (!workspaceId) throw new Error("workspace obrigatório");
+      if (!/^[0-9a-f]{64}$/.test(patchSha)) throw new Error("sha256 do patch revisado obrigatório");
+      if (!window.confirm(`Promover patch revisado ${patchSha.slice(0, 12)} para ${runId}?`)) return;
       const payload = await requestJson(`/v1/local-chat/runs/${encodeURIComponent(runId)}/promotion`, {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
@@ -1279,8 +1314,8 @@ async function runAction(action) {
     } else if (action === "cancel-local-chat-run") {
       const runId = selectValue("local-run-id");
       const workspaceId = selectValue("local-workspace");
-      if (!runId) throw new Error("local run id is required");
-      if (!workspaceId) throw new Error("workspace is required");
+      if (!runId) throw new Error("run id local obrigatório");
+      if (!workspaceId) throw new Error("workspace obrigatório");
       const payload = await requestJson(`/v1/local-chat/runs/${encodeURIComponent(runId)}/lifecycle`, {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
@@ -1289,13 +1324,16 @@ async function runAction(action) {
       stopLocalChatPolling();
       setLocalRunFromPayload(payload);
 
+    } else if (action === "open-vscode-folder") {
+      openVSCodeFolderHandoff();
+
     } else if (action === "refresh-status") {
       clearPairRequiredOutput("status-output");
       show("status-output", await requestJson("/v1/harness/status"));
     } else if (action === "refresh-readiness") {
       clearPairRequiredOutput("status-output");
       const payload = await requestJson("/v1/harness/readiness");
-      const overall = payload.overall || "unknown";
+      const overall = payload.overall || "desconhecido";
       setPill("readiness-pill", `readiness ${overall}`, overall === "ready" ? "ready" : "danger");
       show("status-output", payload);
     } else if (action === "list-sessions") {
@@ -1315,13 +1353,13 @@ async function runAction(action) {
     } else if (action === "delete-session") {
       const sessionId = byId("session-id").value.trim();
       if (!sessionId) throw new Error("session id is required");
-      if (!window.confirm(`Delete harness session ${sessionId}? This removes only the repository-scoped session record.`)) return;
+      if (!window.confirm(`Excluir sessão do Harness ${sessionId}? Isso remove apenas o registro de sessão escopado ao repositório.`)) return;
       const payload = await requestJson(`/v1/harness/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
       clearSession();
       show("sessions-output", payload);
     } else if (action === "clear-session") {
       clearSession();
-      show("sessions-output", "Session selection cleared. Existing harness sessions were not changed.");
+      show("sessions-output", "Seleção de sessão limpa. As sessões existentes do Harness não foram alteradas.");
     } else if (action === "list-runs") {
       const payload = await requestJson("/v1/harness/runs?limit=10");
       setRunFromPayload(payload);
@@ -1330,8 +1368,8 @@ async function runAction(action) {
       const mode = byId("run-mode").value;
       const task = byId("run-task").value.trim();
       const sessionId = byId("session-id").value.trim();
-      if (!READ_ONLY_MODES.has(mode)) throw new Error("mode must be read-only");
-      if (!task) throw new Error("task is required");
+      if (!READ_ONLY_MODES.has(mode)) throw new Error("modo precisa ser read-only");
+      if (!task) throw new Error("tarefa obrigatória");
       const body = { mode, task };
       if (sessionId) body.session_id = sessionId;
       const payload = await requestJson("/v1/harness/runs", {
@@ -1351,7 +1389,7 @@ async function runAction(action) {
       startRunPolling();
     } else if (action === "stop-polling") {
       stopRunPolling();
-      setPill("active-run-pill", "polling stopped", "muted");
+      setPill("active-run-pill", "acompanhamento parado", "muted");
     } else if (action === "copy-run-output") {
       await copyRunOutput();
     }
@@ -1399,16 +1437,24 @@ document.addEventListener("DOMContentLoaded", () => {
   if (taskBox) taskBox.addEventListener("input", updateTaskCounter);
   updateLocalTaskCounter();
   const localTaskBox = byId("local-run-task");
-  if (localTaskBox) localTaskBox.addEventListener("input", updateLocalTaskCounter);
+  if (localTaskBox) {
+    localTaskBox.addEventListener("input", updateLocalTaskCounter);
+    localTaskBox.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+        event.preventDefault();
+        runAction("create-local-chat-run");
+      }
+    });
+  }
   const localModeSelect = byId("local-run-mode");
   if (localModeSelect) {
     localModeSelect.addEventListener("change", () => {
       if (!activeLocalRunTerminal) {
         localModeSelect.value = lastLocalMode;
-        setLocalNextStep("A run is active. Cancel or wait before changing mode.", "warn");
+        setLocalNextStep("Há um run ativo. Cancele ou aguarde antes de mudar o modo.", "warn");
         return;
       }
-      clearLocalReviewState("Mode changed. Previous review/run selection was cleared.");
+      clearLocalReviewState("Modo alterado. Seleção anterior de revisão/run limpa.");
       const mode = selectValue("local-run-mode");
       lastLocalMode = mode;
       const phase = localModePhaseForMode(mode);
@@ -1417,10 +1463,10 @@ document.addEventListener("DOMContentLoaded", () => {
       updateLocalModeFlow(phase, state);
       setLocalNextStep(
         phase === "work"
-          ? "Work writes only inside the isolated sandbox. Review is required before promotion."
+          ? "Trabalhar escreve apenas dentro do sandbox isolado. Revisão é obrigatória antes da promoção."
           : phase === "promote"
-            ? "Apply starts with review. Promotion still requires the reviewed patch hash."
-            : "Observe is read-only. Use it for diagnosis, planning, review, security, and release checks.",
+            ? "Aplicar começa pela revisão. A promoção ainda exige o hash do patch revisado."
+            : "Observar é read-only. Use para diagnóstico, planejamento, revisão, segurança e checagem de release.",
         state,
       );
     });
@@ -1432,9 +1478,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const localWorkspaceSelect = byId("local-workspace");
   if (localWorkspaceSelect) {
     localWorkspaceSelect.addEventListener("change", () => {
-      clearLocalReviewState("Workspace changed. Previous review/run selection was cleared.");
+      clearLocalReviewState("Workspace alterado. Seleção anterior de revisão/run limpa.");
       const selectedOption = localWorkspaceSelect.options[localWorkspaceSelect.selectedIndex];
-      setText("local-project-label", selectedOption ? selectedOption.textContent : "not loaded");
+      setText("local-project-label", selectedOption ? selectedOption.textContent : "não carregado");
       runAction("load-local-chat-models");
     });
   }
@@ -1446,7 +1492,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   runAction("refresh-mobile-access");
   if (isLoopbackHost()) {
-    setAuthBanner("Loopback access does not need phone pairing.", "ready");
+    setAuthBanner("Acesso local por loopback não precisa de pareamento do celular.", "ready");
     runAction("refresh-model-status");
     runAction("refresh-mcp-status");
     runAction("refresh-readiness");
@@ -1454,7 +1500,7 @@ document.addEventListener("DOMContentLoaded", () => {
     runAction("refresh-local-chat-contract");
     runAction("load-local-chat-workspaces");
   } else {
-    setAuthBanner("Paste a fresh pair token to unlock private controls on this phone.", "warn");
+    setAuthBanner("Cole um token de pareamento novo para liberar controles privados neste celular.", "warn");
     showPairRequiredOutputs();
   }
 });

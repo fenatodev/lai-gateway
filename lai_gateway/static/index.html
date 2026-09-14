@@ -1,195 +1,217 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>lai-gateway</title>
+  <title>LAI Workbench</title>
   <link rel="stylesheet" href="/assets/app.css">
 </head>
 <body>
-  <main class="shell lai-chat-app">
-    <article id="workbench-shell" class="card wide workbench-card workbench-shell-card reference-chat-shell">
-      <div class="workbench-shell-layout chat-shell-layout" aria-label="LAI Workbench shell">
-        <aside class="workbench-sidebar chat-left-rail" aria-label="Workbench navigation">
-          <div class="brand-row">
+  <main class="shell lai-chat-app clean-workbench-app">
+    <article id="workbench-shell" class="card wide workbench-card workbench-shell-card reference-chat-shell clean-chat-shell">
+      <div class="workbench-shell-layout chat-shell-layout clean-shell-layout" aria-label="Área principal do LAI Workbench">
+        <aside class="workbench-sidebar chat-left-rail clean-left-rail" aria-label="Projetos, sessões e modos">
+          <div class="brand-row clean-brand-row">
             <div class="brand-icon" aria-hidden="true">L</div>
             <div>
-              <p class="eyebrow">local-first control surface</p>
+              <p class="eyebrow">controle local-first</p>
               <h1>LAI Workbench</h1>
-              <p class="muted">AI coding assistant interface for Harness, Gateway, review, and controlled apply.</p>
+              <p class="muted">Assistente local de código com sandbox, revisão e aplicação controlada.</p>
             </div>
           </div>
-          <div class="sidebar-toolbar" aria-label="Workbench quick actions">
-            <button type="button" data-action="refresh-local-chat-contract" title="Refresh LAI contract">↻</button>
-            <button type="button" data-action="load-local-chat-workspaces" title="Load projects and models">▣</button>
-          </div>
-          <section class="sidebar-project-card" aria-label="Selected project">
+
+          <section class="sidebar-project-card clean-project-card" aria-label="Projeto selecionado">
+            <div class="section-heading">
+              <h2>Projeto</h2>
+              <button type="button" data-action="load-local-chat-workspaces">Atualizar</button>
+            </div>
+            <label class="compact-label">Repositório
+              <select id="local-workspace"></select>
+            </label>
+            <label class="compact-label">Modelo
+              <select id="local-model"></select>
+            </label>
             <div class="project-line">
               <span class="rail-icon" aria-hidden="true">▰</span>
               <div>
-                <strong id="local-project-label">not loaded</strong>
-                <span>Harness workspace</span>
+                <strong id="local-project-label">não carregado</strong>
+                <span>workspace do Harness</span>
               </div>
             </div>
-            <div class="workbench-topline" aria-label="Current workbench context">
-              <span>Mode <strong id="local-mode-label">Observe</strong></span>
-              <span>Status <strong id="local-status-label">idle</strong></span>
+            <div class="project-actions">
+              <button type="button" data-action="open-vscode-folder">Abrir pasta/repositório no VS Code</button>
+              <button type="button" data-action="refresh-local-chat-contract">Recarregar contrato</button>
             </div>
           </section>
-          <nav class="session-list" aria-label="Recent LAI sessions">
+
+          <nav class="session-list clean-session-list" aria-label="Sessões do LAI">
             <div class="section-heading">
-              <h2>Sessions</h2>
-              <button type="button" data-action="list-sessions">Refresh</button>
+              <h2>Sessões</h2>
+              <button type="button" data-action="list-sessions">Listar</button>
             </div>
-            <ol class="sidebar-sessions" aria-label="Recent sessions">
-              <li class="session-item active"><span>Current workbench</span><small id="active-session-pill" class="pill muted">no active session</small></li>
-              <li class="session-item"><span>Active run</span><small id="active-run-pill" class="pill muted">no active run</small></li>
-              <li class="session-item"><span>Workbench</span><small id="workbench-pill" class="pill muted">workbench unknown</small></li>
+            <ol class="sidebar-sessions" aria-label="Sessões recentes">
+              <li class="session-item active"><span>Workbench atual</span><small id="active-session-pill" class="pill muted">sem sessão ativa</small></li>
+              <li class="session-item"><span>Run ativo</span><small id="active-run-pill" class="pill muted">sem run ativo</small></li>
+              <li class="session-item"><span>Estado</span><small id="workbench-pill" class="pill muted">workbench desconhecido</small></li>
             </ol>
-            <button type="button" class="new-session-button" data-action="create-session">+ New Session</button>
+            <button type="button" class="new-session-button" data-action="create-session">+ Nova sessão</button>
           </nav>
-          <div class="mode-grid compact-mode-grid" aria-label="Three local workbench operating modes">
-            <section class="mode-card">
-              <h3>Observe</h3>
-              <p>Read-only diagnosis, planning, review, and security checks.</p>
-              <button type="button" data-local-mode-preset="observe">Use Observe</button>
-            </section>
-            <section class="mode-card">
-              <h3>Work</h3>
-              <p>Sandboxed implementation, fix, refactor, or CI repair.</p>
-              <button type="button" data-local-mode-preset="work">Use Work</button>
-            </section>
-            <section class="mode-card">
-              <h3>Apply</h3>
-              <p>Promote only a reviewed patch with validation evidence.</p>
-              <button type="button" data-local-mode-preset="promote">Use Apply</button>
-            </section>
+
+          <section class="mode-grid compact-mode-grid clean-mode-menu" aria-label="Três modos de operação do workbench local">
+            <article class="mode-card">
+              <h3>Observar</h3>
+              <p>Diagnóstico, plano, revisão e segurança sem escrita.</p>
+              <button type="button" data-local-mode-preset="observe">Usar Observar</button>
+            </article>
+            <article class="mode-card">
+              <h3>Trabalhar</h3>
+              <p>Implementação, correção ou refatoração dentro do sandbox.</p>
+              <button type="button" data-local-mode-preset="work">Usar Trabalhar</button>
+            </article>
+            <article class="mode-card">
+              <h3>Aplicar</h3>
+              <p>Aplicação somente após revisão, validação e hash conferido.</p>
+              <button type="button" data-local-mode-preset="promote">Usar Aplicar</button>
+            </article>
+          </section>
+
+          <div id="local-mode-flow" class="mode-flow" aria-label="Fase atual do workbench local">
+            <span id="local-flow-observe" class="flow-step muted">Observar</span>
+            <span id="local-flow-work" class="flow-step muted">Trabalhar</span>
+            <span id="local-flow-promote" class="flow-step muted">Aplicar</span>
           </div>
-          <div id="local-mode-flow" class="mode-flow" aria-label="Current local workbench phase">
-            <span id="local-flow-observe" class="flow-step muted">Observe</span>
-            <span id="local-flow-work" class="flow-step muted">Work</span>
-            <span id="local-flow-promote" class="flow-step muted">Apply</span>
+          <div class="sr-only" aria-hidden="true">
+            <span id="local-mode-label">Observar</span>
+            <span id="local-status-label">idle</span>
           </div>
-          <div class="status-strip compact-status-strip" aria-label="Runtime summary">
-            <span id="readiness-pill" class="pill muted">readiness unknown</span>
-            <span id="ops-pill" class="pill muted">ops unknown</span>
-            <span id="model-pill" class="pill muted">model unknown</span>
-            <span id="mcp-pill" class="pill muted">mcp unknown</span>
-          </div>
-          <p id="auth-banner" class="callout warn" aria-live="polite">Phone access needs pairing before private controls will work.</p>
+
+          <details class="sidebar-menu compact-health-menu">
+            <summary>Status</summary>
+            <div class="status-strip compact-status-strip" aria-label="Resumo do runtime">
+              <span id="readiness-pill" class="pill muted">prontidão desconhecida</span>
+              <span id="ops-pill" class="pill muted">operações desconhecidas</span>
+              <span id="model-pill" class="pill muted">modelo desconhecido</span>
+              <span id="mcp-pill" class="pill muted">mcp desconhecido</span>
+            </div>
+            <p id="auth-banner" class="callout warn" aria-live="polite">Acesso pelo celular exige pareamento antes dos controles privados.</p>
+          </details>
         </aside>
 
-        <section class="workbench-chat-center chat-main-pane" aria-label="Main LAI chat">
-          <header class="chat-header">
+        <section class="workbench-chat-center chat-main-pane clean-chat-main" aria-label="Chat principal do LAI">
+          <header class="chat-header clean-chat-header">
             <div>
-              <h2 id="local-conversation-title">New LAI session</h2>
-              <p class="chat-subtitle"><span>Gateway</span> · <span>Harness local-chat</span> · <span id="local-conversation-mode">Observe</span></p>
+              <h2 id="local-conversation-title">Nova sessão do LAI</h2>
+              <p class="chat-subtitle"><span>Gateway</span> · <span>Harness local-chat</span> · <span id="local-conversation-mode">Observar</span></p>
             </div>
-            <nav class="top-workbench-tabs" aria-label="Workbench surfaces">
+            <nav class="top-workbench-tabs clean-tabs" aria-label="Superfícies do workbench">
               <button type="button" class="tab active" data-ui-surface="chat">Chat</button>
               <button type="button" class="tab" data-ui-surface="shell">Shell</button>
-              <button type="button" class="tab" data-ui-surface="files">Files</button>
-              <button type="button" class="tab" data-ui-surface="review">Review</button>
+              <button type="button" class="tab" data-ui-surface="files">Arquivos</button>
+              <button type="button" class="tab" data-ui-surface="review">Revisão</button>
             </nav>
           </header>
-          <section id="local-chat-thread" class="chat-thread transcript-panel" aria-live="polite">
+
+          <section id="local-chat-thread" class="chat-thread transcript-panel clean-transcript-panel" aria-live="polite">
             <div class="message-row assistant-row">
               <div class="avatar" aria-hidden="true">L</div>
               <article class="message-bubble assistant-bubble">
-                <div class="message-meta"><strong>LAI</strong><span>Workbench shell</span></div>
-                <p>Use this as the main interface. Observe is read-only, Work runs inside sandbox, and Apply is blocked until a reviewed patch has evidence.</p>
+                <div class="message-meta"><strong>LAI</strong><span>Workbench</span></div>
+                <p>Use o chat como entrada principal. Observar é leitura, Trabalhar roda no sandbox e Aplicar só libera uma proposta revisada.</p>
               </article>
             </div>
-            <article class="tool-card run-tool-card" id="local-run-card">
-              <div class="tool-card-header">
+            <details class="tool-card run-tool-card compact-run-card" id="local-run-card" open>
+              <summary>
                 <span class="tool-icon" aria-hidden="true">⚙</span>
-                <div>
-                  <strong id="local-run-card-title">Ready for a request</strong>
-                  <p id="local-run-card-summary">Load the contract, choose a mode, then send a task to LAI.</p>
-                </div>
+                <span><strong id="local-run-card-title">Pronto para uma solicitação</strong><small id="local-run-card-summary">Escolha um projeto, selecione um modo e envie uma tarefa.</small></span>
                 <span id="local-run-card-status" class="pill muted">idle</span>
-              </div>
-              <p id="local-chat-summary" class="callout warn" aria-live="polite">Local workbench not loaded yet.</p>
-              <p id="local-next-step" class="callout warn" aria-live="polite">Load the contract and choose a workbench mode.</p>
-              <pre id="local-run-summary" class="compact-output chat-tool-output" aria-live="polite">No local run summary yet.</pre>
-            </article>
+              </summary>
+              <p id="local-chat-summary" class="callout warn" aria-live="polite">Workbench local ainda não carregado.</p>
+              <p id="local-next-step" class="callout warn" aria-live="polite">Carregue o contrato e escolha um modo de trabalho.</p>
+              <pre id="local-run-summary" class="compact-output chat-tool-output" aria-live="polite">Nenhum resumo de run local ainda.</pre>
+            </details>
             <div id="local-chat-live-anchor" class="chat-live-anchor" aria-hidden="true"></div>
           </section>
-          <footer class="chat-input-dock">
-            <label class="chat-composer"><span>Message</span>
-              <textarea id="local-run-task" rows="4" maxlength="12000" placeholder="Ask LAI to inspect, plan, implement in sandbox, or review the current proposal."></textarea>
+
+          <footer class="chat-input-dock clean-chat-input-dock">
+            <label class="chat-composer"><span>Mensagem</span>
+              <textarea id="local-run-task" rows="4" maxlength="12000" placeholder="Peça para o LAI inspecionar, planejar, trabalhar no sandbox ou revisar uma proposta."></textarea>
             </label>
             <div class="composer-footer">
               <span id="local-task-counter" class="muted">0 / 12000</span>
               <div class="primary-actions">
-                <button id="local-send-button" class="primary send-button" data-action="create-local-chat-run">Send to LAI</button>
-                <button id="local-cancel-button" class="danger" data-action="cancel-local-chat-run" disabled>No active run</button>
+                <button id="local-send-button" class="primary send-button" data-action="create-local-chat-run">Enviar ao LAI</button>
+                <button id="local-cancel-button" class="danger" data-action="cancel-local-chat-run" disabled>Sem run ativo</button>
               </div>
             </div>
           </footer>
         </section>
 
-        <aside class="workbench-review-column chat-right-rail" aria-label="Review and advanced controls">
-          <div class="right-rail-header">
-            <p class="eyebrow">context</p>
-            <h2>Review</h2>
-            <p class="muted">Apply remains bound to the loaded workspace, run, validation state, diff, and patch hash.</p>
+        <aside class="workbench-review-column chat-right-rail clean-right-rail" aria-label="Revisão e menus laterais">
+          <div class="right-rail-header clean-right-header">
+            <p class="eyebrow">contexto</p>
+            <h2>Revisão</h2>
+            <p class="muted">A aplicação fica presa ao workspace, run, validação, diff e hash da revisão carregada.</p>
           </div>
-          <section id="local-review-panel" class="review-panel" aria-label="Reviewed change proposal" hidden>
+
+          <section id="local-review-panel" class="review-panel" aria-label="Proposta de alteração revisada" hidden>
             <div class="review-header">
               <div>
-                <p class="eyebrow">review</p>
-                <h3 id="local-review-title">No review loaded</h3>
+                <p class="eyebrow">revisão</p>
+                <h3 id="local-review-title">Nenhuma revisão carregada</h3>
               </div>
-              <span id="local-review-status" class="pill muted">review unavailable</span>
+              <span id="local-review-status" class="pill muted">revisão indisponível</span>
             </div>
-            <p id="local-review-summary" class="callout warn" aria-live="polite">Review appears only after an eligible work run returns a proposal.</p>
+            <p id="local-review-summary" class="callout warn" aria-live="polite">A revisão aparece depois que um run de trabalho elegível gerar uma proposta.</p>
             <dl class="review-evidence">
-              <div><dt>Validation</dt><dd id="local-review-validation">Missing</dd></div>
-              <div><dt>Files changed</dt><dd id="local-review-files-count">0</dd></div>
-              <div><dt>Patch</dt><dd id="local-review-patch">not available</dd></div>
-              <div><dt>Diff</dt><dd id="local-review-diff-state">Missing</dd></div>
+              <div><dt>Validação</dt><dd id="local-review-validation">Ausente</dd></div>
+              <div><dt>Arquivos alterados</dt><dd id="local-review-files-count">0</dd></div>
+              <div><dt>Patch</dt><dd id="local-review-patch">indisponível</dd></div>
+              <div><dt>Diff</dt><dd id="local-review-diff-state">Ausente</dd></div>
             </dl>
-            <div class="review-section">
-              <h4>Changed files</h4>
-              <ul id="local-review-files" class="review-files"><li>No changed files.</li></ul>
-            </div>
-            <div class="review-section">
-              <h4>Telemetry</h4>
-              <pre id="local-review-telemetry" class="compact-output">No telemetry available.</pre>
-            </div>
-            <div class="review-section">
-              <h4>Diff</h4>
-              <pre id="local-review-diff" class="review-diff">No diff loaded.</pre>
-            </div>
+            <details class="review-section clean-review-details" open>
+              <summary>Arquivos alterados</summary>
+              <ul id="local-review-files" class="review-files"><li>Nenhum arquivo alterado.</li></ul>
+            </details>
+            <details class="review-section clean-review-details">
+              <summary>Telemetria</summary>
+              <pre id="local-review-telemetry" class="compact-output">Nenhuma telemetria disponível.</pre>
+            </details>
+            <details class="review-section clean-review-details">
+              <summary>Diff</summary>
+              <pre id="local-review-diff" class="review-diff">Nenhum diff carregado.</pre>
+            </details>
             <div class="primary-actions review-actions">
-              <button id="local-review-apply-button" class="primary" data-action="apply-current-local-review" disabled>Apply reviewed change</button>
-              <button data-action="discard-current-local-review">Discard review</button>
+              <button id="local-review-apply-button" class="primary" data-action="apply-current-local-review" disabled>Aplicar alteração revisada</button>
+              <button data-action="discard-current-local-review">Descartar revisão</button>
             </div>
-            <p id="local-review-result" class="muted" aria-live="polite">No review decision yet.</p>
+            <p id="local-review-result" class="muted" aria-live="polite">Nenhuma decisão de revisão ainda.</p>
           </section>
 
-          <details class="debug-panel">
-            <summary>Advanced / Debug</summary>
-            <p class="muted">Raw contract, run IDs, patch hash, polling, review, and promotion controls remain available here for safe troubleshooting.</p>
+          <details class="sidebar-menu surface-menu" open>
+            <summary>Superfícies</summary>
+            <div class="surface-actions">
+              <button type="button" data-action="open-vscode-folder">Abrir pasta/repositório no VS Code</button>
+              <button type="button" data-action="get-local-chat-review">Carregar revisão</button>
+              <button type="button" data-action="refresh-health-report">Atualizar saúde</button>
+              <button type="button" data-action="send-health-report-telegram">Enviar saúde ao Telegram</button>
+            </div>
+          </details>
+
+          <details class="debug-panel clean-debug-panel">
+            <summary>Debug avançado</summary>
+            <p class="muted">Contrato bruto, IDs, hash de patch, polling, revisão e promoção continuam disponíveis para investigação segura.</p>
             <div class="form-row">
-              <label>Workspace
-                <select id="local-workspace"></select>
-              </label>
-              <label>Model
-                <select id="local-model"></select>
-              </label>
-              <label>Mode
+              <label>Modo
                 <select id="local-run-mode">
-                  <option value="plan">plan</option>
-                  <option value="review">review</option>
-                  <option value="diagnose">diagnose</option>
-                  <option value="security">security</option>
+                  <option value="plan">planejar</option>
+                  <option value="review">revisar</option>
+                  <option value="diagnose">diagnosticar</option>
+                  <option value="security">segurança</option>
                   <option value="release">release</option>
-                  <option value="implement">implement</option>
-                  <option value="fix">fix</option>
-                  <option value="refactor">refactor</option>
-                  <option value="ci-fix">ci-fix</option>
+                  <option value="implement">implementar</option>
+                  <option value="fix">corrigir</option>
+                  <option value="refactor">refatorar</option>
+                  <option value="ci-fix">corrigir CI</option>
                 </select>
               </label>
             </div>
@@ -197,213 +219,210 @@
               <label>Run id
                 <input id="local-run-id" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="cr-...">
               </label>
-              <label>Reviewed patch sha256
-                <input id="local-patch-sha" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="64 lowercase hex chars">
+              <label>SHA-256 do patch revisado
+                <input id="local-patch-sha" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="64 caracteres hexadecimais minúsculos">
               </label>
             </div>
             <div class="actions">
-              <button data-action="refresh-local-chat-contract">Refresh contract</button>
-              <button data-action="load-local-chat-workspaces">Load workspaces</button>
-              <button data-action="load-local-chat-models">Load models</button>
-              <button data-action="get-local-chat-events">Get events</button>
-              <button data-action="poll-local-chat-run">Poll run</button>
-              <button data-action="stop-local-chat-polling">Stop polling</button>
-              <button data-action="get-local-chat-review">Review diff</button>
-              <button data-action="promote-local-chat-run">Promote reviewed patch</button>
+              <button data-action="refresh-local-chat-contract">Recarregar contrato</button>
+              <button data-action="load-local-chat-workspaces">Carregar projetos</button>
+              <button data-action="load-local-chat-models">Carregar modelos</button>
+              <button data-action="get-local-chat-events">Ver eventos</button>
+              <button data-action="poll-local-chat-run">Acompanhar run</button>
+              <button data-action="stop-local-chat-polling">Parar polling</button>
+              <button data-action="get-local-chat-review">Revisar diff</button>
+              <button data-action="promote-local-chat-run">Promover patch revisado</button>
             </div>
-            <pre id="local-chat-output" aria-live="polite">Not loaded.</pre>
-            <h3>Review / promotion</h3>
-            <pre id="local-review-output" aria-live="polite">Not loaded.</pre>
+            <pre id="local-chat-output" aria-live="polite">Não carregado.</pre>
+            <h3>Revisão / promoção</h3>
+            <pre id="local-review-output" aria-live="polite">Não carregado.</pre>
+          </details>
+
+          <details class="ops-drawer sidebar-menu clean-ops-drawer">
+            <summary>Operações e diagnósticos</summary>
+            <section class="mobile-guide compact-panel" aria-label="Checklist de pareamento mobile">
+              <div>
+                <p class="eyebrow">celular</p>
+                <h2>Checklist mobile</h2>
+                <p class="muted">Use <code>lai-gateway-daily --show-pair</code>, abra a URL no celular e cole o token temporário.</p>
+              </div>
+              <ol class="checklist">
+                <li id="check-access" class="check muted">Token de pareamento ainda não carregado.</li>
+                <li id="check-session" class="check muted">Nenhuma sessão ativa selecionada.</li>
+                <li id="check-run" class="check muted">Nenhum run read-only selecionado.</li>
+                <li id="check-model" class="check muted">Status do modelo ainda não carregado.</li>
+                <li id="check-mcp" class="check muted">Status do broker MCP ainda não carregado.</li>
+              </ol>
+            </section>
+
+            <section class="grid compact-tools-grid" aria-label="Controles do Gateway">
+              <article class="card mobile-access-card compact-panel">
+                <h2>Acesso mobile</h2>
+                <p class="muted">O QR contém somente a URL local, nunca tokens.</p>
+                <div class="mobile-url-box">
+                  <span id="mobile-access-kind" class="pill muted">URL mobile desconhecida</span>
+                  <code id="mobile-access-url">Não carregado.</code>
+                </div>
+                <img id="mobile-access-qr" class="qr" alt="QR code para URL mobile do Gateway">
+                <div class="actions">
+                  <button data-action="refresh-mobile-access">Atualizar URL mobile</button>
+                  <button data-action="copy-mobile-url">Copiar URL mobile</button>
+                </div>
+                <pre id="mobile-access-output" aria-live="polite">Não carregado.</pre>
+              </article>
+
+              <article class="card auth-card compact-panel">
+                <h2>Acesso ao Gateway</h2>
+                <p class="muted">Cole o token curto do terminal. Ele fica apenas na memória da página.</p>
+                <label>Tipo de token
+                  <select id="gateway-token-kind">
+                    <option value="pair">token temporário de pareamento</option>
+                    <option value="permanent">token permanente do Gateway</option>
+                  </select>
+                </label>
+                <label>Token do Gateway ou pareamento
+                  <input id="gateway-token" class="token-input" type="password" autocomplete="one-time-code" inputmode="text" autocapitalize="none" spellcheck="false" placeholder="cole o token temporário aqui">
+                </label>
+                <input id="pair-expires-at" type="hidden" value="">
+                <div class="actions primary-actions">
+                  <button class="primary" data-action="use-gateway-token">Parear este celular</button>
+                  <button data-action="forget-gateway-token">Esquecer token</button>
+                </div>
+                <p id="gateway-auth-result" class="callout warn" aria-live="assertive">Cole um token de pareamento e toque em parear.</p>
+                <p id="gateway-access-state" class="muted" aria-live="polite">Nenhum token carregado na memória da página.</p>
+                <p id="pairing-state" class="muted" aria-live="polite">Nenhuma sessão mobile carregada.</p>
+                <p class="hint"><code>lai-gateway-daily --show-pair</code> inicia ou valida a stack e mostra um token novo.</p>
+              </article>
+
+              <article class="card wide compact-panel">
+                <h2>Saúde</h2>
+                <p class="muted">Resumo read-only de Harness, Gateway, modelo, MCP, mobile e Telegram.</p>
+                <p id="health-summary" class="callout warn health-summary" aria-live="polite">Saúde ainda não carregada.</p>
+                <div class="actions">
+                  <button class="primary" data-action="refresh-health-report">Atualizar saúde</button>
+                  <button data-action="send-health-report-telegram">Enviar ao Telegram</button>
+                  <button data-action="refresh-ops-status">Atualizar snapshot detalhado</button>
+                </div>
+                <p id="health-telegram-result" class="callout warn" aria-live="polite">Envio ao Telegram é manual e exige envio habilitado no Gateway.</p>
+                <pre id="health-output" aria-live="polite">Não carregado.</pre>
+              </article>
+
+              <article class="card wide compact-panel">
+                <h2>Detalhe operacional</h2>
+                <p class="muted">Snapshot JSON read-only para Harness, Gateway, mobile, pareamento e Telegram.</p>
+                <div class="actions"><button data-action="refresh-ops-status">Atualizar snapshot detalhado</button></div>
+                <pre id="ops-output" aria-live="polite">Não carregado.</pre>
+              </article>
+
+              <article class="card compact-panel">
+                <h2>Status</h2>
+                <div class="actions">
+                  <button data-action="refresh-status">Atualizar status</button>
+                  <button data-action="refresh-readiness">Atualizar prontidão</button>
+                </div>
+                <pre id="status-output" aria-live="polite">Não carregado.</pre>
+              </article>
+
+              <article class="card compact-panel">
+                <h2>Modelo</h2>
+                <p class="muted">Leitura do modelo local. Não baixa modelos nem envia prompts livres.</p>
+                <div class="actions">
+                  <button data-action="refresh-model-status">Status do modelo</button>
+                  <button data-action="refresh-model-plan">Plano do modelo</button>
+                  <button data-action="refresh-model-files">Encontrar modelos</button>
+                  <button data-action="run-model-task">Rodar tarefa de código</button>
+                  <button data-action="run-model-eval">Avaliar modelo</button>
+                  <button data-action="refresh-model-runs">Runs do modelo</button>
+                </div>
+                <pre id="model-output" aria-live="polite">Não carregado.</pre>
+              </article>
+
+              <article class="card compact-panel">
+                <h2>Broker MCP</h2>
+                <p class="muted">Visibilidade read-only. Execução de ferramentas continua negada.</p>
+                <div class="actions">
+                  <button data-action="refresh-mcp-status">Status MCP</button>
+                  <button data-action="refresh-mcp-tools">Listar tools MCP</button>
+                  <button data-action="check-mcp-call-tool">Checar negação de tool</button>
+                </div>
+                <div class="form-row">
+                  <label>Servidor MCP
+                    <input id="mcp-server" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="desktop-commander">
+                  </label>
+                  <label>Tool MCP
+                    <input id="mcp-tool" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="start_process">
+                  </label>
+                </div>
+                <pre id="mcp-output" aria-live="polite">Não carregado.</pre>
+              </article>
+
+              <article class="card compact-panel">
+                <h2>Sessões</h2>
+                <div class="actions">
+                  <button data-action="list-sessions">Listar sessões</button>
+                  <button data-action="create-session">Criar sessão</button>
+                </div>
+                <label>Session id
+                  <input id="session-id" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="cs-...">
+                </label>
+                <div class="actions">
+                  <button data-action="get-session">Abrir sessão selecionada</button>
+                  <button data-action="clear-session">Esquecer seleção</button>
+                  <button data-action="delete-session" class="danger">Excluir sessão selecionada</button>
+                </div>
+                <pre id="sessions-output" aria-live="polite">Não carregado.</pre>
+              </article>
+
+              <article class="card wide compact-panel">
+                <h2>Run read-only</h2>
+                <div class="form-row">
+                  <label>Modo
+                    <select id="run-mode">
+                      <option value="plan">planejar</option>
+                      <option value="review">revisar</option>
+                      <option value="diagnose">diagnosticar</option>
+                      <option value="security">segurança</option>
+                      <option value="release">release</option>
+                    </select>
+                  </label>
+                  <label>Run id
+                    <input id="run-id" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="cr-...">
+                  </label>
+                </div>
+                <label>Tarefa
+                  <textarea id="run-task" rows="5" maxlength="12000" placeholder="Peça uma análise read-only."></textarea>
+                </label>
+                <div class="task-meta">
+                  <span id="task-counter" class="muted">0 / 12000</span>
+                  <span class="muted">Somente modos read-only. Sem implement/fix/refactor.</span>
+                </div>
+                <div class="quick-grid" aria-label="Presets rápidos read-only">
+                  <button data-preset="plan">Planejar próximo passo</button>
+                  <button data-preset="review">Revisar estado atual</button>
+                  <button data-preset="diagnose">Diagnosticar problema</button>
+                  <button data-preset="security">Checar segurança</button>
+                  <button data-preset="release">Checar release</button>
+                </div>
+                <div class="actions">
+                  <button data-action="list-runs">Listar runs</button>
+                  <button data-action="create-run">Criar run read-only</button>
+                  <button data-action="get-run">Abrir run selecionado</button>
+                  <button data-action="get-run-events">Ver eventos selecionados</button>
+                  <button data-action="poll-run">Acompanhar run</button>
+                  <button data-action="stop-polling">Parar polling</button>
+                  <button data-action="copy-run-output">Copiar saída</button>
+                </div>
+                <pre id="runs-output" aria-live="polite">Não carregado.</pre>
+                <h3>Linha do tempo do run</h3>
+                <pre id="run-events-output" aria-live="polite">Não carregado.</pre>
+                <h3>Histórico recente</h3>
+                <ol id="run-history" class="history" aria-live="polite"></ol>
+              </article>
+            </section>
           </details>
         </aside>
       </div>
     </article>
-
-    <details class="ops-drawer">
-      <summary>Operations and diagnostics</summary>
-    <section class="card wide mobile-guide" aria-label="Mobile pairing checklist">
-      <div>
-        <p class="eyebrow">phone setup</p>
-        <h2>Mobile checklist</h2>
-        <p class="muted">Start with <code>lai-gateway-daily --show-pair</code>, open the phone URL, paste the temporary pair token, then run read-only tasks.</p>
-      </div>
-      <ol class="checklist">
-        <li id="check-access" class="check muted">Pair token not loaded yet.</li>
-        <li id="check-session" class="check muted">No active session selected.</li>
-        <li id="check-run" class="check muted">No read-only run selected.</li>
-        <li id="check-model" class="check muted">Model status not loaded.</li>
-        <li id="check-mcp" class="check muted">MCP broker status not loaded.</li>
-      </ol>
-    </section>
-
-    <section class="grid" aria-label="Gateway controls">
-
-      <article class="card mobile-access-card">
-        <h2>Mobile Access</h2>
-        <p class="muted">Scan the local QR after running <code>lai-gateway-daily --show-pair</code>. The QR contains only the URL, never tokens.</p>
-        <div class="mobile-url-box">
-          <span id="mobile-access-kind" class="pill muted">mobile URL unknown</span>
-          <code id="mobile-access-url">Not loaded.</code>
-        </div>
-        <img id="mobile-access-qr" class="qr" alt="QR code for mobile gateway URL">
-        <div class="actions">
-          <button data-action="refresh-mobile-access">Refresh mobile URL</button>
-          <button data-action="copy-mobile-url">Copy mobile URL</button>
-        </div>
-        <pre id="mobile-access-output" aria-live="polite">Not loaded.</pre>
-      </article>
-
-      <article class="card auth-card">
-        <h2>Gateway access</h2>
-        <p class="muted">Paste the short-lived pair token from the terminal, then tap <strong>Pair this phone</strong>. The pair token is exchanged for a temporary mobile session kept only in page memory.</p>
-        <label>Token type
-          <select id="gateway-token-kind">
-            <option value="pair">temporary pair token</option>
-            <option value="permanent">permanent gateway token</option>
-          </select>
-        </label>
-        <label>Gateway or pair token
-          <input id="gateway-token" class="token-input" type="password" autocomplete="one-time-code" inputmode="text" autocapitalize="none" spellcheck="false" placeholder="paste the temporary token here">
-        </label>
-        <input id="pair-expires-at" type="hidden" value="">
-        <div class="actions primary-actions">
-          <button class="primary" data-action="use-gateway-token">Pair this phone</button>
-          <button data-action="forget-gateway-token">Forget token</button>
-        </div>
-        <p id="gateway-auth-result" class="callout warn" aria-live="assertive">Paste a pair token and tap Pair this phone.</p>
-        <p id="gateway-access-state" class="muted" aria-live="polite">No gateway token loaded in page memory.</p>
-        <p id="pairing-state" class="muted" aria-live="polite">No mobile session loaded.</p>
-        <p class="hint"><code>lai-gateway-daily --show-pair</code> starts or validates the stack and prints one fresh pair token.</p>
-      </article>
-
-      <article class="card wide">
-        <h2>Health Report</h2>
-        <p class="muted">Compact read-only daily health for Harness, Gateway, model, MCP, mobile, and Telegram. Use this first; open the ops snapshot only when something needs detail.</p>
-        <p id="health-summary" class="callout warn health-summary" aria-live="polite">Health not loaded yet.</p>
-        <div class="actions">
-          <button class="primary" data-action="refresh-health-report">Refresh health report</button>
-          <button data-action="send-health-report-telegram">Send health report to Telegram</button>
-          <button data-action="refresh-ops-status">Refresh detailed ops snapshot</button>
-        </div>
-        <p id="health-telegram-result" class="callout warn" aria-live="polite">Telegram delivery is manual and still requires Telegram send to be enabled on the gateway.</p>
-        <pre id="health-output" aria-live="polite">Not loaded.</pre>
-      </article>
-
-      <article class="card wide">
-        <h2>Operations Detail</h2>
-        <p class="muted">Full read-only JSON snapshot for harness, gateway, mobile listener, pairing, and Telegram readiness.</p>
-        <div class="actions">
-          <button data-action="refresh-ops-status">Refresh detailed ops snapshot</button>
-        </div>
-        <pre id="ops-output" aria-live="polite">Not loaded.</pre>
-      </article>
-
-      <article class="card">
-        <h2>Status</h2>
-        <div class="actions">
-          <button data-action="refresh-status">Refresh status</button>
-          <button data-action="refresh-readiness">Refresh readiness</button>
-        </div>
-        <pre id="status-output" aria-live="polite">Not loaded.</pre>
-      </article>
-
-      <article class="card">
-        <h2>Model</h2>
-        <p class="muted">Read-only local model readiness. It does not download models, start servers, or send prompts.</p>
-        <div class="actions">
-          <button data-action="refresh-model-status">Refresh model status</button>
-          <button data-action="refresh-model-plan">Show model plan</button>
-          <button data-action="refresh-model-files">Find model files</button>
-          <button data-action="run-model-task">Run code task</button>
-          <button data-action="run-model-eval">Run model eval</button>
-          <button data-action="refresh-model-runs">Show model runs</button>
-        </div>
-        <pre id="model-output" aria-live="polite">Not loaded.</pre>
-      </article>
-
-      <article class="card">
-        <h2>MCP Broker</h2>
-        <p class="muted">Read-only MCP broker visibility. Status and tool listing are allowed; tool execution remains denied.</p>
-        <div class="actions">
-          <button data-action="refresh-mcp-status">Refresh MCP status</button>
-          <button data-action="refresh-mcp-tools">List MCP tools</button>
-          <button data-action="check-mcp-call-tool">Check call-tool denial</button>
-        </div>
-        <div class="form-row">
-          <label>MCP server
-            <input id="mcp-server" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="desktop-commander">
-          </label>
-          <label>MCP tool
-            <input id="mcp-tool" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="start_process">
-          </label>
-        </div>
-        <pre id="mcp-output" aria-live="polite">Not loaded.</pre>
-      </article>
-
-      <article class="card">
-        <h2>Sessions</h2>
-        <div class="actions">
-          <button data-action="list-sessions">List sessions</button>
-          <button data-action="create-session">Create session</button>
-        </div>
-        <label>Session id
-          <input id="session-id" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="cs-...">
-        </label>
-        <div class="actions">
-          <button data-action="get-session">Get selected session</button>
-          <button data-action="clear-session">Forget selection</button>
-          <button data-action="delete-session" class="danger">Delete selected session</button>
-        </div>
-        <pre id="sessions-output" aria-live="polite">Not loaded.</pre>
-      </article>
-
-      <article class="card wide">
-        <h2>Read-only run</h2>
-        <div class="form-row">
-          <label>Mode
-            <select id="run-mode">
-              <option value="plan">plan</option>
-              <option value="review">review</option>
-              <option value="diagnose">diagnose</option>
-              <option value="security">security</option>
-              <option value="release">release</option>
-            </select>
-          </label>
-          <label>Run id
-            <input id="run-id" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="cr-...">
-          </label>
-        </div>
-        <label>Task
-          <textarea id="run-task" rows="5" maxlength="12000" placeholder="Ask for a read-only analysis."></textarea>
-        </label>
-        <div class="task-meta">
-          <span id="task-counter" class="muted">0 / 12000</span>
-          <span class="muted">Read-only modes only. No implement/fix/refactor.</span>
-        </div>
-        <div class="quick-grid" aria-label="Quick read-only task presets">
-          <button data-preset="plan">Plan next step</button>
-          <button data-preset="review">Review current state</button>
-          <button data-preset="diagnose">Diagnose issue</button>
-          <button data-preset="security">Security check</button>
-          <button data-preset="release">Release check</button>
-        </div>
-        <div class="actions">
-          <button data-action="list-runs">List runs</button>
-          <button data-action="create-run">Create read-only run</button>
-          <button data-action="get-run">Get selected run</button>
-          <button data-action="get-run-events">Get selected events</button>
-          <button data-action="poll-run">Poll selected run</button>
-          <button data-action="stop-polling">Stop polling</button>
-          <button data-action="copy-run-output">Copy output</button>
-        </div>
-        <pre id="runs-output" aria-live="polite">Not loaded.</pre>
-        <h3>Run timeline</h3>
-        <pre id="run-events-output" aria-live="polite">Not loaded.</pre>
-        <h3>Recent run history</h3>
-        <ol id="run-history" class="history" aria-live="polite"></ol>
-      </article>
-    </section>
-    </details>
   </main>
   <script src="/assets/app.js" defer></script>
 </body>

@@ -1,7 +1,7 @@
 {
   "name": "lai-chat",
   "displayName": "LAI Chat",
-  "description": "Local VS Code chat participant for lai-gateway.",
+  "description": "Participante de chat e painel lateral local para o lai-gateway.",
   "version": "0.1.0",
   "publisher": "fenatodev",
   "engines": {
@@ -15,7 +15,9 @@
     "onStartupFinished",
     "onChatParticipant:lai.assistant",
     "onCommand:lai.openWorkbench",
-    "onCommand:lai.health"
+    "onCommand:lai.health",
+    "onCommand:lai.openFolder",
+    "onView:lai.projects"
   ],
   "main": "./extension.js",
   "contributes": {
@@ -32,11 +34,15 @@
     "commands": [
       {
         "command": "lai.openWorkbench",
-        "title": "LAI: Open Workbench"
+        "title": "LAI: Abrir Workbench"
       },
       {
         "command": "lai.health",
-        "title": "LAI: Check Health"
+        "title": "LAI: Checar saúde"
+      },
+      {
+        "command": "lai.openFolder",
+        "title": "LAI: Abrir pasta/repositório"
       }
     ],
     "chatParticipants": [
@@ -44,21 +50,33 @@
         "id": "lai.assistant",
         "name": "lai",
         "fullName": "LAI",
-        "description": "Ask the local LAI Gateway.",
+        "description": "Converse com o LAI Gateway local.",
         "locations": [
           "panel"
         ],
         "commands": [
           {
             "name": "health",
-            "description": "Check LAI local health."
+            "description": "Checar saúde local do LAI."
           },
           {
             "name": "workbench",
-            "description": "Open the LAI Workbench."
+            "description": "Abrir o LAI Workbench."
+          },
+          {
+            "name": "pasta",
+            "description": "Abrir pasta ou repositório no VS Code."
           }
         ]
       }
-    ]
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "lai.projects",
+          "name": "LAI Projetos"
+        }
+      ]
+    }
   }
 }
