@@ -111,6 +111,28 @@ class AdapterRegistryTest(unittest.TestCase):
         self.assertIn("voice.invoke_action", adapter["human_approval_required_for"])
         self.assertFalse(payload["security"]["tool_execution_enabled"])
 
+    def test_model_lab_adapter_contract_is_registered_without_downloads_or_benchmarks(self) -> None:
+        payload = collect_adapter_registry(adapter_id="model_lab")
+        self.assertEqual(payload["overall"], "ready")
+        self.assertEqual(payload["count"], 1)
+        adapter = payload["adapters"][0]
+        self.assertEqual(adapter["id"], "model_lab")
+        self.assertEqual(adapter["kind"], "evaluation_adapter")
+        self.assertEqual(adapter["autonomy"], "contract_only")
+        self.assertEqual(adapter["entrypoints"], [])
+        self.assertEqual(adapter["granted_capabilities"], [])
+        self.assertTrue(adapter["requires_policy_check"])
+        self.assertFalse(adapter["executes_tools"])
+        self.assertFalse(adapter["model_download_enabled"])
+        self.assertFalse(adapter["benchmark_execution_enabled"])
+        self.assertFalse(adapter["runtime_mutation_enabled"])
+        self.assertFalse(adapter["network_access_enabled"])
+        self.assertFalse(adapter["credentialed_access_enabled"])
+        self.assertIn("model_lab.download_model", adapter["human_approval_required_for"])
+        self.assertIn("model_lab.run_benchmark", adapter["human_approval_required_for"])
+        self.assertIn("model_lab.change_runtime_config", adapter["human_approval_required_for"])
+        self.assertFalse(payload["security"]["tool_execution_enabled"])
+
     def test_adapter_filter_and_cli_are_secret_free(self) -> None:
         missing = collect_adapter_registry(adapter_id="missing")
         self.assertEqual(missing["overall"], "missing")
