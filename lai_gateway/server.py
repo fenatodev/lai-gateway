@@ -22,6 +22,7 @@ from .access import collect_mobile_access
 from .adapters import collect_adapter_registry
 from .authorization_record import collect_authorization_record
 from .authorization_validation import collect_authorization_validation_gate
+from .effective_authorization import collect_effective_authorization
 from .health import collect_health_report, render_health_report
 from .ops import collect_ops_status
 from .permission_decision import collect_permission_decision
@@ -298,6 +299,36 @@ class GatewayHandler(BaseHTTPRequestHandler):
                     domain=domain,
                     action=action,
                     parameters=params,
+                ),
+            )
+            return
+        if parsed.path == "/v1/gateway/effective-authorization":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            capability = values.get("capability", [None])[0] or None
+            adapter_id = values.get("adapter_id", [None])[0] or values.get("adapter", [None])[0] or None
+            actor = values.get("actor", [None])[0] or None
+            channel = values.get("channel", [None])[0] or None
+            domain = values.get("domain", [None])[0] or None
+            action = values.get("action", [None])[0] or None
+            approved_by = values.get("approved_by", [None])[0] or values.get("approved-by", [None])[0] or None
+            approval_intent = values.get("approve", [""])[0].strip().lower() in {"1", "true", "yes", "sim"}
+            operation_scope = values.get("operation_scope", [None])[0] or values.get("operation-scope", [None])[0] or None
+            params = _query_parameters(values.get("param", []))
+            self._send_json(
+                HTTPStatus.OK,
+                collect_effective_authorization(
+                    requested_capability=capability,
+                    adapter_id=adapter_id,
+                    actor=actor,
+                    channel=channel,
+                    domain=domain,
+                    action=action,
+                    parameters=params,
+                    approval_intent=approval_intent,
+                    approved_by=approved_by,
+                    operation_scope=operation_scope,
                 ),
             )
             return
@@ -705,6 +736,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/adapter-dry-run",
             "/v1/gateway/authorization-capture-stub",
             "/v1/gateway/authorization-validation-gate",
+            "/v1/gateway/effective-authorization",
             "/v1/gateway/model-status",
             "/v1/gateway/model-plan",
             "/v1/gateway/model-files",
