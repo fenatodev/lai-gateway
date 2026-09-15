@@ -11,6 +11,7 @@ from typing import Any
 from . import __version__
 from .adapter_invocation import collect_adapter_invocation_proposal, render_adapter_invocation_proposal
 from .adapter_dry_run import collect_adapter_dry_run, render_adapter_dry_run
+from .adapter_dispatcher import collect_adapter_dispatcher_interface, render_adapter_dispatcher_interface
 from .authorization_capture import collect_authorization_capture_stub, render_authorization_capture_stub
 from .audit_events import collect_audit_events, render_audit_events
 from .adapters import collect_adapter_registry, render_adapter_registry
@@ -366,6 +367,19 @@ def main(argv: list[str] | None = None) -> int:
     persisted_audit_parser.add_argument("--audit-dir", default=None, help="local audit directory under the repo scope")
     persisted_audit_parser.add_argument("--write", action="store_true", help="append the sanitized record to the scoped local JSONL log")
     persisted_audit_parser.add_argument("--json", action="store_true", help="print JSON")
+    dispatcher_parser = sub.add_parser("adapter-dispatcher", help="build a dispatcher interface plan without real adapter handlers")
+    dispatcher_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
+    dispatcher_parser.add_argument("--capability", required=True, help="requested capability")
+    dispatcher_parser.add_argument("--actor", default=None, help="actor label")
+    dispatcher_parser.add_argument("--channel", default=None, help="channel label")
+    dispatcher_parser.add_argument("--domain", default=None, help="domain label")
+    dispatcher_parser.add_argument("--action", default=None, help="human-readable action label")
+    dispatcher_parser.add_argument("--param", action="append", default=None, help="bounded public parameter as key=value")
+    dispatcher_parser.add_argument("--approve", action="store_true", help="mark approval intent before building dispatcher plan")
+    dispatcher_parser.add_argument("--approved-by", default=None, help="bounded approver label")
+    dispatcher_parser.add_argument("--operation-scope", default=None, help="scope to authorize; only adapter-dry-run is accepted")
+    dispatcher_parser.add_argument("--dispatch", action="store_true", help="request dispatch; real handlers remain unavailable")
+    dispatcher_parser.add_argument("--json", action="store_true", help="print JSON")
     audit_events_parser = sub.add_parser("audit-events", help="render read-only LAI decision audit events without persistence")
     audit_events_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
     audit_events_parser.add_argument("--capability", required=True, help="requested capability to audit")
@@ -861,6 +875,25 @@ def main(argv: list[str] | None = None) -> int:
             )
             if not args.json:
                 print(render_authorization_capture_stub(payload))
+                return 0
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.command == "adapter-dispatcher":
+            payload = collect_adapter_dispatcher_interface(
+                adapter_id=args.adapter,
+                requested_capability=args.capability,
+                actor=args.actor,
+                channel=args.channel,
+                domain=args.domain,
+                action=args.action,
+                parameters=_params_from_pairs(args.param),
+                approval_intent=bool(args.approve),
+                approved_by=args.approved_by,
+                operation_scope=args.operation_scope,
+                dispatch_requested=bool(args.dispatch),
+            )
+            if not args.json:
+                print(render_adapter_dispatcher_interface(payload))
                 return 0
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
