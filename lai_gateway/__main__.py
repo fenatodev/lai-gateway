@@ -10,6 +10,7 @@ from typing import Any
 
 from . import __version__
 from .adapter_invocation import collect_adapter_invocation_proposal, render_adapter_invocation_proposal
+from .audit_events import collect_audit_events, render_audit_events
 from .adapters import collect_adapter_registry, render_adapter_registry
 from .authorization_record import collect_authorization_record, render_authorization_record
 from .bridge import collect_mobile_bridge, render_mobile_bridge
@@ -303,6 +304,15 @@ def main(argv: list[str] | None = None) -> int:
     adapter_invocation_parser.add_argument("--action", default=None, help="human-readable action label")
     adapter_invocation_parser.add_argument("--param", action="append", default=None, help="bounded public parameter as key=value; repeatable")
     adapter_invocation_parser.add_argument("--json", action="store_true", help="print JSON")
+    audit_events_parser = sub.add_parser("audit-events", help="render read-only LAI decision audit events without persistence")
+    audit_events_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
+    audit_events_parser.add_argument("--capability", required=True, help="requested capability to audit")
+    audit_events_parser.add_argument("--actor", default=None, help="audit actor label; defaults to user")
+    audit_events_parser.add_argument("--channel", default=None, help="audit channel label; defaults to gateway")
+    audit_events_parser.add_argument("--domain", default=None, help="audit domain label; defaults to unknown")
+    audit_events_parser.add_argument("--action", default=None, help="human-readable action label")
+    audit_events_parser.add_argument("--param", action="append", default=None, help="bounded public parameter as key=value; repeatable")
+    audit_events_parser.add_argument("--json", action="store_true", help="print JSON")
     dev_parser = sub.add_parser("dev", help="check harness and serve the local gateway UI")
     dev_parser.add_argument("--bind", default=None, help="gateway bind address allowed by config policy")
     dev_parser.add_argument("--port", type=int, default=None, help="gateway port")
@@ -757,6 +767,21 @@ def main(argv: list[str] | None = None) -> int:
             )
             if not args.json:
                 print(render_adapter_invocation_proposal(payload))
+                return 0
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.command == "audit-events":
+            payload = collect_audit_events(
+                adapter_id=args.adapter,
+                requested_capability=args.capability,
+                actor=args.actor,
+                channel=args.channel,
+                domain=args.domain,
+                action=args.action,
+                parameters=_params_from_pairs(args.param),
+            )
+            if not args.json:
+                print(render_audit_events(payload))
                 return 0
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
