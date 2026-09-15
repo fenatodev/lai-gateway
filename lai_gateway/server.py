@@ -26,6 +26,7 @@ from .effective_authorization import collect_effective_authorization
 from .health import collect_health_report, render_health_report
 from .ops import collect_ops_status
 from .permission_decision import collect_permission_decision
+from .persisted_audit_log import collect_persisted_audit_log
 from .policy_evaluator import collect_policy_evaluation
 from .skills import collect_skills_registry
 from .config import GatewayConfig, read_gateway_access_token, validate_gateway_bind
@@ -329,6 +330,37 @@ class GatewayHandler(BaseHTTPRequestHandler):
                     approval_intent=approval_intent,
                     approved_by=approved_by,
                     operation_scope=operation_scope,
+                ),
+            )
+            return
+        if parsed.path == "/v1/gateway/persisted-audit-log":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            capability = values.get("capability", [None])[0] or None
+            adapter_id = values.get("adapter_id", [None])[0] or values.get("adapter", [None])[0] or None
+            actor = values.get("actor", [None])[0] or None
+            channel = values.get("channel", [None])[0] or None
+            domain = values.get("domain", [None])[0] or None
+            action = values.get("action", [None])[0] or None
+            approved_by = values.get("approved_by", [None])[0] or values.get("approved-by", [None])[0] or None
+            approval_intent = values.get("approve", [""])[0].strip().lower() in {"1", "true", "yes", "sim"}
+            operation_scope = values.get("operation_scope", [None])[0] or values.get("operation-scope", [None])[0] or None
+            params = _query_parameters(values.get("param", []))
+            self._send_json(
+                HTTPStatus.OK,
+                collect_persisted_audit_log(
+                    requested_capability=capability,
+                    adapter_id=adapter_id,
+                    actor=actor,
+                    channel=channel,
+                    domain=domain,
+                    action=action,
+                    parameters=params,
+                    approval_intent=approval_intent,
+                    approved_by=approved_by,
+                    operation_scope=operation_scope,
+                    write=False,
                 ),
             )
             return
@@ -737,6 +769,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/authorization-capture-stub",
             "/v1/gateway/authorization-validation-gate",
             "/v1/gateway/effective-authorization",
+            "/v1/gateway/persisted-audit-log",
             "/v1/gateway/model-status",
             "/v1/gateway/model-plan",
             "/v1/gateway/model-files",
