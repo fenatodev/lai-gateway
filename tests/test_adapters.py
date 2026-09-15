@@ -91,6 +91,26 @@ class AdapterRegistryTest(unittest.TestCase):
         self.assertIn("n8n.credentialed_node", adapter["human_approval_required_for"])
         self.assertFalse(payload["security"]["tool_execution_enabled"])
 
+    def test_voice_adapter_contract_is_registered_without_audio_capture_or_action_execution(self) -> None:
+        payload = collect_adapter_registry(adapter_id="voice")
+        self.assertEqual(payload["overall"], "ready")
+        self.assertEqual(payload["count"], 1)
+        adapter = payload["adapters"][0]
+        self.assertEqual(adapter["id"], "voice")
+        self.assertEqual(adapter["kind"], "interface_adapter")
+        self.assertEqual(adapter["autonomy"], "contract_only")
+        self.assertEqual(adapter["entrypoints"], [])
+        self.assertEqual(adapter["granted_capabilities"], [])
+        self.assertTrue(adapter["requires_policy_check"])
+        self.assertFalse(adapter["executes_tools"])
+        self.assertFalse(adapter["audio_capture_enabled"])
+        self.assertFalse(adapter["wake_word_enabled"])
+        self.assertFalse(adapter["credentialed_access_enabled"])
+        self.assertFalse(adapter["external_side_effects_enabled"])
+        self.assertIn("voice.capture_microphone", adapter["human_approval_required_for"])
+        self.assertIn("voice.invoke_action", adapter["human_approval_required_for"])
+        self.assertFalse(payload["security"]["tool_execution_enabled"])
+
     def test_adapter_filter_and_cli_are_secret_free(self) -> None:
         missing = collect_adapter_registry(adapter_id="missing")
         self.assertEqual(missing["overall"], "missing")
