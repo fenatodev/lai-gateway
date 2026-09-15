@@ -23,6 +23,7 @@ from .contract import summarize_contract
 from .doctor import collect_doctor, render_doctor
 from .daily_config import collect_daily_config, read_daily_config, render_daily_config, shell_exports, validate_daily_config, write_daily_config
 from .dev_control import collect_dev_control_policy, render_dev_control_policy
+from .effective_authorization import collect_effective_authorization, render_effective_authorization
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .health import collect_health_report, render_health_report
@@ -338,6 +339,18 @@ def main(argv: list[str] | None = None) -> int:
     authorization_validation_parser.add_argument("--approve", action="store_true", help="mark approval intent in the non-effective stub")
     authorization_validation_parser.add_argument("--approved-by", default=None, help="bounded approver label")
     authorization_validation_parser.add_argument("--json", action="store_true", help="print JSON")
+    effective_authorization_parser = sub.add_parser("effective-authorization", help="authorize only a dry-run-safe operation scope")
+    effective_authorization_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
+    effective_authorization_parser.add_argument("--capability", required=True, help="requested capability to evaluate")
+    effective_authorization_parser.add_argument("--actor", default=None, help="actor label; defaults to user")
+    effective_authorization_parser.add_argument("--channel", default=None, help="channel label; defaults to gateway")
+    effective_authorization_parser.add_argument("--domain", default=None, help="domain label; defaults to unknown")
+    effective_authorization_parser.add_argument("--action", default=None, help="human-readable action label")
+    effective_authorization_parser.add_argument("--param", action="append", default=None, help="bounded public parameter as key=value; repeatable")
+    effective_authorization_parser.add_argument("--approve", action="store_true", help="mark approval intent before effective scope check")
+    effective_authorization_parser.add_argument("--approved-by", default=None, help="bounded approver label")
+    effective_authorization_parser.add_argument("--operation-scope", default=None, help="only adapter-dry-run can become effective")
+    effective_authorization_parser.add_argument("--json", action="store_true", help="print JSON")
     audit_events_parser = sub.add_parser("audit-events", help="render read-only LAI decision audit events without persistence")
     audit_events_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
     audit_events_parser.add_argument("--capability", required=True, help="requested capability to audit")
@@ -850,6 +863,24 @@ def main(argv: list[str] | None = None) -> int:
             )
             if not args.json:
                 print(render_authorization_validation_gate(payload))
+                return 0
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.command == "effective-authorization":
+            payload = collect_effective_authorization(
+                adapter_id=args.adapter,
+                requested_capability=args.capability,
+                actor=args.actor,
+                channel=args.channel,
+                domain=args.domain,
+                action=args.action,
+                parameters=_params_from_pairs(args.param),
+                approval_intent=bool(args.approve),
+                approved_by=args.approved_by,
+                operation_scope=args.operation_scope,
+            )
+            if not args.json:
+                print(render_effective_authorization(payload))
                 return 0
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
