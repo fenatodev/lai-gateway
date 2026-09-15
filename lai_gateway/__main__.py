@@ -33,6 +33,7 @@ from .mobile import (
     render_mobile_status,
 )
 from .ops import collect_ops_status, render_ops_status
+from .permission_decision import collect_permission_decision, render_permission_decision
 from .proxy import collect_mobile_proxy_status, dump_mobile_proxy_json, render_mobile_proxy_status, run_mobile_proxy, validate_mobile_proxy_config
 from .release import collect_release_check, render_release_check
 from .server import serve
@@ -251,6 +252,14 @@ def main(argv: list[str] | None = None) -> int:
     stack_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     dev_control_parser = sub.add_parser("dev-control", help="show read-only LAI controlled-dev policy")
     dev_control_parser.add_argument("--json", action="store_true", help="print JSON")
+    permission_decision_parser = sub.add_parser("permission-decision", help="evaluate a read-only LAI permission decision object")
+    permission_decision_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
+    permission_decision_parser.add_argument("--capability", required=True, help="requested capability to evaluate")
+    permission_decision_parser.add_argument("--actor", default=None, help="decision actor label; defaults to user")
+    permission_decision_parser.add_argument("--channel", default=None, help="decision channel label; defaults to gateway")
+    permission_decision_parser.add_argument("--domain", default=None, help="decision domain label; defaults to unknown")
+    permission_decision_parser.add_argument("--action", default=None, help="human-readable action label")
+    permission_decision_parser.add_argument("--json", action="store_true", help="print JSON")
     dev_parser = sub.add_parser("dev", help="check harness and serve the local gateway UI")
     dev_parser.add_argument("--bind", default=None, help="gateway bind address allowed by config policy")
     dev_parser.add_argument("--port", type=int, default=None, help="gateway port")
@@ -648,6 +657,20 @@ def main(argv: list[str] | None = None) -> int:
             payload = collect_lan_info(port=args.port or config.port, discovered_hosts=args.candidate_ip)
             if not args.json:
                 print(render_lan_info(payload))
+                return 0
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.command == "permission-decision":
+            payload = collect_permission_decision(
+                adapter_id=args.adapter,
+                requested_capability=args.capability,
+                actor=args.actor,
+                channel=args.channel,
+                domain=args.domain,
+                action=args.action,
+            )
+            if not args.json:
+                print(render_permission_decision(payload))
                 return 0
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
