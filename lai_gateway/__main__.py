@@ -15,6 +15,7 @@ from .authorization_capture import collect_authorization_capture_stub, render_au
 from .audit_events import collect_audit_events, render_audit_events
 from .adapters import collect_adapter_registry, render_adapter_registry
 from .authorization_record import collect_authorization_record, render_authorization_record
+from .authorization_validation import collect_authorization_validation_gate, render_authorization_validation_gate
 from .bridge import collect_mobile_bridge, render_mobile_bridge
 from .access import collect_mobile_access, render_mobile_access
 from .config import GatewayConfig
@@ -326,6 +327,17 @@ def main(argv: list[str] | None = None) -> int:
     capture_parser.add_argument("--approval-intent", action="store_true", help="mark explicit approval intent on the stub")
     capture_parser.add_argument("--approved-by", default=None, help="bounded public approver label")
     capture_parser.add_argument("--json", action="store_true", help="print JSON")
+    authorization_validation_parser = sub.add_parser("authorization-validation-gate", help="validate captured approval without granting execution")
+    authorization_validation_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
+    authorization_validation_parser.add_argument("--capability", required=True, help="requested capability to validate")
+    authorization_validation_parser.add_argument("--actor", default=None, help="validation actor label; defaults to user")
+    authorization_validation_parser.add_argument("--channel", default=None, help="validation channel label; defaults to gateway")
+    authorization_validation_parser.add_argument("--domain", default=None, help="validation domain label; defaults to unknown")
+    authorization_validation_parser.add_argument("--action", default=None, help="human-readable action label")
+    authorization_validation_parser.add_argument("--param", action="append", default=None, help="bounded public parameter as key=value; repeatable")
+    authorization_validation_parser.add_argument("--approve", action="store_true", help="mark approval intent in the non-effective stub")
+    authorization_validation_parser.add_argument("--approved-by", default=None, help="bounded approver label")
+    authorization_validation_parser.add_argument("--json", action="store_true", help="print JSON")
     audit_events_parser = sub.add_parser("audit-events", help="render read-only LAI decision audit events without persistence")
     audit_events_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
     audit_events_parser.add_argument("--capability", required=True, help="requested capability to audit")
@@ -821,6 +833,23 @@ def main(argv: list[str] | None = None) -> int:
             )
             if not args.json:
                 print(render_authorization_capture_stub(payload))
+                return 0
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.command == "authorization-validation-gate":
+            payload = collect_authorization_validation_gate(
+                adapter_id=args.adapter,
+                requested_capability=args.capability,
+                actor=args.actor,
+                channel=args.channel,
+                domain=args.domain,
+                action=args.action,
+                parameters=_params_from_pairs(args.param),
+                approval_intent=bool(args.approve),
+                approved_by=args.approved_by,
+            )
+            if not args.json:
+                print(render_authorization_validation_gate(payload))
                 return 0
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
