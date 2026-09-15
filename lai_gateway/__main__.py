@@ -11,6 +11,7 @@ from typing import Any
 from . import __version__
 from .adapter_invocation import collect_adapter_invocation_proposal, render_adapter_invocation_proposal
 from .adapter_dry_run import collect_adapter_dry_run, render_adapter_dry_run
+from .authorization_capture import collect_authorization_capture_stub, render_authorization_capture_stub
 from .audit_events import collect_audit_events, render_audit_events
 from .adapters import collect_adapter_registry, render_adapter_registry
 from .authorization_record import collect_authorization_record, render_authorization_record
@@ -314,6 +315,17 @@ def main(argv: list[str] | None = None) -> int:
     adapter_dry_run_parser.add_argument("--action", default=None, help="human-readable action label")
     adapter_dry_run_parser.add_argument("--param", action="append", default=None, help="bounded public parameter as key=value; repeatable")
     adapter_dry_run_parser.add_argument("--json", action="store_true", help="print JSON")
+    capture_parser = sub.add_parser("authorization-capture-stub", help="build a non-effective approval stub")
+    capture_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
+    capture_parser.add_argument("--capability", required=True, help="requested capability")
+    capture_parser.add_argument("--actor", default=None, help="actor label")
+    capture_parser.add_argument("--channel", default=None, help="channel label")
+    capture_parser.add_argument("--domain", default=None, help="domain label")
+    capture_parser.add_argument("--action", default=None, help="human-readable action label")
+    capture_parser.add_argument("--param", action="append", default=None, help="bounded public parameter as key=value")
+    capture_parser.add_argument("--approval-intent", action="store_true", help="mark explicit approval intent on the stub")
+    capture_parser.add_argument("--approved-by", default=None, help="bounded public approver label")
+    capture_parser.add_argument("--json", action="store_true", help="print JSON")
     audit_events_parser = sub.add_parser("audit-events", help="render read-only LAI decision audit events without persistence")
     audit_events_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
     audit_events_parser.add_argument("--capability", required=True, help="requested capability to audit")
@@ -792,6 +804,23 @@ def main(argv: list[str] | None = None) -> int:
             )
             if not args.json:
                 print(render_adapter_dry_run(payload))
+                return 0
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.command == "authorization-capture-stub":
+            payload = collect_authorization_capture_stub(
+                adapter_id=args.adapter,
+                requested_capability=args.capability,
+                actor=args.actor,
+                channel=args.channel,
+                domain=args.domain,
+                action=args.action,
+                parameters=_params_from_pairs(args.param),
+                approval_intent=bool(args.approval_intent),
+                approved_by=args.approved_by,
+            )
+            if not args.json:
+                print(render_authorization_capture_stub(payload))
                 return 0
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
