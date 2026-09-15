@@ -6,6 +6,8 @@ It is intentionally a separate project. The harness owns local coding authority 
 
 ## Current scope
 
+Roadmap status: see `docs/product/roadmap.md` for the post-PR88 direction, `docs/product/implementation_matrix.md` for what is implemented versus contract-only, and `docs/product/alpha_readiness.md` for public alpha readiness.
+
 The current gateway provides:
 
 - a dependency-free Python client for the harness control plane;
