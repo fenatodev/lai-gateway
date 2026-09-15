@@ -1,13 +1,16 @@
-from __future__ import annotations
-
 import hashlib
 from dataclasses import asdict, dataclass
 from typing import Any
 
 from . import __version__
+from .adapters import collect_adapter_registry
 from .effective_authorization import collect_effective_authorization
+from .local_status_adapter import can_handle_local_status, execute_local_status_adapter
+from .permission_decision import collect_permission_decision
 
-_ADAPTER_DISPATCHER_VERSION = "adapter-dispatcher/v1"
+_ADAPTER_DISPATCHER_VERSION = "adapter-dispatcher/v2"
+_DRY_RUN_SCOPE = "adapter-dry-run"
+_LOCAL_STATUS_HANDLER_ID = "local_status.in_process.v1"
 
 
 @dataclass(frozen=True)
@@ -34,10 +37,13 @@ class AdapterDispatcherInterface:
     evaluation_id: str
     decision_id: str
     audit_log_id: str
+    permission_decision_id: str
+    permission_outcome: str
     effective_authorization: bool
     scope_authorized: bool
     adapter_capability_authorized: bool
     handler_registered: bool
+    handler_id: str | None
     dispatcher_version: str
     dispatch_enabled: bool = False
     adapter_dispatched: bool = False
@@ -51,6 +57,7 @@ class AdapterDispatcherInterface:
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
+
 def _dispatch_id(material: tuple[str, ...]) -> str:
     digest = hashlib.sha256("|".join(material).encode("utf-8")).hexdigest()[:16]
     return f"adi-{digest}"
@@ -61,34 +68,71 @@ def _action_sha256(action: str | None) -> str:
     return hashlib.sha256(text).hexdigest()
 
 
-def _adapter_status(effective: dict[str, Any]) -> str:
-    if not effective.get("adapter_id"):
+def _adapter_status(adapter_id: str | None) -> str:
+    if not adapter_id:
         return "missing"
-    if effective.get("requested_capability") in {"missing", ""}:
+    registry = collect_adapter_registry(adapter_id=adapter_id)
+    if registry.get("overall") != "ready" or not registry.get("adapters"):
         return "missing"
-    if effective.get("decision_outcome") == "deny":
-        return "missing"
-    return "registered"
+    return str(registry["adapters"][0].get("status", "registered"))
 
-def _dispatch_status(
+
+def _strip_raw_action(value: Any) -> Any:
+    if isinstance(value, dict):
+        result: dict[str, Any] = {}
+        for key, item in value.items():
+            if key == "action":
+                result["action_sha256"] = _action_sha256(str(item))
+            else:
+                result[key] = _strip_raw_action(item)
+        return result
+    if isinstance(value, list):
+        return [_strip_raw_action(item) for item in value]
+    return value
+
+def _local_handler_available(decision: dict[str, Any]) -> bool:
+    return (
+        decision.get("outcome") == "allow"
+        and decision.get("granted_capability") == decision.get("requested_capability")
+        and can_handle_local_status(
+            decision.get("adapter_id"),
+            decision.get("requested_capability"),
+        )
+    )
+
+
+def _legacy_status(
     *,
     dispatch_requested: bool,
     effective: dict[str, Any],
     adapter_status: str,
-) -> tuple[str, str, bool]:
+) -> tuple[str, str, bool, bool]:
     if adapter_status == "missing":
-        return "blocked", "adapter contract is missing", False
-    if effective.get("operation_scope") != "adapter-dry-run":
-        return "blocked", "dispatcher interface only accepts dry-run-safe scope", False
+        return "blocked", "adapter contract is missing", False, False
+    if effective.get("operation_scope") != _DRY_RUN_SCOPE:
+        return "blocked", "dispatcher interface only accepts dry-run-safe scope", False, False
     if effective.get("status") == "blocked":
-        return "blocked", "dispatcher blocked by underlying authorization state", False
+        return "blocked", "dispatcher blocked by underlying authorization state", False, False
     if not effective.get("effective_authorization"):
-        return "pending", "dispatcher waits for scoped effective authorization", False
+        return "pending", "dispatcher waits for scoped effective authorization", False, False
     if effective.get("adapter_capability_authorized"):
-        return "blocked", "dispatcher refuses broad adapter capability authorization", False
+        return "blocked", "dispatcher refuses broad adapter capability authorization", False, False
     if dispatch_requested:
-        return "blocked", "dispatcher has no real adapter handlers registered", False
-    return "planned_not_dispatched", "dispatcher interface ready without dispatch", False
+        return "blocked", "dispatcher has no real adapter handlers registered", False, False
+    return "planned_not_dispatched", "dispatcher interface ready without dispatch", False, False
+
+
+def _local_status(
+    *,
+    dispatch_requested: bool,
+    decision: dict[str, Any],
+) -> tuple[str, str, bool, bool]:
+    if not _local_handler_available(decision):
+        return "blocked", "local handler is not allowlisted for this decision", False, False
+    if not dispatch_requested:
+        return "planned_local_handler", "local handler is registered but dispatch was not requested", False, True
+    return "dispatched_local", "allowlisted local handler executed in process", True, True
+
 
 def build_adapter_dispatcher_interface(
     *,
@@ -103,7 +147,16 @@ def build_adapter_dispatcher_interface(
     approved_by: str | None = None,
     operation_scope: str | None = None,
     dispatch_requested: bool = False,
-) -> tuple[AdapterDispatcherInterface, dict[str, Any]]:
+) -> tuple[AdapterDispatcherInterface, dict[str, Any], dict[str, Any] | None]:
+    permission_payload = collect_permission_decision(
+        requested_capability=requested_capability,
+        adapter_id=adapter_id,
+        actor=actor,
+        channel=channel,
+        domain=domain,
+        action=action,
+    )
+    decision = permission_payload["decision"]
     effective_payload = collect_effective_authorization(
         requested_capability=requested_capability,
         adapter_id=adapter_id,
@@ -117,36 +170,50 @@ def build_adapter_dispatcher_interface(
         operation_scope=operation_scope,
     )
     effective = effective_payload["effective"]
-    adapter_status = _adapter_status(effective)
-    status, reason, permitted = _dispatch_status(
-        dispatch_requested=dispatch_requested,
-        effective=effective,
-        adapter_status=adapter_status,
-    )
+    adapter_status = _adapter_status(decision.get("adapter_id"))
+    handler_registered = _local_handler_available(decision)
+    if handler_registered:
+        status, reason, executed, registered = _local_status(
+            dispatch_requested=dispatch_requested,
+            decision=decision,
+        )
+    else:
+        status, reason, executed, registered = _legacy_status(
+            dispatch_requested=dispatch_requested,
+            effective=effective,
+            adapter_status=adapter_status,
+        )
+    handler_result = None
+    if executed:
+        handler_result = execute_local_status_adapter(
+            requested_capability=decision["requested_capability"],
+            action=action,
+            parameters=parameters,
+        )
     dispatch_id = _dispatch_id(
         (
             _ADAPTER_DISPATCHER_VERSION,
+            decision["decision_id"],
             effective["effective_authorization_id"],
             str(dispatch_requested).lower(),
             status,
-            effective["operation_scope"],
-            effective.get("adapter_id") or "",
-            effective["requested_capability"],
+            decision.get("adapter_id") or "",
+            decision["requested_capability"],
         )
     )
-    result = AdapterDispatcherInterface(
+    dispatcher = AdapterDispatcherInterface(
         dispatch_id=dispatch_id,
         status=status,
         reason=reason,
         dispatch_requested=dispatch_requested,
-        dispatch_permitted=permitted,
-        adapter_id=effective.get("adapter_id"),
+        dispatch_permitted=executed,
+        adapter_id=decision.get("adapter_id"),
         adapter_status=adapter_status,
-        requested_capability=effective["requested_capability"],
-        actor=effective["actor"],
-        channel=effective["channel"],
-        domain=effective["domain"],
-        action_sha256=_action_sha256(effective.get("action")),
+        requested_capability=decision["requested_capability"],
+        actor=decision["actor"],
+        channel=decision["channel"],
+        domain=decision["domain"],
+        action_sha256=_action_sha256(action),
         operation_scope=effective["operation_scope"],
         effective_authorization_id=effective["effective_authorization_id"],
         validation_id=effective["validation_id"],
@@ -157,26 +224,19 @@ def build_adapter_dispatcher_interface(
         evaluation_id=effective["evaluation_id"],
         decision_id=effective["decision_id"],
         audit_log_id=effective["audit_log_id"],
+        permission_decision_id=decision["decision_id"],
+        permission_outcome=decision["outcome"],
         effective_authorization=bool(effective["effective_authorization"]),
         scope_authorized=bool(effective["scope_authorized"]),
-        adapter_capability_authorized=bool(effective["adapter_capability_authorized"]),
-        handler_registered=False,
+        adapter_capability_authorized=bool(decision.get("granted_capability")),
+        handler_registered=registered,
+        handler_id=_LOCAL_STATUS_HANDLER_ID if registered else None,
         dispatcher_version=_ADAPTER_DISPATCHER_VERSION,
+        dispatch_enabled=executed,
+        adapter_dispatched=executed,
+        adapter_executed=executed,
     )
-    return result, effective_payload
-
-def _strip_raw_action(value: Any) -> Any:
-    if isinstance(value, dict):
-        result: dict[str, Any] = {}
-        for key, item in value.items():
-            if key == "action":
-                result["action_sha256"] = _action_sha256(str(item))
-            else:
-                result[key] = _strip_raw_action(item)
-        return result
-    if isinstance(value, list):
-        return [_strip_raw_action(item) for item in value]
-    return value
+    return dispatcher, effective_payload | {"permission": permission_payload}, handler_result
 
 
 def collect_adapter_dispatcher_interface(
@@ -193,7 +253,7 @@ def collect_adapter_dispatcher_interface(
     operation_scope: str | None = None,
     dispatch_requested: bool = False,
 ) -> dict[str, Any]:
-    dispatcher, effective_payload = build_adapter_dispatcher_interface(
+    dispatcher, governance_payload, handler_result = build_adapter_dispatcher_interface(
         requested_capability=requested_capability,
         adapter_id=adapter_id,
         actor=actor,
@@ -206,37 +266,47 @@ def collect_adapter_dispatcher_interface(
         operation_scope=operation_scope,
         dispatch_requested=dispatch_requested,
     )
+    executed = bool(dispatcher.adapter_executed)
     return {
         "product": "lai-gateway",
         "version": __version__,
         "operation": "adapter-dispatcher",
         "overall": "ready",
         "dispatcher_version": _ADAPTER_DISPATCHER_VERSION,
-        "interface_only": True,
+        "interface_only": not dispatcher.handler_registered,
+        "local_handler_enabled": dispatcher.handler_registered,
         "dispatch_requested": bool(dispatch_requested),
         "dispatch_permitted": dispatcher.dispatch_permitted,
-        "dispatch_enabled": False,
-        "adapter_dispatched": False,
-        "adapter_executed": False,
+        "dispatch_enabled": dispatcher.dispatch_enabled,
+        "adapter_dispatched": dispatcher.adapter_dispatched,
+        "adapter_executed": dispatcher.adapter_executed,
         "executes_tools": False,
         "external_side_effects": False,
-        "result": "not_dispatched",
+        "result": "local_status" if executed else "not_dispatched",
         "dispatcher": dispatcher.to_dict(),
-        "effective": _strip_raw_action(effective_payload["effective"]),
-        "validation": _strip_raw_action(effective_payload["validation"]),
-        "capture": _strip_raw_action(effective_payload["capture"]),
-        "dry_run": _strip_raw_action(effective_payload["dry_run"]),
-        "audit": effective_payload["audit"],
+        "handler_result": handler_result,
+        "permission": _strip_raw_action(governance_payload["permission"]),
+        "effective": _strip_raw_action(governance_payload["effective"]),
+        "validation": _strip_raw_action(governance_payload["validation"]),
+        "capture": _strip_raw_action(governance_payload["capture"]),
+        "dry_run": _strip_raw_action(governance_payload["dry_run"]),
+        "audit": governance_payload["audit"],
         "security": {
             "prints_tokens": False,
-            "registers_real_handlers": False,
-            "dispatches_adapter": False,
+            "registers_real_handlers": dispatcher.handler_registered,
+            "registered_handler_id": dispatcher.handler_id,
+            "dispatches_adapter": dispatcher.adapter_dispatched,
             "executes_tools": False,
             "external_side_effects": False,
             "grants_permissions": False,
             "adapter_capability_elevated": False,
-            "requires_effective_authorization": True,
-            "requires_registered_handler": True,
+            "requires_effective_authorization": not dispatcher.handler_registered,
+            "requires_registered_handler": bool(dispatch_requested),
+            "local_only": dispatcher.handler_registered,
+            "network_access": False,
+            "credential_access": False,
+            "filesystem_write": False,
+            "shell_execution": False,
         },
     }
 
@@ -250,6 +320,7 @@ def render_adapter_dispatcher_interface(payload: dict[str, Any]) -> str:
         f"dispatch_id: {dispatcher['dispatch_id']}",
         f"status: {dispatcher['status']}",
         f"interface_only: {str(payload['interface_only']).lower()}",
+        f"local_handler_enabled: {str(payload['local_handler_enabled']).lower()}",
         f"dispatch_requested: {str(dispatcher['dispatch_requested']).lower()}",
         f"dispatch_permitted: {str(dispatcher['dispatch_permitted']).lower()}",
         f"dispatch_enabled: {str(dispatcher['dispatch_enabled']).lower()}",
@@ -259,10 +330,13 @@ def render_adapter_dispatcher_interface(payload: dict[str, Any]) -> str:
         f"operation_scope: {dispatcher['operation_scope']}",
         f"adapter_id: {dispatcher.get('adapter_id') or 'none'}",
         f"requested_capability: {dispatcher['requested_capability']}",
+        f"permission_outcome: {dispatcher['permission_outcome']}",
         f"effective_authorization: {str(dispatcher['effective_authorization']).lower()}",
         f"adapter_capability_authorized: {str(dispatcher['adapter_capability_authorized']).lower()}",
         f"result: {payload['result']}",
         f"reason: {dispatcher['reason']}",
+        "executes_tools: false",
+        "external_side_effects: false",
         "grants_permissions: false",
     ]
     return "\n".join(lines)
