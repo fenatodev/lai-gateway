@@ -155,6 +155,28 @@ class AdapterRegistryTest(unittest.TestCase):
         self.assertIn("social_career.submit_application", adapter["human_approval_required_for"])
         self.assertFalse(payload["security"]["tool_execution_enabled"])
 
+    def test_document_media_adapter_contract_is_registered_without_external_or_destructive_processing(self) -> None:
+        payload = collect_adapter_registry(adapter_id="document_media")
+        self.assertEqual(payload["overall"], "ready")
+        self.assertEqual(payload["count"], 1)
+        adapter = payload["adapters"][0]
+        self.assertEqual(adapter["id"], "document_media")
+        self.assertEqual(adapter["kind"], "content_adapter")
+        self.assertEqual(adapter["autonomy"], "contract_only")
+        self.assertEqual(adapter["entrypoints"], [])
+        self.assertEqual(adapter["granted_capabilities"], [])
+        self.assertTrue(adapter["requires_policy_check"])
+        self.assertFalse(adapter["executes_tools"])
+        self.assertFalse(adapter["document_ingestion_enabled"])
+        self.assertFalse(adapter["ocr_enabled"])
+        self.assertFalse(adapter["transcription_enabled"])
+        self.assertFalse(adapter["external_upload_enabled"])
+        self.assertFalse(adapter["destructive_processing_enabled"])
+        self.assertEqual(adapter["filesystem_scope"], "repo_or_explicit_sandbox_only")
+        self.assertIn("document.read_external_path", adapter["human_approval_required_for"])
+        self.assertIn("media.upload_external", adapter["human_approval_required_for"])
+        self.assertFalse(payload["security"]["tool_execution_enabled"])
+
     def test_adapter_filter_and_cli_are_secret_free(self) -> None:
         missing = collect_adapter_registry(adapter_id="missing")
         self.assertEqual(missing["overall"], "missing")
