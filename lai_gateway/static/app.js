@@ -17,6 +17,7 @@ let activeLocalRunId = "";
 let activeLocalRunTerminal = true;
 let lastLocalMode = "diagnose";
 let currentLocalReview = null;
+let lastGovernancePayload = null;
 const localChatRenderedRuns = new Set();
 const localChatRenderedEvents = new Set();
 const TASK_PRESETS = {
@@ -175,7 +176,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pareie este celular primeiro e atualize este painel.";
-  for (const id of ["health-output", "ops-output", "status-output", "model-output", "mcp-output", "sessions-output", "runs-output", "run-events-output"]) {
+  for (const id of ["health-output", "ops-output", "status-output", "model-output", "mcp-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -313,6 +314,77 @@ function setOpsStatus(payload) {
   setCheck("check-access", `Ops: doctor ${doctor}, mobile ${mobile}, telegram ${telegram}.`, state);
   clearPairRequiredOutput("ops-output");
   show("ops-output", payload);
+}
+
+
+function governanceQuery() {
+  const params = new URLSearchParams();
+  params.set("adapter_id", selectValue("governance-adapter") || "browser");
+  params.set("capability", selectValue("governance-capability") || "browser.navigate_public");
+  params.set("actor", "user");
+  params.set("channel", "workbench");
+  params.set("domain", "governance");
+  params.set("action", selectValue("governance-action") || "visualizar proposta sem executar");
+  const param = selectValue("governance-param");
+  if (param) params.append("param", param);
+  return params.toString();
+}
+
+function governanceState(payload) {
+  const proposal = payload.proposal || {};
+  const decision = payload.decision || proposal || (payload.record || {});
+  const events = Array.isArray(payload.events) ? payload.events : [];
+  const outcome = decision.outcome || proposal.decision_outcome || proposal.status || payload.overall || "desconhecido";
+  const requiresApproval = Boolean(
+    decision.requires_human_approval
+      || proposal.requires_human_approval
+      || events.some((event) => event.requires_human_approval)
+  );
+  if (payload.dispatch_enabled || proposal.dispatch_enabled || payload.effective_authorization || proposal.effective_authorization) {
+    return ["danger", "Governança reportou autorização efetiva ou dispatch. Verifique antes de prosseguir."];
+  }
+  if (requiresApproval || outcome === "requires_approval" || outcome === "requires_authorization") {
+    return ["warn", "Ação declarada exige aprovação humana. A UI apenas mostra a cadeia; não executa adapter."];
+  }
+  if (outcome === "deny" || outcome === "blocked") {
+    return ["danger", "Ação bloqueada pela política ou pelo contrato do adapter."];
+  }
+  return ["ready", "Cadeia de governança carregada em modo read-only, sem dispatch."];
+}
+
+function setGovernanceOutput(targetId, payload) {
+  lastGovernancePayload = payload;
+  clearPairRequiredOutput(targetId);
+  clearPairRequiredOutput("governance-output");
+  show(targetId, payload);
+  const [state, summary] = governanceState(payload);
+  setCallout("governance-summary", summary, state);
+  const operation = payload.operation || "governance";
+  const count = Array.isArray(payload.events) ? ` · events=${payload.events.length}` : "";
+  setPill("governance-pill", `${operation}${count}`, state);
+  show("governance-output", {
+    operation,
+    overall: payload.overall || "unknown",
+    dispatch_enabled: Boolean(payload.dispatch_enabled || payload.proposal?.dispatch_enabled),
+    effective_authorization: Boolean(payload.effective_authorization || payload.proposal?.effective_authorization),
+    executes_tools: Boolean(payload.executes_tools || payload.proposal?.executes_tools),
+    grants_permissions: Boolean(payload.security?.grants_permissions || payload.proposal?.grants_permission),
+  });
+}
+
+async function refreshGovernanceChain() {
+  const query = governanceQuery();
+  const decision = await requestJson(`/v1/gateway/permission-decision?${query}`);
+  setGovernanceOutput("decision-output", decision);
+  const policy = await requestJson(`/v1/gateway/policy-eval?${query}`);
+  setGovernanceOutput("policy-output", policy);
+  const authorization = await requestJson(`/v1/gateway/authorization-record?${query}`);
+  setGovernanceOutput("authorization-output", authorization);
+  const proposal = await requestJson(`/v1/gateway/adapter-invocation-proposal?${query}`);
+  setGovernanceOutput("proposal-output", proposal);
+  const events = await requestJson(`/v1/gateway/audit-events?${query}`);
+  setGovernanceOutput("audit-events-output", events);
+  return events;
 }
 
 async function copyMobileUrl() {
@@ -1173,6 +1245,23 @@ async function runAction(action) {
     } else if (action === "refresh-ops-status") {
       clearPairRequiredOutput("ops-output");
       setOpsStatus(await requestJson("/v1/gateway/ops-status"));
+    } else if (action === "refresh-governance-chain") {
+      await refreshGovernanceChain();
+    } else if (action === "refresh-governance-decision") {
+      const payload = await requestJson(`/v1/gateway/permission-decision?${governanceQuery()}`);
+      setGovernanceOutput("decision-output", payload);
+    } else if (action === "refresh-governance-policy") {
+      const payload = await requestJson(`/v1/gateway/policy-eval?${governanceQuery()}`);
+      setGovernanceOutput("policy-output", payload);
+    } else if (action === "refresh-governance-authorization") {
+      const payload = await requestJson(`/v1/gateway/authorization-record?${governanceQuery()}`);
+      setGovernanceOutput("authorization-output", payload);
+    } else if (action === "refresh-governance-proposal") {
+      const payload = await requestJson(`/v1/gateway/adapter-invocation-proposal?${governanceQuery()}`);
+      setGovernanceOutput("proposal-output", payload);
+    } else if (action === "refresh-governance-audit") {
+      const payload = await requestJson(`/v1/gateway/audit-events?${governanceQuery()}`);
+      setGovernanceOutput("audit-events-output", payload);
     } else if (action === "refresh-mcp-status") {
       setMcpStatus(await requestJson("/v1/harness/mcp/status"));
     } else if (action === "refresh-mcp-tools") {
@@ -1404,8 +1493,10 @@ async function runAction(action) {
     }
     const target = action.includes("local-chat")
       ? "local-chat-output"
-      : action.includes("session")
-        ? "sessions-output"
+      : action.includes("governance")
+        ? "governance-output"
+        : action.includes("session")
+          ? "sessions-output"
         : action.includes("run") || action === "copy-run-output"
           ? "runs-output"
           : action.includes("mcp")
