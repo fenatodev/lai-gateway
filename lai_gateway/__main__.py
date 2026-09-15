@@ -10,6 +10,7 @@ from typing import Any
 
 from . import __version__
 from .adapters import collect_adapter_registry, render_adapter_registry
+from .authorization_record import collect_authorization_record, render_authorization_record
 from .bridge import collect_mobile_bridge, render_mobile_bridge
 from .access import collect_mobile_access, render_mobile_access
 from .config import GatewayConfig
@@ -269,6 +270,14 @@ def main(argv: list[str] | None = None) -> int:
     policy_eval_parser.add_argument("--domain", default=None, help="policy domain label; defaults to unknown")
     policy_eval_parser.add_argument("--action", default=None, help="human-readable action label")
     policy_eval_parser.add_argument("--json", action="store_true", help="print JSON")
+    authorization_record_parser = sub.add_parser("authorization-record", help="build a read-only LAI authorization record without granting execution")
+    authorization_record_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
+    authorization_record_parser.add_argument("--capability", required=True, help="requested capability to evaluate")
+    authorization_record_parser.add_argument("--actor", default=None, help="authorization actor label; defaults to user")
+    authorization_record_parser.add_argument("--channel", default=None, help="authorization channel label; defaults to gateway")
+    authorization_record_parser.add_argument("--domain", default=None, help="authorization domain label; defaults to unknown")
+    authorization_record_parser.add_argument("--action", default=None, help="human-readable action label")
+    authorization_record_parser.add_argument("--json", action="store_true", help="print JSON")
     dev_parser = sub.add_parser("dev", help="check harness and serve the local gateway UI")
     dev_parser.add_argument("--bind", default=None, help="gateway bind address allowed by config policy")
     dev_parser.add_argument("--port", type=int, default=None, help="gateway port")
@@ -694,6 +703,20 @@ def main(argv: list[str] | None = None) -> int:
             )
             if not args.json:
                 print(render_policy_evaluation(payload))
+                return 0
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.command == "authorization-record":
+            payload = collect_authorization_record(
+                adapter_id=args.adapter,
+                requested_capability=args.capability,
+                actor=args.actor,
+                channel=args.channel,
+                domain=args.domain,
+                action=args.action,
+            )
+            if not args.json:
+                print(render_authorization_record(payload))
                 return 0
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
