@@ -202,17 +202,17 @@
 
           <details class="sidebar-menu governance-panel" open>
             <summary>Governança</summary>
-            <p class="muted">Visibilidade read-only de decisão, policy, autorização, proposta, eventos e dry-run simulado. Sem execução de adapter.</p>
+            <p class="muted">Visibilidade de decisão, policy, autorização, proposta, eventos, dry-run e dispatcher. Execução real fica restrita ao adapter local_status.</p>
             <div class="form-row">
               <label>Adapter
-                <input id="governance-adapter" autocomplete="off" autocapitalize="none" spellcheck="false" value="browser" placeholder="browser">
+                <input id="governance-adapter" autocomplete="off" autocapitalize="none" spellcheck="false" value="local_status" placeholder="local_status">
               </label>
               <label>Capability
-                <input id="governance-capability" autocomplete="off" autocapitalize="none" spellcheck="false" value="browser.navigate_public" placeholder="browser.navigate_public">
+                <input id="governance-capability" autocomplete="off" autocapitalize="none" spellcheck="false" value="local_status.status" placeholder="local_status.status">
               </label>
             </div>
             <label>Ação
-              <input id="governance-action" autocomplete="off" autocapitalize="none" spellcheck="false" value="visualizar proposta sem executar" placeholder="descreva a intenção">
+              <input id="governance-action" autocomplete="off" autocapitalize="none" spellcheck="false" value="consultar status local seguro" placeholder="descreva a intenção">
             </label>
             <label>Parâmetro público opcional
               <input id="governance-param" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="target=docs">
@@ -225,8 +225,13 @@
               <button data-action="refresh-governance-proposal">Proposta</button>
               <button data-action="refresh-governance-audit">Audit events</button>
               <button data-action="refresh-governance-dry-run">Dry-run</button>
+              <button data-action="refresh-governance-capture">Aprovar intenção</button>
+              <button data-action="refresh-governance-validation">Validar</button>
+              <button data-action="refresh-governance-effective">Autorização efetiva</button>
+              <button data-action="refresh-governance-dispatcher">Dispatcher</button>
+              <button class="primary" data-action="dispatch-local-status">Executar local_status seguro</button>
             </div>
-            <p id="governance-summary" class="callout warn" aria-live="polite">Governança ainda não carregada. O painel não executa adapters.</p>
+            <p id="governance-summary" class="callout warn" aria-live="polite">Governança ainda não carregada. Apenas local_status pode ter dispatch real seguro.</p>
             <span id="governance-pill" class="pill muted">governança desconhecida</span>
             <pre id="governance-output" class="compact-output" aria-live="polite">Não carregado.</pre>
             <details class="review-section clean-review-details">
@@ -252,6 +257,22 @@
             <details class="review-section clean-review-details">
               <summary>Dry-run</summary>
               <pre id="dry-run-output" class="compact-output" aria-live="polite">Não carregado.</pre>
+            </details>
+            <details class="review-section clean-review-details">
+              <summary>Approval capture</summary>
+              <pre id="capture-output" class="compact-output" aria-live="polite">Não carregado.</pre>
+            </details>
+            <details class="review-section clean-review-details">
+              <summary>Validation gate</summary>
+              <pre id="validation-output" class="compact-output" aria-live="polite">Não carregado.</pre>
+            </details>
+            <details class="review-section clean-review-details">
+              <summary>Effective authorization</summary>
+              <pre id="effective-output" class="compact-output" aria-live="polite">Não carregado.</pre>
+            </details>
+            <details class="review-section clean-review-details">
+              <summary>Dispatcher</summary>
+              <pre id="dispatcher-output" class="compact-output" aria-live="polite">Não carregado.</pre>
             </details>
           </details>
 

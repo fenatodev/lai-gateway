@@ -176,7 +176,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pareie este celular primeiro e atualize este painel.";
-  for (const id of ["health-output", "ops-output", "status-output", "model-output", "mcp-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output"]) {
+  for (const id of ["health-output", "ops-output", "status-output", "model-output", "mcp-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -317,17 +317,31 @@ function setOpsStatus(payload) {
 }
 
 
-function governanceQuery() {
+function governanceQuery(options = {}) {
   const params = new URLSearchParams();
-  params.set("adapter_id", selectValue("governance-adapter") || "browser");
-  params.set("capability", selectValue("governance-capability") || "browser.navigate_public");
+  params.set("adapter_id", selectValue("governance-adapter") || "local_status");
+  params.set("capability", selectValue("governance-capability") || "local_status.status");
   params.set("actor", "user");
   params.set("channel", "workbench");
   params.set("domain", "governance");
-  params.set("action", selectValue("governance-action") || "visualizar proposta sem executar");
+  params.set("action", selectValue("governance-action") || "consultar status local seguro");
   const param = selectValue("governance-param");
   if (param) params.append("param", param);
+  if (options.approve) params.set("approve", "true");
+  if (options.approvedBy) params.set("approved_by", options.approvedBy);
+  if (options.operationScope) params.set("operation_scope", options.operationScope);
+  if (options.dispatch) params.set("dispatch", "true");
   return params.toString();
+}
+
+function governanceApprovedQuery() {
+  return governanceQuery({ approve: true, approvedBy: "workbench", operationScope: "adapter-dry-run" });
+}
+
+function isSafeLocalStatusSelection() {
+  const adapter = selectValue("governance-adapter") || "local_status";
+  const capability = selectValue("governance-capability") || "local_status.status";
+  return adapter === "local_status" && ["local_status.status", "local_status.echo"].includes(capability);
 }
 
 function governanceState(payload) {
@@ -341,8 +355,14 @@ function governanceState(payload) {
       || proposal.requires_human_approval
       || events.some((event) => event.requires_human_approval)
   );
+  if (payload.operation === "adapter-dispatcher" && payload.result === "local_status" && payload.handler_result?.local_only && !payload.handler_result?.external_side_effects && !payload.handler_result?.shell_execution && !payload.handler_result?.filesystem_write) {
+    return ["ready", "local_status executado por handler interno allowlisted, sem rede, shell, arquivo ou efeito externo."];
+  }
+  if (payload.operation === "adapter-dispatcher" && payload.dispatch_permitted === false) {
+    return ["warn", "Dispatcher carregado sem execução. Só local_status pode ser despachado pela UI."];
+  }
   if (payload.dispatch_enabled || proposal.dispatch_enabled || dryRun.dispatch_enabled || dryRun.adapter_dispatched || payload.effective_authorization || proposal.effective_authorization || dryRun.effective_authorization) {
-    return ["danger", "Governança reportou autorização efetiva, dispatch ou execução. Verifique antes de prosseguir."];
+    return ["danger", "Governança reportou autorização efetiva, dispatch ou execução fora do caminho seguro. Verifique antes de prosseguir."];
   }
   if (payload.operation === "adapter-dry-run" && outcome === "simulated") {
     return ["ready", "Dry-run simulado e não efetivo. Adapter não foi despachado nem executado."];
@@ -370,10 +390,15 @@ function setGovernanceOutput(targetId, payload) {
     operation,
     overall: payload.overall || "unknown",
     dispatch_enabled: Boolean(payload.dispatch_enabled || payload.proposal?.dispatch_enabled || payload.dry_run?.dispatch_enabled),
+    dispatch_permitted: Boolean(payload.dispatch_permitted || payload.dispatcher?.dispatch_permitted),
+    handler_registered: Boolean(payload.dispatcher?.handler_registered),
     dry_run_executed: Boolean(payload.dry_run?.dry_run_executed),
-    adapter_dispatched: Boolean(payload.dry_run?.adapter_dispatched),
+    adapter_dispatched: Boolean(payload.adapter_dispatched || payload.dispatcher?.adapter_dispatched || payload.dry_run?.adapter_dispatched),
+    adapter_executed: Boolean(payload.adapter_executed || payload.dispatcher?.adapter_executed || payload.dry_run?.adapter_executed),
+    result: payload.result || "none",
     effective_authorization: Boolean(payload.effective_authorization || payload.proposal?.effective_authorization || payload.dry_run?.effective_authorization),
     executes_tools: Boolean(payload.executes_tools || payload.proposal?.executes_tools || payload.dry_run?.executes_tools),
+    external_side_effects: Boolean(payload.external_side_effects || payload.handler_result?.external_side_effects),
     grants_permissions: Boolean(payload.security?.grants_permissions || payload.proposal?.grants_permission || payload.dry_run?.grants_permission),
   });
 }
@@ -392,7 +417,9 @@ async function refreshGovernanceChain() {
   setGovernanceOutput("audit-events-output", events);
   const dryRun = await requestJson(`/v1/gateway/adapter-dry-run?${query}`);
   setGovernanceOutput("dry-run-output", dryRun);
-  return dryRun;
+  const dispatcher = await requestJson(`/v1/gateway/adapter-dispatcher?${query}`);
+  setGovernanceOutput("dispatcher-output", dispatcher);
+  return dispatcher;
 }
 
 async function copyMobileUrl() {
@@ -1273,6 +1300,29 @@ async function runAction(action) {
     } else if (action === "refresh-governance-dry-run") {
       const payload = await requestJson(`/v1/gateway/adapter-dry-run?${governanceQuery()}`);
       setGovernanceOutput("dry-run-output", payload);
+    } else if (action === "refresh-governance-capture") {
+      const payload = await requestJson(`/v1/gateway/authorization-capture-stub?${governanceApprovedQuery()}`);
+      setGovernanceOutput("capture-output", payload);
+    } else if (action === "refresh-governance-validation") {
+      const payload = await requestJson(`/v1/gateway/authorization-validation-gate?${governanceApprovedQuery()}`);
+      setGovernanceOutput("validation-output", payload);
+    } else if (action === "refresh-governance-effective") {
+      const payload = await requestJson(`/v1/gateway/effective-authorization?${governanceApprovedQuery()}`);
+      setGovernanceOutput("effective-output", payload);
+    } else if (action === "refresh-governance-dispatcher") {
+      const payload = await requestJson(`/v1/gateway/adapter-dispatcher?${governanceApprovedQuery()}`);
+      setGovernanceOutput("dispatcher-output", payload);
+    } else if (action === "dispatch-local-status") {
+      if (!isSafeLocalStatusSelection()) throw new Error("dispatch seguro permitido somente para local_status.status ou local_status.echo");
+      const confirmation = [
+        "Executar adapter local_status agora?",
+        "Escopo: handler interno allowlisted.",
+        "Sem rede, shell, credenciais, leitura/escrita de arquivo ou efeito externo.",
+      ].join("\n");
+      if (!window.confirm(confirmation)) return;
+      const query = governanceQuery({ approve: true, approvedBy: "workbench", operationScope: "adapter-dry-run", dispatch: true });
+      const payload = await requestJson(`/v1/gateway/adapter-dispatcher?${query}`);
+      setGovernanceOutput("dispatcher-output", payload);
     } else if (action === "refresh-mcp-status") {
       setMcpStatus(await requestJson("/v1/harness/mcp/status"));
     } else if (action === "refresh-mcp-tools") {
