@@ -19,6 +19,7 @@ from .adapters import collect_adapter_registry
 from .health import collect_health_report, render_health_report
 from .ops import collect_ops_status
 from .permission_decision import collect_permission_decision
+from .policy_evaluator import collect_policy_evaluation
 from .skills import collect_skills_registry
 from .config import GatewayConfig, read_gateway_access_token, validate_gateway_bind
 from .dev_control import collect_dev_control_policy
@@ -193,6 +194,28 @@ class GatewayHandler(BaseHTTPRequestHandler):
             self._send_json(
                 HTTPStatus.OK,
                 collect_permission_decision(
+                    requested_capability=capability,
+                    adapter_id=adapter_id,
+                    actor=actor,
+                    channel=channel,
+                    domain=domain,
+                    action=action,
+                ),
+            )
+            return
+        if parsed.path == "/v1/gateway/policy-eval":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            capability = values.get("capability", [None])[0] or None
+            adapter_id = values.get("adapter_id", [None])[0] or values.get("adapter", [None])[0] or None
+            actor = values.get("actor", [None])[0] or None
+            channel = values.get("channel", [None])[0] or None
+            domain = values.get("domain", [None])[0] or None
+            action = values.get("action", [None])[0] or None
+            self._send_json(
+                HTTPStatus.OK,
+                collect_policy_evaluation(
                     requested_capability=capability,
                     adapter_id=adapter_id,
                     actor=actor,
@@ -517,6 +540,8 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/skills",
             "/v1/gateway/dev-control",
             "/v1/gateway/adapters",
+            "/v1/gateway/permission-decision",
+            "/v1/gateway/policy-eval",
             "/v1/gateway/model-status",
             "/v1/gateway/model-plan",
             "/v1/gateway/model-files",

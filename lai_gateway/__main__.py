@@ -34,6 +34,7 @@ from .mobile import (
 )
 from .ops import collect_ops_status, render_ops_status
 from .permission_decision import collect_permission_decision, render_permission_decision
+from .policy_evaluator import collect_policy_evaluation, render_policy_evaluation
 from .proxy import collect_mobile_proxy_status, dump_mobile_proxy_json, render_mobile_proxy_status, run_mobile_proxy, validate_mobile_proxy_config
 from .release import collect_release_check, render_release_check
 from .server import serve
@@ -260,6 +261,14 @@ def main(argv: list[str] | None = None) -> int:
     permission_decision_parser.add_argument("--domain", default=None, help="decision domain label; defaults to unknown")
     permission_decision_parser.add_argument("--action", default=None, help="human-readable action label")
     permission_decision_parser.add_argument("--json", action="store_true", help="print JSON")
+    policy_eval_parser = sub.add_parser("policy-eval", help="evaluate minimal LAI policy rules without executing tools")
+    policy_eval_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
+    policy_eval_parser.add_argument("--capability", required=True, help="requested capability to evaluate")
+    policy_eval_parser.add_argument("--actor", default=None, help="policy actor label; defaults to user")
+    policy_eval_parser.add_argument("--channel", default=None, help="policy channel label; defaults to gateway")
+    policy_eval_parser.add_argument("--domain", default=None, help="policy domain label; defaults to unknown")
+    policy_eval_parser.add_argument("--action", default=None, help="human-readable action label")
+    policy_eval_parser.add_argument("--json", action="store_true", help="print JSON")
     dev_parser = sub.add_parser("dev", help="check harness and serve the local gateway UI")
     dev_parser.add_argument("--bind", default=None, help="gateway bind address allowed by config policy")
     dev_parser.add_argument("--port", type=int, default=None, help="gateway port")
@@ -671,6 +680,20 @@ def main(argv: list[str] | None = None) -> int:
             )
             if not args.json:
                 print(render_permission_decision(payload))
+                return 0
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.command == "policy-eval":
+            payload = collect_policy_evaluation(
+                adapter_id=args.adapter,
+                requested_capability=args.capability,
+                actor=args.actor,
+                channel=args.channel,
+                domain=args.domain,
+                action=args.action,
+            )
+            if not args.json:
+                print(render_policy_evaluation(payload))
                 return 0
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
