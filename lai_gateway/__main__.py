@@ -10,6 +10,7 @@ from typing import Any
 
 from . import __version__
 from .adapter_invocation import collect_adapter_invocation_proposal, render_adapter_invocation_proposal
+from .adapter_dry_run import collect_adapter_dry_run, render_adapter_dry_run
 from .audit_events import collect_audit_events, render_audit_events
 from .adapters import collect_adapter_registry, render_adapter_registry
 from .authorization_record import collect_authorization_record, render_authorization_record
@@ -304,6 +305,15 @@ def main(argv: list[str] | None = None) -> int:
     adapter_invocation_parser.add_argument("--action", default=None, help="human-readable action label")
     adapter_invocation_parser.add_argument("--param", action="append", default=None, help="bounded public parameter as key=value; repeatable")
     adapter_invocation_parser.add_argument("--json", action="store_true", help="print JSON")
+    adapter_dry_run_parser = sub.add_parser("adapter-dry-run", help="run a simulated adapter path without dispatch")
+    adapter_dry_run_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
+    adapter_dry_run_parser.add_argument("--capability", required=True, help="requested capability to simulate")
+    adapter_dry_run_parser.add_argument("--actor", default=None, help="dry-run actor label; defaults to user")
+    adapter_dry_run_parser.add_argument("--channel", default=None, help="dry-run channel label; defaults to gateway")
+    adapter_dry_run_parser.add_argument("--domain", default=None, help="dry-run domain label; defaults to unknown")
+    adapter_dry_run_parser.add_argument("--action", default=None, help="human-readable action label")
+    adapter_dry_run_parser.add_argument("--param", action="append", default=None, help="bounded public parameter as key=value; repeatable")
+    adapter_dry_run_parser.add_argument("--json", action="store_true", help="print JSON")
     audit_events_parser = sub.add_parser("audit-events", help="render read-only LAI decision audit events without persistence")
     audit_events_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
     audit_events_parser.add_argument("--capability", required=True, help="requested capability to audit")
@@ -767,6 +777,21 @@ def main(argv: list[str] | None = None) -> int:
             )
             if not args.json:
                 print(render_adapter_invocation_proposal(payload))
+                return 0
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.command == "adapter-dry-run":
+            payload = collect_adapter_dry_run(
+                adapter_id=args.adapter,
+                requested_capability=args.capability,
+                actor=args.actor,
+                channel=args.channel,
+                domain=args.domain,
+                action=args.action,
+                parameters=_params_from_pairs(args.param),
+            )
+            if not args.json:
+                print(render_adapter_dry_run(payload))
                 return 0
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
