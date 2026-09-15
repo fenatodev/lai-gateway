@@ -1,5 +1,11 @@
 # lai next prs
 
+## status pós-PR88
+
+Esta fila é histórica para PR 61-66 e para a transição inicial de adapters. O roadmap normativo atual está em `docs/product/roadmap.md`; a matriz de estado está em `docs/product/implementation_matrix.md`; a prontidão alpha está em `docs/product/alpha_readiness.md`.
+
+Novos PRs devem referenciar o roadmap atual em vez de acrescentar itens livres nesta fila.
+
 ## objetivo
 
 Organizar a evolução imediata do LAI após revisões arquiteturais externas.
