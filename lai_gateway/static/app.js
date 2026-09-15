@@ -176,7 +176,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pareie este celular primeiro e atualize este painel.";
-  for (const id of ["health-output", "ops-output", "status-output", "model-output", "mcp-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output"]) {
+  for (const id of ["health-output", "ops-output", "status-output", "model-output", "mcp-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -332,16 +332,20 @@ function governanceQuery() {
 
 function governanceState(payload) {
   const proposal = payload.proposal || {};
+  const dryRun = payload.dry_run || {};
   const decision = payload.decision || proposal || (payload.record || {});
   const events = Array.isArray(payload.events) ? payload.events : [];
-  const outcome = decision.outcome || proposal.decision_outcome || proposal.status || payload.overall || "desconhecido";
+  const outcome = dryRun.status || decision.outcome || proposal.decision_outcome || proposal.status || payload.overall || "desconhecido";
   const requiresApproval = Boolean(
     decision.requires_human_approval
       || proposal.requires_human_approval
       || events.some((event) => event.requires_human_approval)
   );
-  if (payload.dispatch_enabled || proposal.dispatch_enabled || payload.effective_authorization || proposal.effective_authorization) {
-    return ["danger", "Governança reportou autorização efetiva ou dispatch. Verifique antes de prosseguir."];
+  if (payload.dispatch_enabled || proposal.dispatch_enabled || dryRun.dispatch_enabled || dryRun.adapter_dispatched || payload.effective_authorization || proposal.effective_authorization || dryRun.effective_authorization) {
+    return ["danger", "Governança reportou autorização efetiva, dispatch ou execução. Verifique antes de prosseguir."];
+  }
+  if (payload.operation === "adapter-dry-run" && outcome === "simulated") {
+    return ["ready", "Dry-run simulado e não efetivo. Adapter não foi despachado nem executado."];
   }
   if (requiresApproval || outcome === "requires_approval" || outcome === "requires_authorization") {
     return ["warn", "Ação declarada exige aprovação humana. A UI apenas mostra a cadeia; não executa adapter."];
@@ -365,10 +369,12 @@ function setGovernanceOutput(targetId, payload) {
   show("governance-output", {
     operation,
     overall: payload.overall || "unknown",
-    dispatch_enabled: Boolean(payload.dispatch_enabled || payload.proposal?.dispatch_enabled),
-    effective_authorization: Boolean(payload.effective_authorization || payload.proposal?.effective_authorization),
-    executes_tools: Boolean(payload.executes_tools || payload.proposal?.executes_tools),
-    grants_permissions: Boolean(payload.security?.grants_permissions || payload.proposal?.grants_permission),
+    dispatch_enabled: Boolean(payload.dispatch_enabled || payload.proposal?.dispatch_enabled || payload.dry_run?.dispatch_enabled),
+    dry_run_executed: Boolean(payload.dry_run?.dry_run_executed),
+    adapter_dispatched: Boolean(payload.dry_run?.adapter_dispatched),
+    effective_authorization: Boolean(payload.effective_authorization || payload.proposal?.effective_authorization || payload.dry_run?.effective_authorization),
+    executes_tools: Boolean(payload.executes_tools || payload.proposal?.executes_tools || payload.dry_run?.executes_tools),
+    grants_permissions: Boolean(payload.security?.grants_permissions || payload.proposal?.grants_permission || payload.dry_run?.grants_permission),
   });
 }
 
@@ -384,7 +390,9 @@ async function refreshGovernanceChain() {
   setGovernanceOutput("proposal-output", proposal);
   const events = await requestJson(`/v1/gateway/audit-events?${query}`);
   setGovernanceOutput("audit-events-output", events);
-  return events;
+  const dryRun = await requestJson(`/v1/gateway/adapter-dry-run?${query}`);
+  setGovernanceOutput("dry-run-output", dryRun);
+  return dryRun;
 }
 
 async function copyMobileUrl() {
@@ -1262,6 +1270,9 @@ async function runAction(action) {
     } else if (action === "refresh-governance-audit") {
       const payload = await requestJson(`/v1/gateway/audit-events?${governanceQuery()}`);
       setGovernanceOutput("audit-events-output", payload);
+    } else if (action === "refresh-governance-dry-run") {
+      const payload = await requestJson(`/v1/gateway/adapter-dry-run?${governanceQuery()}`);
+      setGovernanceOutput("dry-run-output", payload);
     } else if (action === "refresh-mcp-status") {
       setMcpStatus(await requestJson("/v1/harness/mcp/status"));
     } else if (action === "refresh-mcp-tools") {
