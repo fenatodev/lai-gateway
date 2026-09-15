@@ -133,6 +133,28 @@ class AdapterRegistryTest(unittest.TestCase):
         self.assertIn("model_lab.change_runtime_config", adapter["human_approval_required_for"])
         self.assertFalse(payload["security"]["tool_execution_enabled"])
 
+    def test_social_career_adapter_contract_is_registered_without_external_side_effects(self) -> None:
+        payload = collect_adapter_registry(adapter_id="social_career")
+        self.assertEqual(payload["overall"], "ready")
+        self.assertEqual(payload["count"], 1)
+        adapter = payload["adapters"][0]
+        self.assertEqual(adapter["id"], "social_career")
+        self.assertEqual(adapter["kind"], "automation_adapter")
+        self.assertEqual(adapter["autonomy"], "contract_only")
+        self.assertEqual(adapter["entrypoints"], [])
+        self.assertEqual(adapter["granted_capabilities"], [])
+        self.assertTrue(adapter["requires_policy_check"])
+        self.assertFalse(adapter["executes_tools"])
+        self.assertFalse(adapter["publication_enabled"])
+        self.assertFalse(adapter["message_sending_enabled"])
+        self.assertFalse(adapter["application_submission_enabled"])
+        self.assertFalse(adapter["form_submission_enabled"])
+        self.assertFalse(adapter["credentialed_access_enabled"])
+        self.assertFalse(adapter["external_side_effects_enabled"])
+        self.assertIn("social_career.publish_post", adapter["human_approval_required_for"])
+        self.assertIn("social_career.submit_application", adapter["human_approval_required_for"])
+        self.assertFalse(payload["security"]["tool_execution_enabled"])
+
     def test_adapter_filter_and_cli_are_secret_free(self) -> None:
         missing = collect_adapter_registry(adapter_id="missing")
         self.assertEqual(missing["overall"], "missing")
