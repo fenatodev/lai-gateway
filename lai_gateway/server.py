@@ -14,6 +14,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from . import __version__
+from .adapter_invocation import collect_adapter_invocation_proposal
 from .access import collect_mobile_access
 from .adapters import collect_adapter_registry
 from .authorization_record import collect_authorization_record
@@ -245,6 +246,30 @@ class GatewayHandler(BaseHTTPRequestHandler):
                     channel=channel,
                     domain=domain,
                     action=action,
+                ),
+            )
+            return
+        if parsed.path == "/v1/gateway/adapter-invocation-proposal":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            capability = values.get("capability", [None])[0] or None
+            adapter_id = values.get("adapter_id", [None])[0] or values.get("adapter", [None])[0] or None
+            actor = values.get("actor", [None])[0] or None
+            channel = values.get("channel", [None])[0] or None
+            domain = values.get("domain", [None])[0] or None
+            action = values.get("action", [None])[0] or None
+            params = _query_parameters(values.get("param", []))
+            self._send_json(
+                HTTPStatus.OK,
+                collect_adapter_invocation_proposal(
+                    requested_capability=capability,
+                    adapter_id=adapter_id,
+                    actor=actor,
+                    channel=channel,
+                    domain=domain,
+                    action=action,
+                    parameters=params,
                 ),
             )
             return
@@ -566,6 +591,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/permission-decision",
             "/v1/gateway/policy-eval",
             "/v1/gateway/authorization-record",
+            "/v1/gateway/adapter-invocation-proposal",
             "/v1/gateway/model-status",
             "/v1/gateway/model-plan",
             "/v1/gateway/model-files",
@@ -1042,6 +1068,21 @@ class GatewayHandler(BaseHTTPRequestHandler):
 
 def _is_loopback_bind(bind: str) -> bool:
     return bind in {"127.0.0.1", "localhost", "::1"}
+
+
+def _query_parameters(items: list[str]) -> dict[str, str]:
+    params: dict[str, str] = {}
+    for item in items:
+        if "=" in item:
+            key, value = item.split("=", 1)
+        elif ":" in item:
+            key, value = item.split(":", 1)
+        else:
+            key, value = item, ""
+        key = key.strip()
+        if key:
+            params[key] = value.strip()
+    return params
 
 
 def _mobile_candidate_from_server_bind(bind: str) -> str | None:

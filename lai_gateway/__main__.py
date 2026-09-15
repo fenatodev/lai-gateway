@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .adapter_invocation import collect_adapter_invocation_proposal, render_adapter_invocation_proposal
 from .adapters import collect_adapter_registry, render_adapter_registry
 from .authorization_record import collect_authorization_record, render_authorization_record
 from .bridge import collect_mobile_bridge, render_mobile_bridge
@@ -79,6 +80,21 @@ from .tokens import (
     default_pair_token_path,
     revoke_gateway_pairing_token,
 )
+
+
+def _params_from_pairs(pairs: list[str] | None) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for item in pairs or []:
+        if "=" in item:
+            key, value = item.split("=", 1)
+        elif ":" in item:
+            key, value = item.split(":", 1)
+        else:
+            key, value = item, ""
+        key = key.strip()
+        if key:
+            values[key] = value.strip()
+    return values
 
 
 def _config_with_overrides(config: GatewayConfig, bind: str | None, port: int | None) -> GatewayConfig:
@@ -278,6 +294,15 @@ def main(argv: list[str] | None = None) -> int:
     authorization_record_parser.add_argument("--domain", default=None, help="authorization domain label; defaults to unknown")
     authorization_record_parser.add_argument("--action", default=None, help="human-readable action label")
     authorization_record_parser.add_argument("--json", action="store_true", help="print JSON")
+    adapter_invocation_parser = sub.add_parser("adapter-invocation-proposal", help="build a read-only adapter invocation proposal without dispatch")
+    adapter_invocation_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
+    adapter_invocation_parser.add_argument("--capability", required=True, help="requested capability to propose")
+    adapter_invocation_parser.add_argument("--actor", default=None, help="proposal actor label; defaults to user")
+    adapter_invocation_parser.add_argument("--channel", default=None, help="proposal channel label; defaults to gateway")
+    adapter_invocation_parser.add_argument("--domain", default=None, help="proposal domain label; defaults to unknown")
+    adapter_invocation_parser.add_argument("--action", default=None, help="human-readable action label")
+    adapter_invocation_parser.add_argument("--param", action="append", default=None, help="bounded public parameter as key=value; repeatable")
+    adapter_invocation_parser.add_argument("--json", action="store_true", help="print JSON")
     dev_parser = sub.add_parser("dev", help="check harness and serve the local gateway UI")
     dev_parser.add_argument("--bind", default=None, help="gateway bind address allowed by config policy")
     dev_parser.add_argument("--port", type=int, default=None, help="gateway port")
@@ -717,6 +742,21 @@ def main(argv: list[str] | None = None) -> int:
             )
             if not args.json:
                 print(render_authorization_record(payload))
+                return 0
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.command == "adapter-invocation-proposal":
+            payload = collect_adapter_invocation_proposal(
+                adapter_id=args.adapter,
+                requested_capability=args.capability,
+                actor=args.actor,
+                channel=args.channel,
+                domain=args.domain,
+                action=args.action,
+                parameters=_params_from_pairs(args.param),
+            )
+            if not args.json:
+                print(render_adapter_invocation_proposal(payload))
                 return 0
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
