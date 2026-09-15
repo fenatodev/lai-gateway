@@ -177,6 +177,21 @@ class AdapterRegistryTest(unittest.TestCase):
         self.assertIn("media.upload_external", adapter["human_approval_required_for"])
         self.assertFalse(payload["security"]["tool_execution_enabled"])
 
+    def test_local_status_adapter_is_registered_as_local_only(self) -> None:
+        payload = collect_adapter_registry(adapter_id="local_status")
+        self.assertEqual(payload["overall"], "ready")
+        adapter = payload["adapters"][0]
+        self.assertEqual(adapter["id"], "local_status")
+        self.assertEqual(adapter["status"], "local_handler")
+        self.assertEqual(adapter["granted_capabilities"], ["local_status.status", "local_status.echo"])
+        self.assertTrue(adapter["local_handler_registered"])
+        self.assertFalse(adapter["executes_tools"])
+        self.assertFalse(adapter["network_access_enabled"])
+        self.assertFalse(adapter["credentialed_access_enabled"])
+        self.assertFalse(adapter["filesystem_write_enabled"])
+        self.assertFalse(adapter["shell_execution_enabled"])
+        self.assertFalse(adapter["external_side_effects_enabled"])
+
     def test_adapter_filter_and_cli_are_secret_free(self) -> None:
         missing = collect_adapter_registry(adapter_id="missing")
         self.assertEqual(missing["overall"], "missing")

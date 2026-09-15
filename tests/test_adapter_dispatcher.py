@@ -84,6 +84,38 @@ class AdapterDispatcherInterfaceTest(unittest.TestCase):
         self.assertEqual(dispatcher["adapter_status"], "missing")
         self.assertFalse(dispatcher["dispatch_permitted"])
 
+    def test_local_status_plans_registered_handler_without_dispatch(self) -> None:
+        payload = collect_adapter_dispatcher_interface(
+            adapter_id="local_status",
+            requested_capability="local_status.status",
+        )
+        dispatcher = payload["dispatcher"]
+        self.assertEqual(dispatcher["status"], "planned_local_handler")
+        self.assertTrue(dispatcher["handler_registered"])
+        self.assertFalse(dispatcher["dispatch_permitted"])
+        self.assertFalse(dispatcher["adapter_dispatched"])
+        self.assertFalse(dispatcher["adapter_executed"])
+        self.assertIsNone(payload["handler_result"])
+
+    def test_local_status_dispatch_executes_only_in_process_handler(self) -> None:
+        payload = collect_adapter_dispatcher_interface(
+            adapter_id="local_status",
+            requested_capability="local_status.status",
+            action="safe status check",
+            parameters={"label": "public"},
+            dispatch_requested=True,
+        )
+        dispatcher = payload["dispatcher"]
+        self.assertEqual(dispatcher["status"], "dispatched_local")
+        self.assertTrue(dispatcher["dispatch_permitted"])
+        self.assertTrue(dispatcher["handler_registered"])
+        self.assertTrue(dispatcher["adapter_dispatched"])
+        self.assertTrue(dispatcher["adapter_executed"])
+        self.assertFalse(dispatcher["executes_tools"])
+        self.assertFalse(dispatcher["external_side_effects"])
+        self.assertEqual(payload["result"], "local_status")
+        self.assertEqual(payload["handler_result"]["status"], "ok")
+
     def test_sensitive_action_and_parameters_are_not_exposed(self) -> None:
         payload = collect_adapter_dispatcher_interface(
             adapter_id="n8n",
