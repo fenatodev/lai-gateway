@@ -16,6 +16,7 @@ from urllib.parse import parse_qs, urlparse
 from . import __version__
 from .adapter_invocation import collect_adapter_invocation_proposal
 from .adapter_dry_run import collect_adapter_dry_run
+from .authorization_capture import collect_authorization_capture_stub
 from .audit_events import collect_audit_events
 from .access import collect_mobile_access
 from .adapters import collect_adapter_registry
@@ -320,6 +321,35 @@ class GatewayHandler(BaseHTTPRequestHandler):
                     domain=domain,
                     action=action,
                     parameters=params,
+                ),
+            )
+            return
+        if parsed.path == "/v1/gateway/authorization-capture-stub":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            capability = values.get("capability", [None])[0] or None
+            adapter_id = values.get("adapter_id", [None])[0] or values.get("adapter", [None])[0] or None
+            actor = values.get("actor", [None])[0] or None
+            channel = values.get("channel", [None])[0] or None
+            domain = values.get("domain", [None])[0] or None
+            action = values.get("action", [None])[0] or None
+            params = _query_parameters(values.get("param", []))
+            intent_raw = (values.get("approval_intent", [""])[0] or "").strip().lower()
+            approval_intent = intent_raw in {"1", "true", "yes", "confirm"}
+            approved_by = values.get("approved_by", [None])[0] or None
+            self._send_json(
+                HTTPStatus.OK,
+                collect_authorization_capture_stub(
+                    requested_capability=capability,
+                    adapter_id=adapter_id,
+                    actor=actor,
+                    channel=channel,
+                    domain=domain,
+                    action=action,
+                    parameters=params,
+                    approval_intent=approval_intent,
+                    approved_by=approved_by,
                 ),
             )
             return
@@ -644,6 +674,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/adapter-invocation-proposal",
             "/v1/gateway/audit-events",
             "/v1/gateway/adapter-dry-run",
+            "/v1/gateway/authorization-capture-stub",
             "/v1/gateway/model-status",
             "/v1/gateway/model-plan",
             "/v1/gateway/model-files",
