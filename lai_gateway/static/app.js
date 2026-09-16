@@ -244,6 +244,40 @@ function documentTextBody() {
   return { workspace_root: workspaceRoot, relative_path: relativePath, max_chars: 6000 };
 }
 
+function documentWorkbenchParams({ includeSelection = false } = {}) {
+  const body = documentTextBody();
+  const params = new URLSearchParams({
+    workspace_root: body.workspace_root,
+    max_results: "25",
+    max_chars: "3000",
+  });
+  if (includeSelection && body.relative_path) params.set("selected_relative_path", body.relative_path);
+  return params;
+}
+
+function setDocumentWorkbench(payload) {
+  const select = byId("document-relative-select");
+  if (select) {
+    const selected = byId("document-relative-path")?.value.trim() || "";
+    select.replaceChildren();
+    const empty = document.createElement("option");
+    empty.value = "";
+    empty.textContent = payload.documents?.length ? "selecione documento permitido" : "nenhum documento permitido listado";
+    select.appendChild(empty);
+    for (const item of payload.documents || []) {
+      const option = document.createElement("option");
+      option.value = item.relative_path;
+      option.textContent = `${item.relative_path} · ${item.extension} · ${item.size_bytes} bytes`;
+      select.appendChild(option);
+    }
+    if (selected && Array.from(select.options).some((option) => option.value === selected)) select.value = selected;
+  }
+  const count = payload.workbench?.candidate_count ?? 0;
+  const status = payload.overall || "desconhecido";
+  setPill("model-pill", `documentos ${status} · ${count}`, status === "blocked" ? "danger" : "ready");
+  show("document-output", payload);
+}
+
 function setMcpStatus(payload) {
   const overall = payload.overall || payload.mcp_overall || "desconhecido";
   const state = overall === "ready" ? "ready" : overall === "blocked" ? "danger" : "running";
@@ -1408,6 +1442,12 @@ async function runAction(action) {
       });
       setPill("model-pill", `memória ${payload.overall || "desconhecido"}`, payload.overall === "blocked" ? "danger" : "ready");
       show("memory-output", payload);
+    } else if (action === "refresh-document-workbench") {
+      const payload = await requestJson(`/v1/gateway/document-workbench?${documentWorkbenchParams()}`);
+      setDocumentWorkbench(payload);
+    } else if (action === "inspect-document-workbench") {
+      const payload = await requestJson(`/v1/gateway/document-workbench?${documentWorkbenchParams({ includeSelection: true })}`);
+      setDocumentWorkbench(payload);
     } else if (action === "read-document-text-local") {
       const payload = await requestJson("/v1/gateway/document-text-local", {
         method: "POST",
@@ -1626,9 +1666,11 @@ async function runAction(action) {
             ? "ops-output"
           : action.includes("memory")
             ? "memory-output"
-            : action.includes("model")
-              ? "model-output"
-              : "status-output";
+            : action.includes("document")
+              ? "document-output"
+              : action.includes("model")
+                ? "model-output"
+                : "status-output";
     show(target, String(err.message || err));
   }
 }
@@ -1698,6 +1740,13 @@ document.addEventListener("DOMContentLoaded", () => {
       runAction("load-local-chat-models");
     });
   }
+  const documentSelect = byId("document-relative-select");
+  if (documentSelect) {
+    documentSelect.addEventListener("change", () => {
+      const selected = documentSelect.value || "";
+      if (selected) byId("document-relative-path").value = selected;
+    });
+  }
   const tokenBox = byId("gateway-token");
   if (tokenBox) {
     tokenBox.addEventListener("keydown", (event) => {
@@ -1709,6 +1758,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setAuthBanner("Acesso local por loopback não precisa de pareamento do celular.", "ready");
     runAction("refresh-model-status");
     runAction("refresh-memory-context");
+    runAction("refresh-document-workbench");
     runAction("refresh-mcp-status");
     runAction("refresh-readiness");
     runAction("refresh-health-report");

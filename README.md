@@ -317,3 +317,5 @@ Local memory is explicit and scoped: `lai-gateway memory-context` can show, reme
 ### Restricted local document text
 
 `lai-gateway document-text-local --workspace-root . --relative-path docs/product/roadmap.md --json` extracts only bounded local `.txt`, `.md`, or `.json` text from an explicit workspace. Document content is untrusted and grants no permission, approval, or authority. PDF, OCR, Office files, media, HOME scans, network access, and filesystem writes remain blocked.
+
+The Workbench document panel uses `document-workbench/v1` for metadata-only local selection and delegates inspection to `document-text-local/v1`. It shows state and limits, lists only bounded top-level candidates, and does not upload, index, summarize, execute tools, or infer approval from document content.
