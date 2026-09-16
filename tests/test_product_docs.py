@@ -18,6 +18,7 @@ class ProductDocsTest(unittest.TestCase):
             "alpha_readiness.md",
             "roadmap_review_prompt.md",
             "pr_89_roadmap_alpha_readiness.md",
+            "pr_93_testable_identity.md",
         ):
             path = PRODUCT_DOCS / name
             self.assertTrue(path.exists(), name)
@@ -98,8 +99,10 @@ class ProductDocsTest(unittest.TestCase):
             if line.startswith("| ") and not line.startswith("| ---"):
                 cells = [cell.strip() for cell in line.strip("|").split("|")]
                 rows[cells[0]] = cells[1:]
-        for area in ("browser", "n8n", "voice", "MCP execution", "social/career", "document/media", "identidade usuário/cliente/agente/serviço"):
+        for area in ("browser", "n8n", "voice", "MCP execution", "social/career", "document/media"):
             self.assertEqual(rows[area][0], "contract", area)
+        self.assertEqual(rows["identidade usuário/cliente/agente/serviço"][0], "experimental")
+        self.assertEqual(rows["identidade usuário/cliente/agente/serviço"][1], "binding local testável")
         self.assertEqual(rows["effective authorization"][0], "experimental")
         self.assertEqual(rows["adapter dry-run"][0], "implemented")
         self.assertEqual(rows["adapter dry-run"][1], "simulado/dry-run")
@@ -126,6 +129,23 @@ class ProductDocsTest(unittest.TestCase):
         )
         for term in ("adapter-dry-run", "authorization_persisted=false", "declarado", "simulado", "efetivamente imposto"):
             self.assertIn(term, text)
+
+
+    def test_pr93_identity_docs_are_canonical_and_limited(self) -> None:
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        roadmap = (PRODUCT_DOCS / "roadmap.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        self.assertIn("principal-identity/v1", roadmap)
+        self.assertIn("identity.py", matrix)
+        self.assertIn("tests/test_identity.py", matrix)
+        self.assertIn("não é login completo nem autorização", matrix)
+        self.assertIn("não cria login completo nem autorização", roadmap)
+        self.assertIn("não equivale a login completo", alpha)
+        self.assertIn("[PR93](pr_93_testable_identity.md)", index)
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("identity-binding", readme)
+        self.assertIn("identity binding", readme)
 
 
     def test_public_restrictions_are_complete_in_canonical_documents(self) -> None:

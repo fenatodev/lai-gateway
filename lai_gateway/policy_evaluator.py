@@ -80,6 +80,16 @@ def evaluate_policy_request(
     channel: str | None = None,
     domain: str | None = None,
     action: str | None = None,
+    user_id: str | None = None,
+    client_id: str | None = None,
+    agent_id: str | None = None,
+    service_id: str | None = None,
+    identity_source: str | None = None,
+    expected_identity_binding_id: str | None = None,
+    claimed_user_id: str | None = None,
+    claimed_client_id: str | None = None,
+    claimed_agent_id: str | None = None,
+    claimed_service_id: str | None = None,
 ) -> tuple[PermissionDecision, tuple[PolicyRuleResult, ...]]:
     capability = _safe_public_text(requested_capability, default="missing")
     adapter_value = _safe_public_text(adapter_id, default="") or None
@@ -95,6 +105,16 @@ def evaluate_policy_request(
         channel=channel_value,
         domain=domain_value,
         action=action_value,
+        user_id=user_id,
+        client_id=client_id,
+        agent_id=agent_id,
+        service_id=service_id,
+        identity_source=identity_source,
+        expected_identity_binding_id=expected_identity_binding_id,
+        claimed_user_id=claimed_user_id,
+        claimed_client_id=claimed_client_id,
+        claimed_agent_id=claimed_agent_id,
+        claimed_service_id=claimed_service_id,
     )
     adapter = _adapter_contract(adapter_value)
     declared = set(adapter.get("requested_capabilities", [])) if adapter else set()
@@ -104,6 +124,11 @@ def evaluate_policy_request(
     rules: list[PolicyRuleResult] = [
         _rule("request.normalized", "pass", "request fields are bounded and secret-shaped values are redacted"),
     ]
+    if decision.identity_verified:
+        rules.append(_rule("identity.verified", "pass", "user/client/agent/service binding is verified from a trusted source"))
+    else:
+        rules.append(_rule("identity.verified", "fail", "identity binding is not trusted or drifted"))
+
     if capability == "missing":
         rules.append(_rule("capability.present", "fail", "requested capability is required"))
     else:
@@ -150,6 +175,16 @@ def collect_policy_evaluation(
     channel: str | None = None,
     domain: str | None = None,
     action: str | None = None,
+    user_id: str | None = None,
+    client_id: str | None = None,
+    agent_id: str | None = None,
+    service_id: str | None = None,
+    identity_source: str | None = None,
+    expected_identity_binding_id: str | None = None,
+    claimed_user_id: str | None = None,
+    claimed_client_id: str | None = None,
+    claimed_agent_id: str | None = None,
+    claimed_service_id: str | None = None,
 ) -> dict[str, Any]:
     decision, rules = evaluate_policy_request(
         requested_capability=requested_capability,
@@ -158,6 +193,16 @@ def collect_policy_evaluation(
         channel=channel,
         domain=domain,
         action=action,
+        user_id=user_id,
+        client_id=client_id,
+        agent_id=agent_id,
+        service_id=service_id,
+        identity_source=identity_source,
+        expected_identity_binding_id=expected_identity_binding_id,
+        claimed_user_id=claimed_user_id,
+        claimed_client_id=claimed_client_id,
+        claimed_agent_id=claimed_agent_id,
+        claimed_service_id=claimed_service_id,
     )
     return {
         "product": "lai-gateway",
@@ -170,6 +215,17 @@ def collect_policy_evaluation(
         "modifies_files": False,
         "executes_tools": False,
         "evaluation_id": _evaluation_id(decision, rules),
+        "identity_verified": decision.identity_verified,
+        "identity_binding_id": decision.identity_binding_id,
+        "identity": {
+            "identity_binding_id": decision.identity_binding_id,
+            "identity_verified": decision.identity_verified,
+            "identity_source": decision.identity_source,
+            "user_id": decision.user_id,
+            "client_id": decision.client_id,
+            "agent_id": decision.agent_id,
+            "service_id": decision.service_id,
+        },
         "decision": decision.to_dict(),
         "rules": [rule.to_dict() for rule in rules],
         "security": {
@@ -179,6 +235,7 @@ def collect_policy_evaluation(
             "skills_elevate_permissions": False,
             "adapters_elevate_permissions": False,
             "content_elevates_permissions": False,
+            "identity_elevates_permissions": False,
         },
     }
 
@@ -195,6 +252,8 @@ def render_policy_evaluation(payload: dict[str, Any]) -> str:
         f"adapter_id: {decision.get('adapter_id') or 'none'}",
         f"risk_level: {decision['risk_level']}",
         f"requires_human_approval: {str(decision['requires_human_approval']).lower()}",
+        f"identity_binding_id: {decision['identity_binding_id']}",
+        f"identity_verified: {str(decision['identity_verified']).lower()}",
         "rules:",
     ]
     for rule in payload.get("rules", []):

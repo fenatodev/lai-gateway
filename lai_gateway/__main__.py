@@ -28,6 +28,7 @@ from .effective_authorization import collect_effective_authorization, render_eff
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .health import collect_health_report, render_health_report
+from .identity import collect_identity_binding, render_identity_binding
 from .lan import collect_lan_info, render_lan_info
 from .persisted_audit_log import collect_persisted_audit_log, render_persisted_audit_log
 from .model import check_model_api_key_file, collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_smoke, collect_model_status, collect_model_task, create_model_api_key_file, render_model_eval, render_model_files, render_model_key, render_model_plan, render_model_runs, render_model_smoke, render_model_status, render_model_task
@@ -277,6 +278,18 @@ def main(argv: list[str] | None = None) -> int:
     stack_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     dev_control_parser = sub.add_parser("dev-control", help="show read-only LAI controlled-dev policy")
     dev_control_parser.add_argument("--json", action="store_true", help="print JSON")
+    identity_parser = sub.add_parser("identity-binding", help="show the local principal identity binding without granting permissions")
+    identity_parser.add_argument("--user-id", default=None, help="bounded user principal label; defaults to local-user")
+    identity_parser.add_argument("--client-id", default=None, help="bounded client principal label; defaults to local-cli")
+    identity_parser.add_argument("--agent-id", default=None, help="bounded agent principal label; defaults to lai-agent")
+    identity_parser.add_argument("--service-id", default=None, help="bounded service principal label; defaults to lai-gateway")
+    identity_parser.add_argument("--identity-source", default=None, help="trusted local source label; defaults to local-cli")
+    identity_parser.add_argument("--expected-identity-binding-id", default=None, help="expected binding id for drift checks")
+    identity_parser.add_argument("--claimed-user-id", default=None, help="untrusted claim to compare against the trusted user id")
+    identity_parser.add_argument("--claimed-client-id", default=None, help="untrusted claim to compare against the trusted client id")
+    identity_parser.add_argument("--claimed-agent-id", default=None, help="untrusted claim to compare against the trusted agent id")
+    identity_parser.add_argument("--claimed-service-id", default=None, help="untrusted claim to compare against the trusted service id")
+    identity_parser.add_argument("--json", action="store_true", help="print JSON")
     permission_decision_parser = sub.add_parser("permission-decision", help="evaluate a read-only LAI permission decision object")
     permission_decision_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
     permission_decision_parser.add_argument("--capability", required=True, help="requested capability to evaluate")
@@ -786,6 +799,24 @@ def main(argv: list[str] | None = None) -> int:
             payload = collect_lan_info(port=args.port or config.port, discovered_hosts=args.candidate_ip)
             if not args.json:
                 print(render_lan_info(payload))
+                return 0
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.command == "identity-binding":
+            payload = collect_identity_binding(
+                user_id=args.user_id,
+                client_id=args.client_id,
+                agent_id=args.agent_id,
+                service_id=args.service_id,
+                identity_source=args.identity_source,
+                expected_identity_binding_id=args.expected_identity_binding_id,
+                claimed_user_id=args.claimed_user_id,
+                claimed_client_id=args.claimed_client_id,
+                claimed_agent_id=args.claimed_agent_id,
+                claimed_service_id=args.claimed_service_id,
+            )
+            if not args.json:
+                print(render_identity_binding(payload))
                 return 0
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0

@@ -25,6 +25,7 @@ from .authorization_record import collect_authorization_record
 from .authorization_validation import collect_authorization_validation_gate
 from .effective_authorization import collect_effective_authorization
 from .health import collect_health_report, render_health_report
+from .identity import collect_identity_binding
 from .ops import collect_ops_status
 from .permission_decision import collect_permission_decision
 from .persisted_audit_log import collect_persisted_audit_log
@@ -183,6 +184,12 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 return
             self._send_json(HTTPStatus.OK, collect_dev_control_policy())
             return
+        if parsed.path == "/v1/gateway/identity-binding":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            self._send_json(HTTPStatus.OK, collect_identity_binding(**self._identity_kwargs(values)))
+            return
         if parsed.path == "/v1/gateway/adapters":
             if not self._authorize_gateway_api(parsed.path):
                 return
@@ -209,6 +216,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
                     channel=channel,
                     domain=domain,
                     action=action,
+                    **self._identity_kwargs(values),
                 ),
             )
             return
@@ -231,6 +239,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
                     channel=channel,
                     domain=domain,
                     action=action,
+                    **self._identity_kwargs(values),
                 ),
             )
             return
@@ -253,6 +262,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
                     channel=channel,
                     domain=domain,
                     action=action,
+                    **self._identity_kwargs(values),
                 ),
             )
             return
@@ -774,6 +784,25 @@ class GatewayHandler(BaseHTTPRequestHandler):
             return False
         return True
 
+    def _identity_kwargs(self, values: dict[str, list[str]]) -> dict[str, str | None]:
+        private = bool(self.server.config.private_bind_enabled)
+        source = "private-gateway-token" if private else "gateway-loopback"
+        client_id = "gateway-private-token" if private else "gateway-loopback"
+        return {
+            "user_id": "local-user",
+            "client_id": client_id,
+            "agent_id": "lai-agent",
+            "service_id": "lai-gateway",
+            "identity_source": source,
+            "expected_identity_binding_id": values.get("expected_identity_binding_id", [None])[0]
+            or values.get("expected-identity-binding-id", [None])[0]
+            or None,
+            "claimed_user_id": values.get("claimed_user_id", [None])[0] or None,
+            "claimed_client_id": values.get("claimed_client_id", [None])[0] or None,
+            "claimed_agent_id": values.get("claimed_agent_id", [None])[0] or None,
+            "claimed_service_id": values.get("claimed_service_id", [None])[0] or None,
+        }
+
     def _authorize_gateway_api(self, path: str) -> bool:
         protected_gateway_paths = {
             "/v1/gateway/health-report",
@@ -782,6 +811,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/chat",
             "/v1/gateway/skills",
             "/v1/gateway/dev-control",
+            "/v1/gateway/identity-binding",
             "/v1/gateway/adapters",
             "/v1/gateway/permission-decision",
             "/v1/gateway/policy-eval",

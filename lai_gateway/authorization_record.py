@@ -22,6 +22,13 @@ class AuthorizationRecord:
     requested_capability: str
     granted_capability: str | None
     adapter_id: str | None
+    identity_binding_id: str
+    identity_verified: bool
+    identity_source: str
+    user_id: str
+    client_id: str
+    agent_id: str
+    service_id: str
     actor: str
     channel: str
     domain: str
@@ -69,6 +76,16 @@ def build_authorization_record(
     channel: str | None = None,
     domain: str | None = None,
     action: str | None = None,
+    user_id: str | None = None,
+    client_id: str | None = None,
+    agent_id: str | None = None,
+    service_id: str | None = None,
+    identity_source: str | None = None,
+    expected_identity_binding_id: str | None = None,
+    claimed_user_id: str | None = None,
+    claimed_client_id: str | None = None,
+    claimed_agent_id: str | None = None,
+    claimed_service_id: str | None = None,
 ) -> tuple[AuthorizationRecord, dict[str, Any]]:
     evaluation = collect_policy_evaluation(
         requested_capability=requested_capability,
@@ -77,6 +94,16 @@ def build_authorization_record(
         channel=channel,
         domain=domain,
         action=action,
+        user_id=user_id,
+        client_id=client_id,
+        agent_id=agent_id,
+        service_id=service_id,
+        identity_source=identity_source,
+        expected_identity_binding_id=expected_identity_binding_id,
+        claimed_user_id=claimed_user_id,
+        claimed_client_id=claimed_client_id,
+        claimed_agent_id=claimed_agent_id,
+        claimed_service_id=claimed_service_id,
     )
     decision = evaluation["decision"]
     status, reason = _record_status(decision)
@@ -95,6 +122,7 @@ def build_authorization_record(
             decision["channel"],
             decision["domain"],
             decision["action"],
+            decision["identity_binding_id"],
             status,
         )
     )
@@ -109,6 +137,13 @@ def build_authorization_record(
             requested_capability=decision["requested_capability"],
             granted_capability=decision.get("granted_capability"),
             adapter_id=decision.get("adapter_id"),
+            identity_binding_id=decision["identity_binding_id"],
+            identity_verified=decision["identity_verified"],
+            identity_source=decision["identity_source"],
+            user_id=decision["user_id"],
+            client_id=decision["client_id"],
+            agent_id=decision["agent_id"],
+            service_id=decision["service_id"],
             actor=decision["actor"],
             channel=decision["channel"],
             domain=decision["domain"],
@@ -136,6 +171,16 @@ def collect_authorization_record(
     channel: str | None = None,
     domain: str | None = None,
     action: str | None = None,
+    user_id: str | None = None,
+    client_id: str | None = None,
+    agent_id: str | None = None,
+    service_id: str | None = None,
+    identity_source: str | None = None,
+    expected_identity_binding_id: str | None = None,
+    claimed_user_id: str | None = None,
+    claimed_client_id: str | None = None,
+    claimed_agent_id: str | None = None,
+    claimed_service_id: str | None = None,
 ) -> dict[str, Any]:
     record, evaluation = build_authorization_record(
         requested_capability=requested_capability,
@@ -144,6 +189,16 @@ def collect_authorization_record(
         channel=channel,
         domain=domain,
         action=action,
+        user_id=user_id,
+        client_id=client_id,
+        agent_id=agent_id,
+        service_id=service_id,
+        identity_source=identity_source,
+        expected_identity_binding_id=expected_identity_binding_id,
+        claimed_user_id=claimed_user_id,
+        claimed_client_id=claimed_client_id,
+        claimed_agent_id=claimed_agent_id,
+        claimed_service_id=claimed_service_id,
     )
     return {
         "product": "lai-gateway",
@@ -157,6 +212,17 @@ def collect_authorization_record(
         "executes_tools": False,
         "record_persisted": False,
         "effective_authorization": False,
+        "identity_verified": record.identity_verified,
+        "identity_binding_id": record.identity_binding_id,
+        "identity": {
+            "identity_binding_id": record.identity_binding_id,
+            "identity_verified": record.identity_verified,
+            "identity_source": record.identity_source,
+            "user_id": record.user_id,
+            "client_id": record.client_id,
+            "agent_id": record.agent_id,
+            "service_id": record.service_id,
+        },
         "record": record.to_dict(),
         "evaluation": evaluation,
         "security": {
@@ -167,6 +233,7 @@ def collect_authorization_record(
             "adapters_elevate_permissions": False,
             "content_elevates_permissions": False,
             "approval_text_elevates_permissions": False,
+            "identity_elevates_permissions": False,
         },
     }
 
@@ -186,6 +253,8 @@ def render_authorization_record(payload: dict[str, Any]) -> str:
             f"requested_capability: {record['requested_capability']}",
             f"granted_capability: {record.get('granted_capability') or 'none'}",
             f"adapter_id: {record.get('adapter_id') or 'none'}",
+            f"identity_binding_id: {record['identity_binding_id']}",
+            f"identity_verified: {str(record['identity_verified']).lower()}",
             f"risk_level: {record['risk_level']}",
             f"requires_human_approval: {str(record['requires_human_approval']).lower()}",
             f"approval_captured: {str(record['approval_captured']).lower()}",
