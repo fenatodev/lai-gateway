@@ -17,6 +17,7 @@ from . import __version__
 from .adapter_invocation import collect_adapter_invocation_proposal
 from .action_proposal import collect_action_proposal
 from .approval_inbox import collect_approval_inbox
+from .context_pack import collect_context_pack
 from .alpha_readiness import collect_alpha_readiness
 from .adapter_dry_run import collect_adapter_dry_run
 from .adapter_dispatcher import collect_adapter_dispatcher_interface
@@ -276,6 +277,27 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 actor="user",
                 channel="gateway",
                 domain="memory_context",
+            ))
+            return
+        if parsed.path == "/v1/gateway/context-pack":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            max_document_chars = self._positive_int_query(values.get("max_document_chars", ["2000"])[0], default=2000, maximum=8000)
+            memory_limit = self._positive_int_query(values.get("memory_limit", ["5"])[0], default=5, maximum=20)
+            if max_document_chars is None or memory_limit is None:
+                return
+            documents = values.get("document", []) + values.get("relative_path", [])
+            self._send_json(HTTPStatus.OK, collect_context_pack(
+                workspace_root=values.get("workspace_root", ["."])[0] or ".",
+                state_file=values.get("state_file", [None])[0] or None,
+                task_id=values.get("task_id", [None])[0] or values.get("task-id", [None])[0] or None,
+                project_id=values.get("project_id", [None])[0] or None,
+                context_kind=values.get("context_kind", ["project"])[0] or "project",
+                memory_dir=values.get("memory_dir", [None])[0] or None,
+                documents=documents,
+                max_document_chars=max_document_chars,
+                memory_limit=memory_limit,
             ))
             return
         if parsed.path == "/v1/gateway/document-workbench":
@@ -1146,6 +1168,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/action-proposal",
             "/v1/gateway/approval-inbox",
             "/v1/gateway/dev-loop-fixture",
+            "/v1/gateway/context-pack",
             "/v1/gateway/audit-events",
             "/v1/gateway/adapter-dry-run",
             "/v1/gateway/authorization-capture-stub",

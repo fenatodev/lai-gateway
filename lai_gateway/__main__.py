@@ -25,6 +25,7 @@ from .bridge import collect_mobile_bridge, render_mobile_bridge
 from .access import collect_mobile_access, render_mobile_access
 from .config import GatewayConfig
 from .contract import summarize_contract
+from .context_pack import collect_context_pack, render_context_pack
 from .doctor import collect_doctor, render_doctor
 from .document_text import collect_document_text_local, render_document_text_local
 from .daily_config import collect_daily_config, read_daily_config, render_daily_config, shell_exports, validate_daily_config, write_daily_config
@@ -258,6 +259,17 @@ def main(argv: list[str] | None = None) -> int:
     memory_parser.add_argument("--memory-dir", default=None, help="local memory directory under the repo scope")
     memory_parser.add_argument("--limit", type=int, default=20, help="maximum recent memory entries to show")
     memory_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    context_pack_parser = sub.add_parser("context-pack", help="build an explicit local context pack without authority or execution")
+    context_pack_parser.add_argument("--workspace-root", default=".", help="explicit project workspace root")
+    context_pack_parser.add_argument("--state-file", default=None, help="relative objective state file; defaults to .lai/objective-state.json")
+    context_pack_parser.add_argument("--task-id", default=None, help="optional objective-state task id to select")
+    context_pack_parser.add_argument("--project-id", default=None, help="bounded project label for memory context; defaults to objective project_id or default")
+    context_pack_parser.add_argument("--context-kind", choices=["project", "personal"], default="project", help="memory scope kind")
+    context_pack_parser.add_argument("--memory-dir", default=None, help="local memory directory under the explicit workspace")
+    context_pack_parser.add_argument("--document", action="append", default=None, help="explicit .txt/.md/.json document path inside workspace; repeatable or comma-separated")
+    context_pack_parser.add_argument("--max-document-chars", type=int, default=2000, help="maximum characters per selected document")
+    context_pack_parser.add_argument("--memory-limit", type=int, default=5, help="maximum memory entries to include")
+    context_pack_parser.add_argument("--json", action="store_true", help="print JSON")
     document_text_parser = sub.add_parser("document-text-local", help="extract text from one scoped local .txt/.md/.json document")
     document_text_parser.add_argument("--workspace-root", required=True, help="workspace directory under the repo scope")
     document_text_parser.add_argument("--relative-path", required=True, help="relative text document path inside the workspace")
@@ -937,6 +949,23 @@ def main(argv: list[str] | None = None) -> int:
             )
             if not args.json:
                 print(render_memory_context(payload))
+                return 0 if payload["overall"] != "blocked" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] != "blocked" else 1
+        if args.command == "context-pack":
+            payload = collect_context_pack(
+                workspace_root=args.workspace_root,
+                state_file=args.state_file,
+                task_id=args.task_id,
+                project_id=args.project_id,
+                context_kind=args.context_kind,
+                memory_dir=args.memory_dir,
+                documents=args.document,
+                max_document_chars=args.max_document_chars,
+                memory_limit=args.memory_limit,
+            )
+            if not args.json:
+                print(render_context_pack(payload))
                 return 0 if payload["overall"] != "blocked" else 1
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0 if payload["overall"] != "blocked" else 1
