@@ -13,6 +13,7 @@ from .adapter_invocation import collect_adapter_invocation_proposal, render_adap
 from .adapter_dry_run import collect_adapter_dry_run, render_adapter_dry_run
 from .adapter_dispatcher import collect_adapter_dispatcher_interface, render_adapter_dispatcher_interface
 from .authorization_capture import collect_authorization_capture_stub, render_authorization_capture_stub
+from .authorization_recovery import collect_authorization_recovery, render_authorization_recovery
 from .audit_events import collect_audit_events, render_audit_events
 from .adapters import collect_adapter_registry, render_adapter_registry
 from .authorization_record import collect_authorization_record, render_authorization_record
@@ -366,6 +367,22 @@ def main(argv: list[str] | None = None) -> int:
     effective_authorization_parser.add_argument("--approved-by", default=None, help="bounded approver label")
     effective_authorization_parser.add_argument("--operation-scope", default=None, help="only adapter-dry-run can become effective")
     effective_authorization_parser.add_argument("--json", action="store_true", help="print JSON")
+    authorization_recovery_parser = sub.add_parser("authorization-recovery", help="issue, check, revoke, or consume a scoped local authorization grant")
+    authorization_recovery_parser.add_argument("--recovery-action", choices=("issue", "check", "recover", "consume", "revoke"), default="check", help="authorization recovery action")
+    authorization_recovery_parser.add_argument("--authorization-grant-id", default=None, help="grant id returned by issue")
+    authorization_recovery_parser.add_argument("--ttl-seconds", type=int, default=None, help="grant lifetime; bounded to one hour")
+    authorization_recovery_parser.add_argument("--authorization-dir", default=None, help="local authorization directory under the repo scope")
+    authorization_recovery_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
+    authorization_recovery_parser.add_argument("--capability", required=True, help="requested capability to persist or check")
+    authorization_recovery_parser.add_argument("--actor", default=None, help="authorization actor label; defaults to user")
+    authorization_recovery_parser.add_argument("--channel", default=None, help="authorization channel label; defaults to gateway")
+    authorization_recovery_parser.add_argument("--domain", default=None, help="authorization domain label; defaults to unknown")
+    authorization_recovery_parser.add_argument("--action", default=None, help="human-readable action label; stored only as a digest")
+    authorization_recovery_parser.add_argument("--param", action="append", default=None, help="bounded public parameter as key=value; repeatable")
+    authorization_recovery_parser.add_argument("--approve", action="store_true", help="mark approval intent before issuing or consuming")
+    authorization_recovery_parser.add_argument("--approved-by", default=None, help="bounded approver label")
+    authorization_recovery_parser.add_argument("--operation-scope", default="local-status-read", help="fixed PR95 scope; only local-status-read is accepted")
+    authorization_recovery_parser.add_argument("--json", action="store_true", help="print JSON")
     persisted_audit_parser = sub.add_parser("persisted-audit-log", help="plan or append a scoped local audit log record")
     persisted_audit_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
     persisted_audit_parser.add_argument("--capability", required=True, help="requested capability to log")
@@ -390,8 +407,10 @@ def main(argv: list[str] | None = None) -> int:
     dispatcher_parser.add_argument("--param", action="append", default=None, help="bounded public parameter as key=value")
     dispatcher_parser.add_argument("--approve", action="store_true", help="mark approval intent before building dispatcher plan")
     dispatcher_parser.add_argument("--approved-by", default=None, help="bounded approver label")
-    dispatcher_parser.add_argument("--operation-scope", default=None, help="scope to authorize; only adapter-dry-run is accepted")
-    dispatcher_parser.add_argument("--dispatch", action="store_true", help="request dispatch; real handlers remain unavailable")
+    dispatcher_parser.add_argument("--operation-scope", default=None, help="scope to authorize; adapter-dry-run or local-status-read")
+    dispatcher_parser.add_argument("--authorization-grant-id", default=None, help="single-use grant id required for local-status-read dispatch")
+    dispatcher_parser.add_argument("--authorization-dir", default=None, help="local authorization directory under the repo scope")
+    dispatcher_parser.add_argument("--dispatch", action="store_true", help="request dispatch for allowlisted local handlers")
     dispatcher_parser.add_argument("--json", action="store_true", help="print JSON")
     audit_events_parser = sub.add_parser("audit-events", help="render read-only LAI decision audit events without persistence")
     audit_events_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
@@ -922,12 +941,35 @@ def main(argv: list[str] | None = None) -> int:
                 approved_by=args.approved_by,
                 operation_scope=args.operation_scope,
                 dispatch_requested=bool(args.dispatch),
+                authorization_grant_id=args.authorization_grant_id,
+                authorization_dir=args.authorization_dir,
             )
             if not args.json:
                 print(render_adapter_dispatcher_interface(payload))
                 return 0
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
+        if args.command == "authorization-recovery":
+            payload = collect_authorization_recovery(
+                recovery_action=args.recovery_action,
+                authorization_grant_id=args.authorization_grant_id,
+                ttl_seconds=args.ttl_seconds,
+                authorization_dir=args.authorization_dir,
+                adapter_id=args.adapter,
+                requested_capability=args.capability,
+                actor=args.actor,
+                channel=args.channel,
+                domain=args.domain,
+                action=args.action,
+                parameters=_params_from_pairs(args.param),
+                approval_intent=bool(args.approve),
+                approved_by=args.approved_by,
+            )
+            if not args.json:
+                print(render_authorization_recovery(payload))
+                return 0 if payload["status"] not in {"blocked", "expired", "missing"} else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["status"] not in {"blocked", "expired", "missing"} else 1
         if args.command == "persisted-audit-log":
             payload = collect_persisted_audit_log(
                 adapter_id=args.adapter,

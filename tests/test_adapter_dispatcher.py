@@ -6,12 +6,14 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.parse import quote
 from urllib.request import urlopen
 
 from lai_gateway.adapter_dispatcher import (
     collect_adapter_dispatcher_interface,
     render_adapter_dispatcher_interface,
 )
+from lai_gateway.authorization_recovery import collect_authorization_recovery
 from lai_gateway.config import GatewayConfig
 
 from .fake_harness import TOKEN, fake_harness
@@ -19,6 +21,22 @@ from .test_ui import RunningGateway
 
 
 class AdapterDispatcherInterfaceTest(unittest.TestCase):
+    def _issue_local_status_grant(self, root: Path, *, action: str = "safe status check") -> dict[str, object]:
+        return collect_authorization_recovery(
+            recovery_action="issue",
+            authorization_dir=root / "auth",
+            scope_root=root,
+            adapter_id="local_status",
+            requested_capability="local_status.status",
+            actor="user",
+            channel="workbench",
+            domain="governance",
+            action=action,
+            parameters={"label": "public"},
+            approval_intent=True,
+            approved_by="user",
+        )
+
     def test_authorized_dry_run_scope_still_does_not_dispatch(self) -> None:
         payload = collect_adapter_dispatcher_interface(
             adapter_id="browser",
@@ -112,22 +130,36 @@ class AdapterDispatcherInterfaceTest(unittest.TestCase):
         self.assertEqual(dispatcher["operation_scope"], "adapter-dry-run")
 
     def test_local_status_dispatch_executes_only_in_process_handler(self) -> None:
-        payload = collect_adapter_dispatcher_interface(
-            adapter_id="local_status",
-            requested_capability="local_status.status",
-            action="safe status check",
-            parameters={"label": "public"},
-            dispatch_requested=True,
-            operation_scope="local-status-read",
-        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            issued = self._issue_local_status_grant(root)
+            payload = collect_adapter_dispatcher_interface(
+                adapter_id="local_status",
+                requested_capability="local_status.status",
+                action="safe status check",
+                parameters={"label": "public"},
+                dispatch_requested=True,
+                operation_scope="local-status-read",
+                authorization_grant_id=str(issued["authorization_grant_id"]),
+                authorization_dir=root / "auth",
+                scope_root=root,
+                actor="user",
+                channel="workbench",
+                domain="governance",
+                approval_intent=True,
+                approved_by="user",
+            )
         dispatcher = payload["dispatcher"]
         self.assertEqual(dispatcher["status"], "dispatched_local")
         self.assertTrue(dispatcher["dispatch_permitted"])
         self.assertTrue(dispatcher["handler_registered"])
         self.assertTrue(dispatcher["adapter_dispatched"])
         self.assertTrue(dispatcher["adapter_executed"])
+        self.assertTrue(dispatcher["authorization_consumed"])
+        self.assertFalse(dispatcher["retry_automatic"])
         self.assertFalse(dispatcher["executes_tools"])
         self.assertFalse(dispatcher["external_side_effects"])
+        self.assertEqual(payload["authorization_recovery"]["status"], "consumed_for_single_use")
         self.assertEqual(payload["result"], "local_status")
         self.assertEqual(payload["handler_result"]["status"], "ok")
 
@@ -136,6 +168,34 @@ class AdapterDispatcherInterfaceTest(unittest.TestCase):
         self.assertTrue(dispatcher["adapter_capability_authorized"])
         self.assertTrue(payload["effective"]["local_non_dry_run_authorized"])
         self.assertEqual(payload["effective"]["authorized_target"], "local_status.status")
+
+    def test_local_status_dispatch_blocks_second_use_of_same_grant(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            issued = self._issue_local_status_grant(root)
+            kwargs = dict(
+                adapter_id="local_status",
+                requested_capability="local_status.status",
+                action="safe status check",
+                parameters={"label": "public"},
+                dispatch_requested=True,
+                operation_scope="local-status-read",
+                authorization_grant_id=str(issued["authorization_grant_id"]),
+                authorization_dir=root / "auth",
+                scope_root=root,
+                actor="user",
+                channel="workbench",
+                domain="governance",
+                approval_intent=True,
+                approved_by="user",
+            )
+            first = collect_adapter_dispatcher_interface(**kwargs)
+            second = collect_adapter_dispatcher_interface(**kwargs)
+        self.assertEqual(first["dispatcher"]["status"], "dispatched_local")
+        self.assertEqual(second["dispatcher"]["status"], "blocked")
+        self.assertFalse(second["dispatcher"]["dispatch_permitted"])
+        self.assertFalse(second["dispatcher"]["adapter_executed"])
+        self.assertIn("consumed", second["authorization_recovery"]["reason"])
 
     def test_local_status_dispatch_rejects_forged_identity(self) -> None:
         payload = collect_adapter_dispatcher_interface(
@@ -206,11 +266,26 @@ class AdapterDispatcherInterfaceTest(unittest.TestCase):
             token_file = Path(tmp) / "token"
             token_file.write_text(TOKEN, encoding="utf-8")
             config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            auth_dir = "state/test-pr95-dispatcher-endpoint"
+            encoded_auth_dir = quote(auth_dir)
             with RunningGateway(config) as gateway:
+                issue_url = (
+                    f"{gateway.url}/v1/gateway/authorization-recovery"
+                    "?adapter=local_status&capability=local_status.status"
+                    "&operation_scope=local-status-read&approve=true"
+                    "&recovery_action=issue"
+                    f"&authorization_dir={encoded_auth_dir}"
+                )
+                with urlopen(issue_url, timeout=5) as response:
+                    issued_body = response.read().decode("utf-8")
+                issued = json.loads(issued_body)
+                grant_id = quote(str(issued["authorization_grant_id"]))
                 url = (
                     f"{gateway.url}/v1/gateway/adapter-dispatcher"
                     "?adapter=local_status&capability=local_status.status"
-                    "&operation_scope=local-status-read&dispatch=true"
+                    "&operation_scope=local-status-read&approve=true&dispatch=true"
+                    f"&authorization_grant_id={grant_id}"
+                    f"&authorization_dir={encoded_auth_dir}"
                 )
                 with urlopen(url, timeout=5) as response:
                     body = response.read().decode("utf-8")
@@ -219,9 +294,11 @@ class AdapterDispatcherInterfaceTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(payload["dispatcher"]["status"], "dispatched_local")
         self.assertTrue(payload["dispatcher"]["effective_authorization"])
+        self.assertTrue(payload["dispatcher"]["authorization_consumed"])
         self.assertTrue(payload["effective"]["local_non_dry_run_authorized"])
         self.assertEqual(payload["handler_result"]["status"], "ok")
         self.assertNotIn(TOKEN, body)
+        self.assertNotIn(TOKEN, issued_body)
 
     def test_gateway_endpoint_is_non_dispatching(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

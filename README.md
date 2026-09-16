@@ -8,7 +8,7 @@ It is intentionally a separate project. The harness owns local coding authority 
 
 Start with the [public quickstart](docs/quickstart.md) for source-first local installation and diagnostics. Use the [release checklist](docs/release_checklist.md) and [Workbench visual guide](docs/workbench_visual_guide.md) for PR92-level candidate verification. For product direction, use the [canonical product documentation](docs/product/index.md): the [post-PR89 roadmap consolidated in PR90](docs/product/roadmap.md), [implementation matrix](docs/product/implementation_matrix.md), and [public alpha go/no-go criteria](docs/product/alpha_readiness.md).
 
-The product is experimental. Effective authorization currently covers `adapter-dry-run` and one real local non-dry-run path: `local-status-read` for `local_status.status`. That path is tightly allowlisted and is not proof of general authorization. Browser, n8n, voice, broad MCP execution and social/career automation are not ready-to-use features. Their contracts do not establish runtime capability. A public technical alpha is planned, not declared ready or complete.
+The product is experimental. Effective authorization currently covers `adapter-dry-run` and one real local non-dry-run path: `local-status-read` for `local_status.status`. PR95 adds local persisted single-use authorization grants for that path only. It is not proof of general authorization. Browser, n8n, voice, broad MCP execution and social/career automation are not ready-to-use features. Their contracts do not establish runtime capability. A public technical alpha is planned, not declared ready or complete.
 
 Telegram outbound has an existing operator-invoked, opt-in notification path with a configured destination. It is not general agent messaging authority or durable per-message approval. New governed sends require explicit approval of content and destination plus the roadmap gates. Read-only declarations and simulations must not be presented as enforced isolation without executor-specific evidence.
 
@@ -16,7 +16,7 @@ The current gateway provides:
 
 - a dependency-free Python client for the harness control plane;
 - validation of the `lai harness` gateway contract, including the MCP broker foundation, read-only run-event timelines, strict-template-safe remote diagnose runs, and the v0.5.0 local-chat workbench contract when available;
-- a local CLI for `config`, `contract`, `status`, `readiness`, `doctor`, `identity-binding`, `health-report`, `open-ui`, `stack-start`, `mcp`, `sessions`, and `runs`, including run-event timeline reads;
+- a local CLI for `config`, `contract`, `status`, `readiness`, `doctor`, `identity-binding`, `authorization-recovery`, `health-report`, `open-ui`, `stack-start`, `mcp`, `sessions`, and `runs`, including run-event timeline reads;
 - an HTTP gateway exposing harness status, readiness, contract, identity binding, MCP metadata, session, read-only run, run-event, and local-chat workbench routes;
 - read-only run creation for `diagnose`, `plan`, `release`, `review`, and `security`, plus metadata-only timeline polling in the local UI;
 - a loopback-only Local Workbench for `lai harness` v0.5.0 local-chat workspaces, model choices, work runs, review, lifecycle cancel, and hash-bound promotion.
