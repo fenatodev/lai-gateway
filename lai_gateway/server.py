@@ -26,6 +26,7 @@ from .adapters import collect_adapter_registry
 from .authorization_record import collect_authorization_record
 from .authorization_validation import collect_authorization_validation_gate
 from .effective_authorization import collect_effective_authorization
+from .external_expansion import collect_external_expansion_gate
 from .health import collect_health_report, render_health_report
 from .identity import collect_identity_binding
 from .ops import collect_ops_status
@@ -232,6 +233,11 @@ class GatewayHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.OK, collect_alpha_readiness(
                 target_version=values.get("target", [__version__])[0] or __version__,
             ))
+            return
+        if parsed.path == "/v1/gateway/external-expansion-gate":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            self._send_json(HTTPStatus.OK, collect_external_expansion_gate())
             return
         if parsed.path == "/v1/gateway/model-runs":
             if not self._authorize_gateway_api(parsed.path):
@@ -1076,6 +1082,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/public-browser",
             "/v1/gateway/model-runtime",
             "/v1/gateway/alpha-readiness",
+            "/v1/gateway/external-expansion-gate",
             "/v1/gateway/model-plan",
             "/v1/gateway/model-files",
             "/v1/gateway/model-task",

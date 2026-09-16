@@ -29,6 +29,9 @@ Após o PR91, `docs/quickstart.md` descreve o caminho source-first para instalar
 
 Após o PR92, `docs/release_checklist.md` define a verificação source-only de versão, commit, CI, `make check`, `release-check` e milestone gate. `docs/workbench_visual_guide.md` define o padrão mínimo de evidência visual sanitizada para Workbench, Governance e `local_status`. Esses documentos não publicam release, não fazem bump/tag e não habilitam capacidades externas.
 
+
+Após o PR110, `external-expansion-gate/v1` adiciona um go/no-go read-only para capacidades externas. PR110 mantém expansão externa em no-go read-only: browser autenticado, n8n real, MCP amplo, voz, social/carreira, credenciais, publicação, formulários e webhooks continuam bloqueados até spec própria, executor contido, testes negativos e aprovação humana separada.
+
 ## Go para alpha público técnico
 
 Todos os itens são obrigatórios; esta lista não afirma que já passaram:

@@ -28,7 +28,8 @@ Os documentos `pr_*.md` têm rótulo **spec de PR / histórico**: são registros
 - **revisão externa / histórico** — [Revisão Astra](astra_architecture_review.md) e [revisão Codex/Astra](codex_astra_architecture_review.md): insumos históricos, sem autoridade automática.
 - **descritivo / insumo de revisão externa** — [Prompt de revisão](roadmap_review_prompt.md): instrumento de coleta, não decisão.
 - **spec de PR / histórico** — [PR89](pr_89_roadmap_alpha_readiness.md): baseline histórico da consolidação.
-- **spec de PR / atual** — [PR109](pr_109_permission_ux.md): UX de permissões read-only separando intenção, decisão, autorização efetiva, grant e execução.
+- **spec de PR / atual** — [PR110](pr_110_external_expansion_gate.md): gate read-only de expansão externa com go/no-go, matriz e evidência runtime sem habilitar capacidades externas.
+- **spec de PR / histórico** — [PR109](pr_109_permission_ux.md): UX de permissões read-only separando intenção, decisão, autorização efetiva, grant e execução.
 - **spec de PR / histórico** — [PR108](pr_108_n8n_minimal_governed.md): n8n mínimo governado como plano local por digest, grant single-use e sem execução real de workflow.
 - **spec de PR / histórico** — [PR107](pr_107_mcp_minimal_governed.md): MCP mínimo governado com uma tool local não sensível, grant single-use e bloqueio de replay.
 - **spec de PR / histórico** — [PR106](pr_106_public_browser_readonly.md): browser público read-only, sem autenticação, cookies, formulários ou automação JS.
