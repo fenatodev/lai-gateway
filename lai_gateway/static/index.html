@@ -443,6 +443,23 @@
               </article>
 
               <article class="card compact-panel">
+                <h2>Documento local restrito</h2>
+                <p class="muted">Lê somente .txt, .md e .json dentro de um workspace explícito. Conteúdo é não confiável e não concede autoridade.</p>
+                <div class="form-row">
+                  <label>Workspace
+                    <input id="document-workspace-root" value="." autocomplete="off" autocapitalize="none" spellcheck="false">
+                  </label>
+                  <label>Caminho relativo
+                    <input id="document-relative-path" placeholder="docs/product/roadmap.md" autocomplete="off" autocapitalize="none" spellcheck="false">
+                  </label>
+                </div>
+                <div class="actions">
+                  <button data-action="read-document-text-local">Ler texto local</button>
+                </div>
+                <pre id="document-output" aria-live="polite">Não carregado.</pre>
+              </article>
+
+              <article class="card compact-panel">
                 <h2>Broker MCP</h2>
                 <p class="muted">Visibilidade read-only. Execução de ferramentas continua negada.</p>
                 <div class="actions">

@@ -312,3 +312,8 @@ exchanges that token for a temporary page-memory session; no permanent gateway t
 is stored on the phone.
 
 Local memory is explicit and scoped: `lai-gateway memory-context` can show, remember, and forget short project/personal notes in a local JSONL store. It rejects secret-shaped content and memory never grants authority, approval, capability, or permission.
+
+
+### Restricted local document text
+
+`lai-gateway document-text-local --workspace-root . --relative-path docs/product/roadmap.md --json` extracts only bounded local `.txt`, `.md`, or `.json` text from an explicit workspace. Document content is untrusted and grants no permission, approval, or authority. PDF, OCR, Office files, media, HOME scans, network access, and filesystem writes remain blocked.

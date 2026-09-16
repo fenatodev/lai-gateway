@@ -292,6 +292,9 @@ class GatewayUITest(unittest.TestCase):
         self.assertIn("/v1/gateway/model-runs", js)
         self.assertIn("/v1/gateway/memory-context", js)
         self.assertIn("memoryContextBody", js)
+        self.assertIn("documentTextBody", js)
+        self.assertIn("/v1/gateway/document-text-local", js)
+        self.assertIn("read-document-text-local", js)
         self.assertIn("remember-memory-context", js)
         self.assertIn("/v1/local-chat/contract", js)
         self.assertIn("/v1/local-chat/workspaces", js)
@@ -856,6 +859,39 @@ class GatewayUITest(unittest.TestCase):
         self.assertFalse(payload["security"]["grants_permission"])
         self.assertNotIn(TOKEN, body)
         self.assertNotIn("Bearer", body)
+
+    def test_gateway_document_text_local_endpoint_is_restricted_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp, fake_harness() as harness:
+            base = Path(tmp)
+            token_file = base / "token"
+            workspace = base / "workspace"
+            workspace.mkdir()
+            (workspace / "doc.md").write_text("# Doc\ntexto local", encoding="utf-8")
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            body = json.dumps({
+                "workspace_root": str(workspace),
+                "relative_path": "doc.md",
+                "max_chars": 100,
+            }).encode("utf-8")
+            with RunningGateway(config) as gateway:
+                status, headers, body_text = read_url(
+                    f"{gateway.url}/v1/gateway/document-text-local",
+                    data=body,
+                    method="POST",
+                )
+        payload = json.loads(body_text)
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        self.assertEqual(payload["operation"], "document-text-local")
+        self.assertEqual(payload["overall"], "ready")
+        self.assertIn("texto local", payload["document"]["text_preview"])
+        self.assertTrue(payload["security"]["untrusted_content"])
+        self.assertFalse(payload["security"]["grants_permission"])
+        self.assertFalse(payload["security"]["filesystem_write"])
+        self.assertFalse(payload["security"]["supports_pdf"])
+        self.assertNotIn(TOKEN, body_text)
+        self.assertNotIn("Bearer", body_text)
 
     def test_private_model_runs_requires_gateway_auth(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

@@ -34,6 +34,7 @@ from .policy_evaluator import collect_policy_evaluation
 from .skills import collect_skills_registry
 from .config import GatewayConfig, read_gateway_access_token, validate_gateway_bind
 from .dev_control import collect_dev_control_policy
+from .document_text import collect_document_text_local
 from .tokens import read_valid_gateway_pairing_token
 from .errors import ConfigError, GatewayError, HarnessHTTPError
 from .harness_client import (
@@ -179,6 +180,19 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 actor="user",
                 channel="gateway",
                 domain="memory_context",
+            ))
+            return
+        if parsed.path == "/v1/gateway/document-text-local":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            max_chars = self._positive_int_query(values.get("max_chars", ["6000"])[0], default=6000, maximum=20000)
+            if max_chars is None:
+                return
+            self._send_json(HTTPStatus.OK, collect_document_text_local(
+                workspace_root=values.get("workspace_root", [""])[0],
+                relative_path=values.get("relative_path", [""])[0],
+                max_chars=max_chars,
             ))
             return
         if parsed.path == "/v1/gateway/health-report":
@@ -731,6 +745,18 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 domain="memory_context",
             ))
             return
+        if parsed.path == "/v1/gateway/document-text-local":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            body = self._read_document_text_body()
+            if body is None:
+                return
+            self._send_json(HTTPStatus.OK, collect_document_text_local(
+                workspace_root=body["workspace_root"],
+                relative_path=body["relative_path"],
+                max_chars=int(body["max_chars"]),
+            ))
+            return
         if parsed.path == "/v1/local-chat/runs":
             if not self._authorize_local_chat_api():
                 return
@@ -912,6 +938,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/model-runs",
             "/v1/gateway/model-eval",
             "/v1/gateway/memory-context",
+            "/v1/gateway/document-text-local",
         }
         if not (path.startswith("/v1/harness/") or path in protected_gateway_paths):
             return True
@@ -1290,6 +1317,24 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "memory_id": memory_id,
             "limit": limit,
         }
+
+    def _read_document_text_body(self) -> dict[str, str | int] | None:
+        payload = self._read_json_object(
+            allowed_keys={"workspace_root", "relative_path", "max_chars"},
+            unsupported_error="unsupported_document_text_fields",
+        )
+        if payload is None:
+            return None
+        workspace_root = payload.get("workspace_root")
+        relative_path = payload.get("relative_path")
+        max_chars = payload.get("max_chars", 6000)
+        if not isinstance(workspace_root, str) or not isinstance(relative_path, str):
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_document_text_body"})
+            return None
+        if not isinstance(max_chars, int) or not 1 <= max_chars <= 20000:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_document_text_body"})
+            return None
+        return {"workspace_root": workspace_root, "relative_path": relative_path, "max_chars": max_chars}
 
     def _read_mcp_policy_body(self) -> dict[str, str | None] | None:
         payload = self._read_json_object(

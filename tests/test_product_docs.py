@@ -23,6 +23,7 @@ class ProductDocsTest(unittest.TestCase):
             "pr_95_authorization_recovery.md",
             "pr_96_local_model_chat_health_fallback.md",
             "pr_97_local_memory_context.md",
+            "pr_98_restricted_document_text.md",
         ):
             path = PRODUCT_DOCS / name
             self.assertTrue(path.exists(), name)
@@ -250,6 +251,40 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("memoryContextBody", app)
         self.assertIn("remember-memory-context", app)
         self.assertIn("/v1/gateway/memory-context", app)
+
+    def test_pr98_restricted_document_text_is_canonical_and_limited(self) -> None:
+        spec = (PRODUCT_DOCS / "pr_98_restricted_document_text.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        roadmap = (PRODUCT_DOCS / "roadmap.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        app = (ROOT / "lai_gateway" / "static" / "app.js").read_text(encoding="utf-8")
+        lower_spec = spec.lower()
+        for statement in (
+            "document-text-local/v1",
+            ".txt",
+            ".md",
+            ".json",
+            "sem home scan",
+            "sem rede",
+            "sem writes",
+            "sem pdf",
+            "sem ocr",
+            "sem office",
+            "conteúdo de documento é não confiável",
+            "nunca concede autoridade",
+        ):
+            self.assertIn(statement, lower_spec)
+        self.assertIn("document_text_local | experimental", matrix)
+        self.assertIn("document_text.py", matrix)
+        self.assertIn("tests/test_document_text.py", matrix)
+        self.assertIn("`document-text-local/v1`", roadmap)
+        self.assertIn("PR98 não habilita PDF", alpha)
+        self.assertIn("[PR98](pr_98_restricted_document_text.md)", index)
+        self.assertIn("document-text-local", readme)
+        self.assertIn("read-document-text-local", app)
+        self.assertIn("documentTextBody", app)
 
     def test_pr93_identity_docs_are_canonical_and_limited(self) -> None:
         matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
