@@ -37,7 +37,7 @@ O foco não é adicionar mais adapters sensíveis. O foco é tornar o fluxo loca
 
 PR111 deve vir primeiro porque o roadmap pós-PR100 terminou no PR110. Sem novo plano, qualquer avanço vira expansão oportunista.
 
-PR112–PR118 devem consolidar o uso local antes de nova superfície externa. PR119 só pode ampliar browser público se a contenção continuar verificável. PR120 não libera uma capacidade externa; apenas escolhe e avalia a primeira candidata com critérios explícitos.
+PR112 deve permanecer contrato antes de runtime: primeiro declara fronteira do projeto, depois PR113 registra objetivo/tarefas dentro dessa fronteira. PR112–PR118 devem consolidar o uso local antes de nova superfície externa. PR119 só pode ampliar browser público se a contenção continuar verificável. PR120 não libera uma capacidade externa; apenas escolhe e avalia a primeira candidata com critérios explícitos.
 
 ## Fora de escopo nesta sequência até gate próprio
 

@@ -34,6 +34,8 @@ Após o PR110, `external-expansion-gate/v1` adiciona um go/no-go read-only para 
 
 Após o PR111, o plano operacional pós-PR110 define PR111–PR120 para avançar do alpha técnico ao alpha operacional local. PR111 é documental: não cria executor, não emite grant, não consome grant, não despacha adapter e não libera capacidade externa.
 
+Após o PR112, `project_workspace_contract` define raiz explícita, escopo local, dados tocados e exclusões para projetos. PR112 é documental: não cria scanner, endpoint, CLI, UI, executor, grant, adapter, HOME scan, ingestão implícita ou autorização efetiva.
+
 ## Go para alpha público técnico
 
 Todos os itens são obrigatórios; esta lista não afirma que já passaram:
