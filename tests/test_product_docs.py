@@ -31,6 +31,7 @@ class ProductDocsTest(unittest.TestCase):
             "pr_102_release_alpha_technical.md",
             "pr_103_clean_local_dogfood.md",
             "pr_104_onboarding_ux_next_steps.md",
+            "pr_105_operational_local_model.md",
         ):
             path = PRODUCT_DOCS / name
             self.assertTrue(path.exists(), name)
@@ -358,6 +359,32 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("alpha-readiness", readme)
         self.assertIn("refresh-alpha-readiness", app)
         self.assertIn("/v1/gateway/alpha-readiness", app)
+
+
+    def test_pr105_operational_local_model_is_canonical_and_limited(self) -> None:
+        spec = (PRODUCT_DOCS / "pr_105_operational_local_model.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        post = (PRODUCT_DOCS / "post_pr100_roadmap.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        html = (ROOT / "lai_gateway" / "static" / "index.html").read_text(encoding="utf-8")
+        js = (ROOT / "lai_gateway" / "static" / "app.js").read_text(encoding="utf-8")
+        combined = "\n".join([spec, index, post, matrix, html, js])
+        for marker in (
+            "model-runtime/v1",
+            "Modelo operacional",
+            "Runtime local configurável",
+            "sem download automático",
+            "Sem nuvem",
+            "sem execução de tools",
+            "Sem shell",
+            "Sem browser",
+            "Sem MCP tool execution",
+            "não concede autoridade",
+        ):
+            self.assertIn(marker, combined)
+        self.assertIn("[PR105](pr_105_operational_local_model.md)", index)
+        self.assertIn("/v1/gateway/model-runtime", js)
+        self.assertIn("configure-model-runtime", html)
 
     def test_pr104_onboarding_ux_is_canonical_and_limited(self) -> None:
         spec = (PRODUCT_DOCS / "pr_104_onboarding_ux_next_steps.md").read_text(encoding="utf-8")

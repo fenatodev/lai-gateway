@@ -103,6 +103,9 @@ class GatewayUITest(unittest.TestCase):
                 self.assertIn('id="active-session-pill"', html)
                 self.assertIn('id="active-run-pill"', html)
                 self.assertIn('id="model-pill"', html)
+                self.assertIn('id="model-runtime-output"', html)
+                self.assertIn('data-action="refresh-model-runtime"', html)
+                self.assertIn('data-action="configure-model-runtime"', html)
                 self.assertIn('id="mcp-pill"', html)
                 self.assertIn('id="workbench-pill"', html)
                 self.assertIn('LAI Workbench', html)
@@ -1150,6 +1153,51 @@ class GatewayUITest(unittest.TestCase):
             with RunningGateway(config) as gateway:
                 with self.assertRaises(__import__("urllib.error").error.HTTPError) as ctx:
                     read_url(f"{gateway.url}/v1/gateway/model-files")
+        self.assertEqual(ctx.exception.code, 401)
+
+
+    def test_gateway_model_runtime_endpoint_is_configurable_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with RunningGateway(config) as gateway:
+                with patch("lai_gateway.server.collect_model_runtime") as collect:
+                    collect.return_value = {
+                        "operation": "model-runtime",
+                        "schema_version": "model-runtime/v1",
+                        "overall": "warn",
+                        "security": {"prints_tokens": False},
+                    }
+                    status, headers, body = read_url(f"{gateway.url}/v1/gateway/model-runtime?runtime_action=diagnose&probe_openai=1")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        payload = json.loads(body)
+        self.assertEqual(payload["operation"], "model-runtime")
+        collect.assert_called_once()
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
+
+    def test_private_model_runtime_requires_gateway_auth(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            access_file = Path(tmp) / "access-token"
+            access = "gateway-access-secret-value-1234567890"
+            access_file.write_text(access, encoding="utf-8")
+            access_file.chmod(0o600)
+            pair_file = Path(tmp) / "pair-token.json"
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                bind="127.0.0.1",
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            with RunningGateway(config) as gateway:
+                with self.assertRaises(__import__("urllib.error").error.HTTPError) as ctx:
+                    read_url(f"{gateway.url}/v1/gateway/model-runtime")
         self.assertEqual(ctx.exception.code, 401)
 
     def test_gateway_model_plan_endpoint_is_read_only_and_secret_free(self) -> None:

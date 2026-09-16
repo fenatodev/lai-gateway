@@ -956,6 +956,171 @@ def _require_model_secret_file_mode(path: Path) -> None:
 
         raise ConfigError(f"model API key file permissions must be 0600, got {current_mode:04o}: {path}")
 
+
+def collect_model_runtime(
+    *,
+    runtime_action: str = "show",
+    base_url: str | None = None,
+    model_name: str | None = None,
+    api_key_file: str | Path | None = None,
+    config_path: str | Path | None = None,
+    probe_openai: bool = False,
+    env: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Configure or diagnose the local OpenAI-compatible model runtime without managing it."""
+    from .errors import ConfigError
+
+    action = (runtime_action or "show").strip().lower()
+    if action not in {"show", "configure", "diagnose"}:
+        action = "show"
+    target = Path(config_path).expanduser() if config_path else default_model_config_path()
+    writes_config = action == "configure"
+    config_error = None
+    configured = False
+    written = None
+    if writes_config:
+        try:
+            written = write_model_runtime_config(
+                base_url=base_url or "",
+                model_name=model_name or "",
+                api_key_file=api_key_file or "",
+                path=target,
+            )
+            configured = True
+        except ConfigError as exc:
+            config_error = str(exc)
+    else:
+        try:
+            read_model_runtime_config(target)
+            configured = True
+        except ConfigError as exc:
+            config_error = str(exc)
+    scoped_env = dict(env or {})
+    scoped_env["LAI_GATEWAY_MODEL_CONFIG_FILE"] = str(target)
+    status = collect_model_status(env=scoped_env, probe_openai=probe_openai)
+    key_state = _runtime_key_state(api_key_file or status.get("model_config", {}).get("api_key_file"))
+    readiness = _model_runtime_readiness(
+        action=action,
+        configured=configured,
+        config_error=config_error,
+        status=status,
+        key_state=key_state,
+        probe_openai=probe_openai,
+    )
+    return {
+        "product": "lai-gateway",
+        "version": __version__,
+        "operation": "model-runtime",
+        "schema_version": "model-runtime/v1",
+        "runtime_action": action,
+        "overall": readiness["overall"],
+        "configured": configured,
+        "config_path": str(target),
+        "config_error": config_error,
+        "written": written,
+        "status": status,
+        "key_file": key_state,
+        "ready_for_chat": readiness["ready_for_chat"],
+        "next_steps": readiness["next_steps"],
+        "security": {
+            "prints_tokens": False,
+            "stores_api_key_value": False,
+            "starts_server": False,
+            "modifies_files": writes_config and written is not None,
+            "downloads_models": False,
+            "executes_tools": False,
+            "cloud_fallback": False,
+            "network_access": bool(probe_openai and status.get("network_calls", {}).get("local_openai_probe")),
+            "local_network_only": True,
+        },
+    }
+
+
+def render_model_runtime(payload: dict[str, Any]) -> str:
+    lines = [
+        f"lai-gateway model-runtime: {payload.get('overall', 'unknown')}",
+        f"version: {payload.get('version', __version__)}",
+        f"schema: {payload.get('schema_version', 'model-runtime/v1')}",
+        f"action: {payload.get('runtime_action', 'show')}",
+        f"configured: {str(bool(payload.get('configured'))).lower()}",
+        f"ready_for_chat: {str(bool(payload.get('ready_for_chat'))).lower()}",
+        "starts_server: false",
+        f"modifies_files: {str(bool(payload.get('security', {}).get('modifies_files'))).lower()}",
+        "downloads_models: false",
+        "executes_tools: false",
+        "cloud_fallback: false",
+    ]
+    status = payload.get("status") or {}
+    if status.get("overall"):
+        lines.append(f"model_status: {status['overall']}")
+    if payload.get("config_error"):
+        lines.append(f"config_error: {payload['config_error']}")
+    steps = payload.get("next_steps") or []
+    if steps:
+        lines.append("next_steps:")
+        lines.extend(f"  {step}" for step in steps[:6])
+    return "\n".join(lines)
+
+
+def _runtime_key_state(path_value: object) -> dict[str, Any]:
+    text = str(path_value or "").strip()
+    if not text:
+        return {"configured": False, "ok": False, "status": "missing", "key_printed": False}
+    try:
+        checked = check_model_api_key_file(Path(text).expanduser())
+    except Exception as exc:  # noqa: BLE001 - diagnostic only, no secret value
+        return {"configured": True, "ok": False, "status": "blocked", "detail": str(exc)[:180], "key_printed": False}
+    return {
+        "configured": True,
+        "ok": True,
+        "status": "ready",
+        "mode": checked.get("mode"),
+        "key_length": checked.get("key_length"),
+        "key_printed": False,
+    }
+
+
+def _model_runtime_readiness(
+    *,
+    action: str,
+    configured: bool,
+    config_error: str | None,
+    status: dict[str, Any],
+    key_state: dict[str, Any],
+    probe_openai: bool,
+) -> dict[str, Any]:
+    steps: list[str] = []
+    model_config = status.get("model_config") or {}
+    if config_error:
+        steps.append("Configure um endpoint local OpenAI-compatible, nome de modelo e arquivo de chave local.")
+    if not model_config.get("base_url"):
+        steps.append("Defina LAI_GATEWAY_MODEL_BASE_URL para loopback ou rede privada permitida.")
+    if not model_config.get("model"):
+        steps.append("Defina LAI_GATEWAY_MODEL_NAME com o nome exposto pelo runtime local.")
+    if not key_state.get("ok"):
+        steps.append("Crie ou corrija o arquivo de chave local: lai-gateway model-key-create --force.")
+    probe = status.get("openai_probe")
+    if probe_openai and (not probe or probe.get("status") != "ready"):
+        steps.append("Inicie manualmente o runtime local e rode: lai-gateway model-runtime diagnose --probe-openai.")
+    elif not probe_openai:
+        steps.append("Rode diagnóstico com probe local: lai-gateway model-runtime diagnose --probe-openai.")
+    ready_for_chat = bool(configured and model_config.get("base_url") and model_config.get("model") and key_state.get("ok") and (not probe_openai or (probe or {}).get("status") == "ready"))
+    if ready_for_chat:
+        steps = [] if probe_openai else steps[-1:]
+    overall = "ready" if ready_for_chat and probe_openai else "warn" if configured or action == "configure" else "needs_config"
+    return {"overall": overall, "ready_for_chat": ready_for_chat, "next_steps": _dedupe_strings(steps)}
+
+
+def _dedupe_strings(values: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        out.append(value)
+    return out
+
 def collect_model_files(
     *,
     paths: list[str] | None = None,
