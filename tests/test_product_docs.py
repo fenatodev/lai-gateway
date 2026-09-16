@@ -185,5 +185,52 @@ class ProductDocsTest(unittest.TestCase):
             self.assertTrue((PRODUCT_DOCS / link).is_file(), link)
 
 
+    def test_public_quickstart_exists_and_is_source_first(self) -> None:
+        quickstart = ROOT / "docs" / "quickstart.md"
+        self.assertTrue(quickstart.is_file())
+        text = quickstart.read_text(encoding="utf-8")
+        for statement in (
+            "source checkout validation",
+            "editable local wrapper installation without `pip install`",
+            "scripts/install-local.sh",
+            "export PATH=\"$HOME/.local/bin:$PATH\"",
+            "PYTHON=python3 make check",
+            "lai-gateway-stack-check",
+            "--harness-repo /path/to/workspace/lai-harness-checkout",
+            "lai-gateway doctor",
+            "lai-gateway readiness",
+            "lai-gateway dev --bind 127.0.0.1 --port 8787 --no-open",
+            "http://127.0.0.1:8787/",
+            "lai-gateway stack-start --check-only",
+        ):
+            self.assertIn(statement, text)
+
+    def test_public_quickstart_does_not_overclaim_alpha_capabilities(self) -> None:
+        text = (ROOT / "docs" / "quickstart.md").read_text(encoding="utf-8")
+        for statement in (
+            "It does not cover a one-click installer, PyPI release, hosted service, cloud",
+            "authenticated browser sessions, real n8n activation, broad MCP",
+            "external message/publication automation",
+            "prove general adapter authorization",
+            "does not enable browser, n8n, voice, MCP",
+            "LAI is a finished product.",
+        ):
+            self.assertIn(statement, text)
+        self.assertNotIn("one-click installer is ready", text)
+        self.assertNotIn("browser automation is ready", text)
+        self.assertNotIn("n8n workflows are ready", text)
+
+    def test_pr91_is_linked_from_canonical_public_docs(self) -> None:
+        self.assertTrue((PRODUCT_DOCS / "pr_91_public_quickstart.md").is_file())
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        roadmap = (PRODUCT_DOCS / "roadmap.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+        self.assertIn("](docs/quickstart.md)", readme)
+        self.assertIn("[Quickstart](../quickstart.md)", index)
+        self.assertIn("`docs/quickstart.md`", roadmap)
+        self.assertIn("Após o PR91, `docs/quickstart.md`", alpha)
+        self.assertIn("não transforma o alpha em produto completo", alpha)
+
 if __name__ == "__main__":
     unittest.main()

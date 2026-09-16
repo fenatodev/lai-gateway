@@ -6,7 +6,7 @@ It is intentionally a separate project. The harness owns local coding authority 
 
 ## Current scope
 
-Start with the [canonical product documentation](docs/product/index.md): the [post-PR89 roadmap consolidated in PR90](docs/product/roadmap.md), [implementation matrix](docs/product/implementation_matrix.md), and [public alpha go/no-go criteria](docs/product/alpha_readiness.md).
+Start with the [public quickstart](docs/quickstart.md) for source-first local installation and diagnostics. For product direction, use the [canonical product documentation](docs/product/index.md): the [post-PR89 roadmap consolidated in PR90](docs/product/roadmap.md), [implementation matrix](docs/product/implementation_matrix.md), and [public alpha go/no-go criteria](docs/product/alpha_readiness.md).
 
 The product is experimental. Effective authorization currently covers only `adapter-dry-run`; the real `local_status` handler is a separate, tightly allowlisted in-process path, not proof of general authorization. Browser, n8n, voice, broad MCP execution and social/career automation are not ready-to-use features. Their contracts do not establish runtime capability. A public technical alpha is planned, not declared ready or complete.
 
