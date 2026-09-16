@@ -29,6 +29,7 @@ from .effective_authorization import collect_effective_authorization
 from .external_expansion import collect_external_expansion_gate
 from .health import collect_health_report, render_health_report
 from .identity import collect_identity_binding
+from .objective_state import collect_objective_state
 from .ops import collect_ops_status
 from .permission_decision import collect_permission_decision
 from .permission_ux import collect_permission_ux
@@ -238,6 +239,15 @@ class GatewayHandler(BaseHTTPRequestHandler):
             if not self._authorize_gateway_api(parsed.path):
                 return
             self._send_json(HTTPStatus.OK, collect_external_expansion_gate())
+            return
+        if parsed.path == "/v1/gateway/objective-state":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            self._send_json(HTTPStatus.OK, collect_objective_state(
+                workspace_root=values.get("workspace_root", ["."])[0] or ".",
+                state_file=values.get("state_file", [None])[0] or None,
+            ))
             return
         if parsed.path == "/v1/gateway/model-runs":
             if not self._authorize_gateway_api(parsed.path):
@@ -1083,6 +1093,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/model-runtime",
             "/v1/gateway/alpha-readiness",
             "/v1/gateway/external-expansion-gate",
+            "/v1/gateway/objective-state",
             "/v1/gateway/model-plan",
             "/v1/gateway/model-files",
             "/v1/gateway/model-task",

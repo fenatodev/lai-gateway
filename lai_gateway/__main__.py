@@ -50,6 +50,7 @@ from .mobile import (
     render_mobile_start,
     render_mobile_status,
 )
+from .objective_state import collect_objective_state, render_objective_state
 from .ops import collect_ops_status, render_ops_status
 from .permission_decision import collect_permission_decision, render_permission_decision
 from .permission_ux import collect_permission_ux, render_permission_ux
@@ -665,6 +666,10 @@ def main(argv: list[str] | None = None) -> int:
     alpha_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     external_expansion_parser = sub.add_parser("external-expansion-gate", help="check external capability go/no-go without enabling external effects")
     external_expansion_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    objective_state_parser = sub.add_parser("objective-state", help="show read-only local objective/task/checkpoint state")
+    objective_state_parser.add_argument("--workspace-root", default=".", help="explicit project workspace root")
+    objective_state_parser.add_argument("--state-file", default=None, help="relative objective state file; defaults to .lai/objective-state.json")
+    objective_state_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     serve_parser = sub.add_parser("serve", help="serve the gateway with configured bind policy")
     serve_parser.add_argument("--bind", default=None, help="gateway bind address allowed by config policy")
     serve_parser.add_argument("--port", type=int, default=None, help="gateway port")
@@ -1611,6 +1616,14 @@ def main(argv: list[str] | None = None) -> int:
             if not args.json:
                 print(render_external_expansion_gate(payload))
                 return 0 if payload["overall"] == "ready" else 1
+        elif args.command == "objective-state":
+            payload = collect_objective_state(
+                workspace_root=args.workspace_root,
+                state_file=args.state_file,
+            )
+            if not args.json:
+                print(render_objective_state(payload))
+                return 0 if payload["overall"] != "blocked" else 1
         else:
             parser.print_help()
             return 0

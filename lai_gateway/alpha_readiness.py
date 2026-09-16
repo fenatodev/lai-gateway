@@ -33,6 +33,7 @@ _REQUIRED_EVIDENCE_MARKERS = (
     "n8n-local-plan/v1",
     "permission-ux/v1",
     "external-expansion-gate/v1",
+    "objective-state/v1",
 )
 
 _BLOCKED_CAPABILITY_MARKERS = (
