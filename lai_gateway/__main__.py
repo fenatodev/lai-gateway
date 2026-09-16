@@ -33,6 +33,7 @@ from .identity import collect_identity_binding, render_identity_binding
 from .lan import collect_lan_info, render_lan_info
 from .persisted_audit_log import collect_persisted_audit_log, render_persisted_audit_log
 from .model import check_model_api_key_file, collect_model_chat, collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_smoke, collect_model_status, collect_model_task, create_model_api_key_file, render_model_chat, render_model_eval, render_model_files, render_model_key, render_model_plan, render_model_runs, render_model_smoke, render_model_status, render_model_task
+from .memory_context import collect_memory_context, render_memory_context
 from .mobile import (
     collect_mobile_repair,
     collect_mobile_start,
@@ -223,6 +224,15 @@ def main(argv: list[str] | None = None) -> int:
     model_key_check_parser = sub.add_parser("model-key-check", help="check a local model API key file without printing the key")
     model_key_check_parser.add_argument("--path", default=None, help="model API key file path")
     model_key_check_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    memory_parser = sub.add_parser("memory-context", help="show, remember, or forget scoped local memory context")
+    memory_parser.add_argument("--memory-action", choices=["show", "remember", "forget"], default="show", help="memory context action")
+    memory_parser.add_argument("--context-kind", choices=["project", "personal"], default="project", help="memory scope kind")
+    memory_parser.add_argument("--project-id", default="default", help="bounded project label for isolated memory")
+    memory_parser.add_argument("--note", default=None, help="bounded note to remember; secret-shaped content is rejected")
+    memory_parser.add_argument("--memory-id", default=None, help="memory id to forget")
+    memory_parser.add_argument("--memory-dir", default=None, help="local memory directory under the repo scope")
+    memory_parser.add_argument("--limit", type=int, default=20, help="maximum recent memory entries to show")
+    memory_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     daily_config_parser = sub.add_parser("daily-config", help="store or inspect token-free daily startup defaults")
     daily_config_sub = daily_config_parser.add_subparsers(dest="daily_config_command")
     daily_config_set = daily_config_sub.add_parser("set", help="write token-free daily startup defaults with 0600 permissions")
@@ -784,6 +794,24 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
+        if args.command == "memory-context":
+            payload = collect_memory_context(
+                memory_action=args.memory_action,
+                context_kind=args.context_kind,
+                project_id=args.project_id,
+                note=args.note,
+                memory_id=args.memory_id,
+                memory_dir=args.memory_dir,
+                limit=args.limit,
+                actor="user",
+                channel="cli",
+                domain="memory_context",
+            )
+            if not args.json:
+                print(render_memory_context(payload))
+                return 0 if payload["overall"] != "blocked" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] != "blocked" else 1
         if args.command == "service-plan":
             payload = collect_service_plan(
                 config=config,

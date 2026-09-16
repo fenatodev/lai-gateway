@@ -44,6 +44,7 @@ from .harness_client import (
     is_control_run_id,
     is_control_session_id,
 )
+from .memory_context import collect_memory_context
 from .model import (
     collect_model_chat,
     collect_model_eval,
@@ -162,6 +163,23 @@ class GatewayHandler(BaseHTTPRequestHandler):
             if limit is None:
                 return
             self._send_json(HTTPStatus.OK, collect_model_runs(limit=limit))
+            return
+        if parsed.path == "/v1/gateway/memory-context":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            limit = self._positive_int_query(values.get("limit", ["20"])[0], default=20, maximum=100)
+            if limit is None:
+                return
+            self._send_json(HTTPStatus.OK, collect_memory_context(
+                memory_action="show",
+                context_kind=values.get("context_kind", ["project"])[0] or "project",
+                project_id=values.get("project_id", ["default"])[0] or "default",
+                limit=limit,
+                actor="user",
+                channel="gateway",
+                domain="memory_context",
+            ))
             return
         if parsed.path == "/v1/gateway/health-report":
             if not self._authorize_gateway_api(parsed.path):
@@ -695,6 +713,24 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 ),
             )
             return
+        if parsed.path == "/v1/gateway/memory-context":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            body = self._read_memory_context_body()
+            if body is None:
+                return
+            self._send_json(HTTPStatus.OK, collect_memory_context(
+                memory_action=body["memory_action"],
+                context_kind=body["context_kind"],
+                project_id=body["project_id"],
+                note=body.get("note"),
+                memory_id=body.get("memory_id"),
+                limit=int(body["limit"]),
+                actor="user",
+                channel="gateway",
+                domain="memory_context",
+            ))
+            return
         if parsed.path == "/v1/local-chat/runs":
             if not self._authorize_local_chat_api():
                 return
@@ -875,6 +911,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/model-task",
             "/v1/gateway/model-runs",
             "/v1/gateway/model-eval",
+            "/v1/gateway/memory-context",
         }
         if not (path.startswith("/v1/harness/") or path in protected_gateway_paths):
             return True
@@ -1216,6 +1253,43 @@ class GatewayHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_gateway_chat_body"})
             return None
         return {"message": message.strip(), "timeout_seconds": float(timeout), "max_tokens": max_tokens}
+
+    def _read_memory_context_body(self) -> dict[str, str | int | None] | None:
+        payload = self._read_json_object(
+            allowed_keys={"memory_action", "context_kind", "project_id", "note", "memory_id", "limit"},
+            unsupported_error="unsupported_memory_context_fields",
+        )
+        if payload is None:
+            return None
+        action = payload.get("memory_action", "show")
+        context_kind = payload.get("context_kind", "project")
+        project_id = payload.get("project_id", "default")
+        note = payload.get("note")
+        memory_id = payload.get("memory_id")
+        limit = payload.get("limit", 20)
+        if action not in {"show", "remember", "forget"}:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_memory_context_body"})
+            return None
+        if context_kind not in {"project", "personal"}:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_memory_context_body"})
+            return None
+        if not isinstance(project_id, str) or not isinstance(limit, int) or not 1 <= limit <= 100:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_memory_context_body"})
+            return None
+        if note is not None and not isinstance(note, str):
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_memory_context_body"})
+            return None
+        if memory_id is not None and not isinstance(memory_id, str):
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_memory_context_body"})
+            return None
+        return {
+            "memory_action": action,
+            "context_kind": context_kind,
+            "project_id": project_id,
+            "note": note,
+            "memory_id": memory_id,
+            "limit": limit,
+        }
 
     def _read_mcp_policy_body(self) -> dict[str, str | None] | None:
         payload = self._read_json_object(

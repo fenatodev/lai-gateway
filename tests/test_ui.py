@@ -79,6 +79,10 @@ class GatewayUITest(unittest.TestCase):
                 self.assertIn('data-action="use-gateway-token"', html)
                 self.assertIn('data-action="forget-gateway-token"', html)
                 self.assertIn('id="readiness-pill"', html)
+                self.assertIn('id="memory-output"', html)
+                self.assertIn('data-action="refresh-memory-context"', html)
+                self.assertIn('data-action="remember-memory-context"', html)
+                self.assertIn("Memória local", html)
                 self.assertIn('id="ops-pill"', html)
                 self.assertIn('id="health-summary"', html)
                 self.assertIn('Saúde ainda não carregada.', html)
@@ -286,6 +290,9 @@ class GatewayUITest(unittest.TestCase):
         self.assertIn("/v1/gateway/model-task", js)
         self.assertIn("/v1/gateway/model-eval", js)
         self.assertIn("/v1/gateway/model-runs", js)
+        self.assertIn("/v1/gateway/memory-context", js)
+        self.assertIn("memoryContextBody", js)
+        self.assertIn("remember-memory-context", js)
         self.assertIn("/v1/local-chat/contract", js)
         self.assertIn("/v1/local-chat/workspaces", js)
         self.assertIn("/v1/local-chat/models", js)
@@ -828,6 +835,25 @@ class GatewayUITest(unittest.TestCase):
         self.assertFalse(payload["downloads_models"])
         self.assertEqual(payload["count"], 1)
         self.assertFalse(payload["security"]["stores_prompts"])
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
+
+    def test_gateway_memory_context_endpoint_is_scoped_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with RunningGateway(config) as gateway:
+                status, headers, body = read_url(
+                    f"{gateway.url}/v1/gateway/memory-context?context_kind=project&project_id=lai-gateway&limit=5"
+                )
+        payload = json.loads(body)
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        self.assertEqual(payload["operation"], "memory-context")
+        self.assertFalse(payload["modifies_files"])
+        self.assertFalse(payload["security"]["memory_grants_authority"])
+        self.assertFalse(payload["security"]["grants_permission"])
         self.assertNotIn(TOKEN, body)
         self.assertNotIn("Bearer", body)
 

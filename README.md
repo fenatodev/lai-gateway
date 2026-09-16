@@ -310,3 +310,5 @@ Use this loopback proxy when Tailscale Serve needs to reach a WSL-bound mobile g
 `lai-gateway-daily --show-pair` prints a short-lived pair token. The mobile UI
 exchanges that token for a temporary page-memory session; no permanent gateway token
 is stored on the phone.
+
+Local memory is explicit and scoped: `lai-gateway memory-context` can show, remember, and forget short project/personal notes in a local JSONL store. It rejects secret-shaped content and memory never grants authority, approval, capability, or permission.
