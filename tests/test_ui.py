@@ -293,8 +293,13 @@ class GatewayUITest(unittest.TestCase):
         self.assertIn("/v1/gateway/memory-context", js)
         self.assertIn("memoryContextBody", js)
         self.assertIn("documentTextBody", js)
+        self.assertIn("documentWorkbenchParams", js)
+        self.assertIn("setDocumentWorkbench", js)
         self.assertIn("/v1/gateway/document-text-local", js)
+        self.assertIn("/v1/gateway/document-workbench", js)
         self.assertIn("read-document-text-local", js)
+        self.assertIn("refresh-document-workbench", js)
+        self.assertIn("inspect-document-workbench", js)
         self.assertIn("remember-memory-context", js)
         self.assertIn("/v1/local-chat/contract", js)
         self.assertIn("/v1/local-chat/workspaces", js)
@@ -892,6 +897,34 @@ class GatewayUITest(unittest.TestCase):
         self.assertFalse(payload["security"]["supports_pdf"])
         self.assertNotIn(TOKEN, body_text)
         self.assertNotIn("Bearer", body_text)
+
+    def test_gateway_document_workbench_endpoint_lists_metadata_only_and_is_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            workspace = Path(tmp) / "workspace"
+            workspace.mkdir()
+            (workspace / "readme.md").write_text("visible but not listed as content", encoding="utf-8")
+            (workspace / "blocked.pdf").write_bytes(b"%PDF")
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with RunningGateway(config) as gateway:
+                status, headers, body = read_url(
+                    f"{gateway.url}/v1/gateway/document-workbench?workspace_root={workspace}&max_results=10"
+                )
+        payload = json.loads(body)
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        self.assertEqual(payload["operation"], "document-workbench")
+        self.assertEqual(payload["overall"], "ready")
+        self.assertTrue(payload["limits"]["metadata_only_selection"])
+        self.assertFalse(payload["limits"]["recursive_listing"])
+        self.assertFalse(payload["security"]["external_upload"])
+        self.assertFalse(payload["security"]["filesystem_write"])
+        self.assertEqual([item["relative_path"] for item in payload["documents"]], ["readme.md"])
+        self.assertIsNone(payload["inspection"])
+        self.assertNotIn("visible but not listed as content", body)
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
 
     def test_private_model_runs_requires_gateway_auth(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

@@ -26,7 +26,8 @@ Os documentos `pr_*.md` têm rótulo **spec de PR / histórico**: são registros
 - **revisão externa / histórico** — [Revisão Astra](astra_architecture_review.md) e [revisão Codex/Astra](codex_astra_architecture_review.md): insumos históricos, sem autoridade automática.
 - **descritivo / insumo de revisão externa** — [Prompt de revisão](roadmap_review_prompt.md): instrumento de coleta, não decisão.
 - **spec de PR / histórico** — [PR89](pr_89_roadmap_alpha_readiness.md): baseline histórico da consolidação.
-- **spec de PR / atual** — [PR98](pr_98_restricted_document_text.md): `document_text_local` restrito para `.txt/.md/.json` em workspace explícito.
+- **spec de PR / atual** — [PR99](pr_99_workbench_local_documents.md): Workbench para documentos locais com seleção metadata-only e inspeção restrita.
+- **spec de PR / histórico** — [PR98](pr_98_restricted_document_text.md): `document_text_local` restrito para `.txt/.md/.json` em workspace explícito.
 - **spec de PR / histórico** — [PR97](pr_97_local_memory_context.md): memória local mínima por projeto/pessoal, com limites, exclusão de segredos e sem autoridade.
 - **spec de PR / histórico** — [PR96](pr_96_local_model_chat_health_fallback.md): primeira conversa local-model-first, health e fallback explícito.
 - **spec de PR / histórico** — [PR95](pr_95_authorization_recovery.md): persistência, expiração, revogação, consumo único e restart recovery para `local-status-read`.

@@ -35,6 +35,7 @@ from .skills import collect_skills_registry
 from .config import GatewayConfig, read_gateway_access_token, validate_gateway_bind
 from .dev_control import collect_dev_control_policy
 from .document_text import collect_document_text_local
+from .document_workbench import collect_document_workbench
 from .tokens import read_valid_gateway_pairing_token
 from .errors import ConfigError, GatewayError, HarnessHTTPError
 from .harness_client import (
@@ -180,6 +181,21 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 actor="user",
                 channel="gateway",
                 domain="memory_context",
+            ))
+            return
+        if parsed.path == "/v1/gateway/document-workbench":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            max_results = self._positive_int_query(values.get("max_results", ["25"])[0], default=25, maximum=50)
+            max_chars = self._positive_int_query(values.get("max_chars", ["3000"])[0], default=3000, maximum=20000)
+            if max_results is None or max_chars is None:
+                return
+            self._send_json(HTTPStatus.OK, collect_document_workbench(
+                workspace_root=values.get("workspace_root", [""])[0],
+                selected_relative_path=values.get("selected_relative_path", [""])[0] or None,
+                max_results=max_results,
+                max_chars=max_chars,
             ))
             return
         if parsed.path == "/v1/gateway/document-text-local":
@@ -939,6 +955,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/model-eval",
             "/v1/gateway/memory-context",
             "/v1/gateway/document-text-local",
+            "/v1/gateway/document-workbench",
         }
         if not (path.startswith("/v1/harness/") or path in protected_gateway_paths):
             return True

@@ -452,8 +452,16 @@
                   <label>Caminho relativo
                     <input id="document-relative-path" placeholder="docs/product/roadmap.md" autocomplete="off" autocapitalize="none" spellcheck="false">
                   </label>
+                  <label>Seleção permitida
+                    <select id="document-relative-select">
+                      <option value="">Carregue documentos permitidos</option>
+                    </select>
+                  </label>
                 </div>
+                <p class="muted">A listagem é metadata-only, limitada e não recursiva; inspeção delega ao leitor restrito.</p>
                 <div class="actions">
+                  <button data-action="refresh-document-workbench">Listar documentos permitidos</button>
+                  <button data-action="inspect-document-workbench">Inspecionar seleção</button>
                   <button data-action="read-document-text-local">Ler texto local</button>
                 </div>
                 <pre id="document-output" aria-live="polite">Não carregado.</pre>

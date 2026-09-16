@@ -24,6 +24,7 @@ class ProductDocsTest(unittest.TestCase):
             "pr_96_local_model_chat_health_fallback.md",
             "pr_97_local_memory_context.md",
             "pr_98_restricted_document_text.md",
+            "pr_99_workbench_local_documents.md",
         ):
             path = PRODUCT_DOCS / name
             self.assertTrue(path.exists(), name)
@@ -285,6 +286,38 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("document-text-local", readme)
         self.assertIn("read-document-text-local", app)
         self.assertIn("documentTextBody", app)
+
+    def test_pr99_workbench_local_documents_is_canonical_and_limited(self) -> None:
+        spec = (PRODUCT_DOCS / "pr_99_workbench_local_documents.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        roadmap = (PRODUCT_DOCS / "roadmap.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        app = (ROOT / "lai_gateway" / "static" / "app.js").read_text(encoding="utf-8")
+        lower_spec = spec.lower()
+        for statement in (
+            "document-workbench/v1",
+            "metadata-only",
+            "não recursiva",
+            "limites visíveis",
+            "sem envio externo",
+            "sem pdf",
+            "sem ocr",
+            "sem office",
+            "nunca concede autoridade",
+        ):
+            self.assertIn(statement, lower_spec)
+        self.assertIn("document workbench | experimental", matrix)
+        self.assertIn("document_workbench.py", matrix)
+        self.assertIn("tests/test_document_workbench.py", matrix)
+        self.assertIn("`document-workbench/v1`", roadmap)
+        self.assertIn("PR99 adiciona seleção/inspeção", alpha)
+        self.assertIn("[PR99](pr_99_workbench_local_documents.md)", index)
+        self.assertIn("document-workbench", readme)
+        self.assertIn("refresh-document-workbench", app)
+        self.assertIn("inspect-document-workbench", app)
+        self.assertIn("document-relative-select", app)
 
     def test_pr93_identity_docs_are_canonical_and_limited(self) -> None:
         matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
