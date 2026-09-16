@@ -437,6 +437,25 @@
                 <pre id="external-expansion-output" aria-live="polite">Não carregado.</pre>
               </article>
 
+
+
+              <article class="card compact-panel">
+                <h2>Objetivo local</h2>
+                <p class="muted">Estado read-only de objetivo, tarefas e checkpoints dentro de um workspace explícito. Não concede autorização nem executa ações.</p>
+                <div class="form-row">
+                  <label>Workspace
+                    <input id="objective-workspace-root" value="." autocomplete="off" autocapitalize="none" spellcheck="false">
+                  </label>
+                  <label>Arquivo de estado
+                    <input id="objective-state-file" value=".lai/objective-state.json" autocomplete="off" autocapitalize="none" spellcheck="false">
+                  </label>
+                </div>
+                <div class="actions">
+                  <button data-action="refresh-objective-state">Carregar objetivo local</button>
+                </div>
+                <pre id="objective-output" aria-live="polite">Não carregado.</pre>
+              </article>
+
               <article class="card compact-panel">
                 <h2>Modelo</h2>
                 <p class="muted">Conversa direta usa somente modelo local/privado configurado. Sem nuvem, Harness run, tools ou elevação automática.</p>

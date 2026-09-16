@@ -178,7 +178,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pareie este celular primeiro e atualize este painel.";
-  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "public-browser-output", "mcp-output", "n8n-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "permission-ux-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output", "external-expansion-output"]) {
+  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "public-browser-output", "mcp-output", "n8n-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "permission-ux-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output", "external-expansion-output", "objective-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -255,6 +255,42 @@ function setExternalExpansionGate(payload) {
   setPill("readiness-pill", allowed ? "external allowed" : `external ${payload.decision || "no-go"}`, state);
   clearPairRequiredOutput("external-expansion-output");
   show("external-expansion-output", compactExternalExpansionGateText(payload));
+}
+
+function objectiveStateParams() {
+  return new URLSearchParams({
+    workspace_root: byId("objective-workspace-root")?.value || ".",
+    state_file: byId("objective-state-file")?.value || ".lai/objective-state.json",
+  });
+}
+
+function compactObjectiveStateText(payload) {
+  const state = payload.state || {};
+  const lines = [
+    `lai-gateway objective-state: ${payload.overall || "desconhecido"}`,
+    `schema: ${payload.schema_version || "objective-state/v1"}`,
+    `project_id: ${state.project_id || "missing"}`,
+    `objective_status: ${state.objective_status || "unknown"}`,
+    `task_count: ${(state.tasks || []).length}`,
+    `checkpoint_count: ${(state.checkpoints || []).length}`,
+    "read_only: true",
+    "filesystem_write: false",
+    "issues_grants: false",
+    "dispatches_adapter: false",
+    "executes_tools: false",
+    "implicit_ingestion: false",
+  ];
+  if (state.objective) lines.push(`objective: ${state.objective}`);
+  for (const task of (state.tasks || []).slice(0, 5)) lines.push(`task: ${task.task_id} [${task.status}] ${task.title}`);
+  if (state.reason) lines.push(`reason: ${state.reason}`);
+  return lines.join("\n");
+}
+
+function setObjectiveState(payload) {
+  const state = payload.overall === "blocked" ? "danger" : payload.overall === "ready" ? "ready" : "warn";
+  setPill("workbench-pill", `objetivo ${payload.overall || "desconhecido"}`, state);
+  clearPairRequiredOutput("objective-output");
+  show("objective-output", compactObjectiveStateText(payload));
 }
 
 function setModelStatus(payload) {
@@ -1627,6 +1663,8 @@ async function runAction(action) {
       setAlphaReadiness(await requestJson("/v1/gateway/alpha-readiness"));
     } else if (action === "refresh-external-expansion-gate") {
       setExternalExpansionGate(await requestJson("/v1/gateway/external-expansion-gate"));
+    } else if (action === "refresh-objective-state") {
+      setObjectiveState(await requestJson(`/v1/gateway/objective-state?${objectiveStateParams()}`));
     } else if (action === "refresh-public-browser-plan") {
       setPublicBrowser(await requestJson(`/v1/gateway/public-browser?${publicBrowserParams("plan")}`));
     } else if (action === "fetch-public-browser") {

@@ -39,8 +39,10 @@ class ProductDocsTest(unittest.TestCase):
             "pr_110_external_expansion_gate.md",
             "post_pr110_operating_plan.md",
             "project_workspace_contract.md",
+            "objective_state.md",
             "pr_111_operating_objective_plan.md",
             "pr_112_project_workspace_contract.md",
+            "pr_113_objective_state.md",
         ):
             path = PRODUCT_DOCS / name
             self.assertTrue(path.exists(), name)
@@ -801,6 +803,50 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("sem HOME scan, ingestão implícita, executor, grant, adapter", matrix)
         self.assertIn("Após o PR112", alpha)
         self.assertIn("does not scan HOME, ingest files implicitly", readme)
+
+
+    def test_pr113_objective_state_is_canonical_and_limited(self) -> None:
+        contract = (PRODUCT_DOCS / "objective_state.md").read_text(encoding="utf-8")
+        spec = (PRODUCT_DOCS / "pr_113_objective_state.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        main_py = (ROOT / "lai_gateway" / "__main__.py").read_text(encoding="utf-8")
+        server_py = (ROOT / "lai_gateway" / "server.py").read_text(encoding="utf-8")
+        app = (ROOT / "lai_gateway" / "static" / "app.js").read_text(encoding="utf-8")
+        html = (ROOT / "lai_gateway" / "static" / "index.html").read_text(encoding="utf-8")
+
+        for statement in (
+            "objective-state/v1",
+            "workspace_root explícita",
+            ".lai/objective-state.json",
+            "data_touched",
+            "Conteúdo lido do estado continua não confiável",
+        ):
+            self.assertIn(statement, contract)
+        for blocked in (
+            "Não cria scanner recursivo",
+            "Não faz HOME scan",
+            "Não faz ingestão implícita",
+            "Não escreve arquivo de estado",
+            "Não emite grants",
+            "Não despacha adapters",
+            "Não chama Harness",
+            "Não executa tools",
+            "Não libera capacidades externas",
+        ):
+            self.assertIn(blocked, spec)
+        self.assertIn("[Objective state](objective_state.md)", index)
+        self.assertIn("[PR113](pr_113_objective_state.md)", index)
+        self.assertIn("objective_state | experimental", matrix)
+        self.assertIn("`objective-state/v1`", matrix)
+        self.assertIn("Após o PR113", alpha)
+        self.assertIn("does not write state, scan HOME", readme)
+        self.assertIn("objective-state", main_py)
+        self.assertIn("/v1/gateway/objective-state", server_py)
+        self.assertIn("refresh-objective-state", app)
+        self.assertIn("objective-output", html)
 
 
     def test_matrix_evidence_links_exist(self) -> None:

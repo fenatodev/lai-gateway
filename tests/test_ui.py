@@ -86,6 +86,9 @@ class GatewayUITest(unittest.TestCase):
                 self.assertIn('id="external-expansion-output"', html)
                 self.assertIn('data-action="refresh-external-expansion-gate"', html)
                 self.assertIn("Expansão externa", html)
+                self.assertIn('id="objective-output"', html)
+                self.assertIn('data-action="refresh-objective-state"', html)
+                self.assertIn("Objetivo local", html)
                 self.assertIn('id="memory-output"', html)
                 self.assertIn('data-action="refresh-memory-context"', html)
                 self.assertIn('data-action="remember-memory-context"', html)
@@ -580,6 +583,39 @@ class GatewayUITest(unittest.TestCase):
         self.assertNotIn(TOKEN, body)
         self.assertNotIn("Bearer", body)
 
+
+    def test_gateway_objective_state_endpoint_is_read_only_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp, fake_harness() as harness:
+            workspace = Path(tmp) / "project"
+            (workspace / ".lai").mkdir(parents=True)
+            (workspace / ".lai" / "objective-state.json").write_text(json.dumps({
+                "schema_version": "objective-state/v1",
+                "project_id": "lai-gateway",
+                "objective": "Alpha operacional local",
+                "tasks": [{"id": "t1", "title": "Ler estado", "status": "todo"}],
+            }), encoding="utf-8")
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with RunningGateway(config) as gateway:
+                status, headers, body = read_url(
+                    f"{gateway.url}/v1/gateway/objective-state?workspace_root={quote(str(workspace))}"
+                )
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        payload = json.loads(body)
+        self.assertEqual(payload["operation"], "objective-state")
+        self.assertEqual(payload["schema_version"], "objective-state/v1")
+        self.assertEqual(payload["overall"], "ready")
+        self.assertFalse(payload["security"]["issues_grants"])
+        self.assertFalse(payload["security"]["dispatches_adapter"])
+        self.assertFalse(payload["security"]["executes_tools"])
+        self.assertFalse(payload["security"]["external_side_effects"])
+        self.assertFalse(payload["security"]["filesystem_write"])
+        self.assertFalse(payload["security"]["implicit_ingestion"])
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
+
     def test_gateway_external_expansion_gate_endpoint_is_read_only_and_secret_free(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
             token_file = Path(tmp) / "token"
@@ -600,6 +636,40 @@ class GatewayUITest(unittest.TestCase):
         self.assertFalse(payload["security"]["external_side_effects"])
         self.assertNotIn(TOKEN, body)
         self.assertNotIn("Bearer", body)
+
+
+    def test_private_objective_state_requires_gateway_auth(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp, fake_harness() as harness:
+            workspace = Path(tmp) / "project"
+            workspace.mkdir()
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            access_file = Path(tmp) / "access-token"
+            access = "gateway-access-secret-value-1234567890"
+            access_file.write_text(access, encoding="utf-8")
+            access_file.chmod(0o600)
+            pair_file = Path(tmp) / "pair-token.json"
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                bind="127.0.0.1",
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            with RunningGateway(config) as gateway:
+                url = f"{gateway.url}/v1/gateway/objective-state?workspace_root={quote(str(workspace))}"
+                with self.assertRaises(__import__("urllib.error").error.HTTPError) as unauth:
+                    read_url(url)
+                status, _headers, body = read_url(
+                    url,
+                    headers={"Authorization": f"Bearer {access}"},
+                )
+        self.assertEqual(unauth.exception.code, 401)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["operation"], "objective-state")
+        self.assertNotIn(access, body)
+        self.assertNotIn(TOKEN, body)
 
     def test_private_external_expansion_gate_requires_gateway_auth(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

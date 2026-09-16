@@ -36,6 +36,8 @@ Após o PR111, o plano operacional pós-PR110 define PR111–PR120 para avançar
 
 Após o PR112, `project_workspace_contract` define raiz explícita, escopo local, dados tocados e exclusões para projetos. PR112 é documental: não cria scanner, endpoint, CLI, UI, executor, grant, adapter, HOME scan, ingestão implícita ou autorização efetiva.
 
+Após o PR113, `objective-state/v1` lê estado local explícito de objetivo, tarefas e checkpoints. PR113 é read-only: não escreve estado, não faz HOME scan, não faz ingestão implícita, não emite grant, não consome grant, não despacha adapter, não chama Harness, não executa tools e não libera capacidade externa.
+
 ## Go para alpha público técnico
 
 Todos os itens são obrigatórios; esta lista não afirma que já passaram:
