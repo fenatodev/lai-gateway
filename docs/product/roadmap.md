@@ -1,131 +1,55 @@
 # LAI roadmap
 
-## status
+## Status e direção
 
-Documento normativo pós-PR88. Este roadmap substitui a fila operacional antiga como fonte de direção do `lai-gateway`, preservando o histórico dos PRs já concluídos.
+Fonte normativa pós-PR89, consolidada no PR90. [Índice canônico](index.md), [estado atual](implementation_matrix.md) e [alpha readiness](alpha_readiness.md) delimitam sua interpretação. A sequência antiga permanece histórica.
 
-## objetivo final
+Objetivo: sistema operacional pessoal de IA local, open-source-first e modular. Separar domínio, canal, autonomia e capacidade: mudar canal ou domínio nunca concede execução. Cada PR declara objetivo, dimensão afetada, estado anterior/novo, risco, gate e evidência. Estados e disponibilidade são definidos na matriz; roadmap não habilita capacidades.
 
-Levar o LAI a um sistema operacional pessoal de IA local, open-source-first e modular, com instalação reproduzível, Workbench utilizável, modelo local, memória local, dev assistido, automações governadas, documentos, mídia, browser, voz e integrações externas por adapters.
+## Base preservada
 
-O objetivo não é liberar autonomia irrestrita. O objetivo é ampliar capacidade real sem perder separação entre domínio, canal, autonomia e capacidade.
+PR61–73: contratos, conversation-first, mediação de ferramentas, skills, dev controlado e contratos de adapters. PR74–88: decisão/policy, envelopes, simulação, captura/validação, autorização estreita, auditoria local, dispatcher e Workbench. PR89: primeira consolidação de roadmap e readiness. Isso não comprova autorização geral nem integrações externas prontas.
 
-## regra de direção
+## Sequência pós-PR89
 
-Todo PR pós-PR88 deve declarar:
+| PR | Entrega | Gate de saída |
+| --- | --- | --- |
+| PR90 | Consolidação das revisões externas e promessa pública | Índice, matriz, readiness, README e testes documentais coerentes; sem mudança funcional |
+| PR91 | Quickstart público mínimo e diagnóstico de instalação | Instalação limpa reproduzível, empacotamento mínimo identificado, pré-requisitos e falhas de Harness/token/modelo documentados |
+| PR92 | Release checklist + guia visual mínimo do Workbench | Versão/artefato identificáveis, fluxo local_status explicado e evidência visual sanitizada |
+| PR93 | Identidade testável usuário/cliente/agente/serviço | Testes de vínculo ao principal, origem confiável e rejeição de identidade falsificada, troca de cliente ou serviço |
+| PR94 | Autorização efetiva para uma ação real local não-dry-run (authorization non-dry-run) | Ação/recurso/alvo/escopo exatos; revalidação no executor; casos positivos e negativos; nenhuma autoridade externa |
+| PR95 | Persistência, expiração, revogação, consumo único e restart recovery | Recuperação após reinício, concorrência/replay e bloqueio contra duplicação de efeito; resultado desconhecido sem retry automático |
+| PR96 | Modelo local, primeira conversa, health e fallback | Conversa sem run dev implícito; indisponibilidade explícita; fallback sem nuvem ou elevação de permissão automática |
+| PR97 | memory_context local mínimo por projeto e contexto pessoal básico | Isolamento de contextos, limites e exclusão de segredos; memória não concede autoridade |
+| PR98 | document_text_local restrito | Texto local em escopo permitido, limites, caminhos seguros e conteúdo tratado como não confiável |
+| PR99 | Workbench para documentos locais | Seleção/inspeção restritas, estado e limites visíveis; sem envio externo |
+| PR100 | Alpha público técnico | Todos os critérios go/no-go comprovados, instalação limpa, versão inequívoca e ausência de overclaiming |
 
-```text
-objetivo do roadmap atendido
-dimensão tocada: domínio, canal, autonomia ou capacidade
-estado alterado: contrato, experimental, implementado ou deferred
-risco novo criado
-gate que contém esse risco
-```
+PR94 prova somente uma ação local delimitada. `local_status` já executa um handler in-process, mas não substitui a prova de autorização non-dry-run. PR95 deve testar a mesma cadeia com reinício e falhas, não apenas persistir JSON. Persistência de audit log não equivale a persistência de aprovação.
 
-PR que não melhora produto, segurança, instalação, documentação pública ou uma capacidade planejada deve ser tratado como suspeito.
+## Capacidades externas — após os gates
 
-## estados oficiais
+Browser/n8n/MCP/social reais ficam depois de PR93, PR94 e PR95, fora da sequência até PR100. Também exigem specs e evidência específicas; concluir esses PRs não habilita integrações automaticamente.
 
-```text
-implementado: existe código, teste, CLI/endpoint/UI quando aplicável, e CI verde
-experimental: existe caminho funcional restrito, ainda não pronto como promessa pública ampla
-contrato: superfície declarada, sem execução real ou com execução bloqueada
-planejado: aceito na direção, ainda sem contrato suficiente
-deferred: válido, mas adiado por dependência, risco ou custo
-fora_de_escopo: não pertence ao LAI atual
-```
+Continuam bloqueados na expansão governada: browser autenticado, n8n activation, MCP tool execution amplo, publicação, envio de mensagens, candidaturas, formulários, automações externas e uso de credenciais. Browser público de leitura também exige contenção demonstrada; o rótulo read-only não basta. Voz, mídia, Model Lab e Scout continuam direção futura, sem promessa operacional ampla.
 
-Nenhum texto de README, UI ou release deve vender como implementado algo que esteja em contrato, planejado ou deferred.
+Telegram outbound operacional já existe fora da nova cadeia geral: somente acionamento explícito do operador, destino configurado e envio habilitado. Não é autorização para agentes enviarem mensagens. Exigir aprovação explícita de conteúdo e destino para qualquer novo fluxo; não afirmar que o CLI atual possui aprovação durável por mensagem.
 
-## trilho já concluído
+## Evidência e dependências
 
-```text
-PR 61: contratos arquiteturais, identidade, autorização e lifecycle
-PR 62: conversation-first routing
-PR 63: contenção do shell e mediação obrigatória de ferramentas
-PR 64: skills registry mínimo
-PR 65: dev controlado
-PR 66: primeiro adapter governado
-PR 67: limpeza de warning no model run
-PR 68-73: contratos de browser, n8n, voz, model lab, social/career e document/media
-PR 74-81: decisão, policy, autorização, proposta, audit events, dry-run e visibilidade no Workbench
-PR 82-88: captura, validação, autorização escopada, audit log, dispatcher, primeiro adapter local e UI segura
-```
+Ordem obrigatória: documentação → quickstart/empacotamento → identidade testável → autorização real não-dry-run → persistência/restart/recovery → experiência local → alpha técnico. Capacidades externas dependem dos gates anteriores e de revisão própria.
 
-## próximos blocos de produto
+Read-only declarado é intenção de contrato; simulado/dry-run não executa o efeito; efetivamente imposto exige contenção no executor e testes negativos específicos. Inspeção, logs ou CI isoladamente não provam ausência de efeitos.
 
-### bloco 1: alpha publicável
+## Revisões externas
 
-Objetivo: permitir que outro usuário instale, rode e entenda o LAI sem depender de conversa privada.
+GPT-6/Astra, Claude e Codex são revisores, não são autoridade automática. Os pontos recebidos são insumos críticos registrados na [consolidação](roadmap_review_consolidation.md). A direção é decidida por revisão humana versionada, confrontada com evidência local; nenhum parecer libera execução ou publicação.
 
-```text
-PR 89: consolidar roadmap e prontidão alpha
-PR 90: alinhar README público, versão planejada e promessa real
-PR 91: quickstart de instalação limpa com diagnóstico de pré-requisitos
-PR 92: release checklist e critérios de tag alpha
-PR 93: guia visual mínimo do Workbench e fluxo local_status
-```
+## Restrições públicas
 
-Critério de saída: o projeto pode ser publicado como alpha técnico sem prometer browser, n8n, voz ou automação externa reais.
+Browser, n8n, voz, execução real de tools MCP, social e automações externas governadas não estão disponíveis como funcionalidades prontas. Contratos e simulações não autorizam execução real.
 
-### bloco 2: experiência local útil
+local_status é apenas o primeiro adapter seguro restrito; não prova autorização geral.
 
-Objetivo: fazer o LAI ser útil em tarefas locais antes de abrir capacidades externas.
-
-```text
-PR 94: modelo local como chat/health path de primeira execução
-PR 95: memory_context local por projeto, sem segredos e com escopo
-PR 96: document_text_local adapter para .txt, .md e .json dentro de escopo permitido
-PR 97: Workbench para seleção/inspeção de documento local seguro
-```
-
-Critério de saída: usuário consegue instalar, abrir o Workbench, conversar com modelo local quando disponível e usar uma capacidade local útil sem rede externa.
-
-### bloco 3: capacidades externas read-only primeiro
-
-Objetivo: abrir capacidades externas apenas depois de gates locais e auditoria estarem claros.
-
-```text
-PR 98: browser_public read-only com allowlist de ações sem login, sem formulário e sem clique sensível
-PR 99: n8n discovery local e workflow dry-run, sem ativar workflow
-PR 100: MCP governed execution phase 1 para tools locais explicitamente allowlisted
-```
-
-Critério de saída: cada capacidade externa tem proposta, autorização, auditoria, bloqueio de segredos e modo read-only antes de qualquer side effect.
-
-### bloco 4: interfaces humanas
-
-Objetivo: ampliar canais sem elevar permissão.
-
-```text
-PR 101: voice push-to-talk local, sem wake word e sem executar ação automaticamente
-PR 102: Telegram inbound limitado a conversa/status, sem criar run sensível por mensagem
-PR 103: mobile Workbench hardening para leitura, pareamento e UX
-```
-
-Critério de saída: voz, Telegram e mobile operam como canais, não como autoridades.
-
-### bloco 5: automação, social e publicação operacional
-
-Objetivo: permitir ações externas com consentimento explícito, rastreabilidade e recuperação.
-
-```text
-PR 104: social/career drafts, sem publicação ou candidatura
-PR 105: n8n activation approval gate, ainda sem credenciais novas automáticas
-PR 106: browser authenticated session proposal, sem execução sem aprovação explícita por alvo
-PR 107: release packaging e publicação alpha/beta
-```
-
-Critério de saída: ações externas são propostas, revisadas, autorizadas, executadas e auditadas; reinício não duplica side effects.
-
-## ordem de dependência
-
-```text
-roadmap -> alpha docs -> install -> local useful capability -> browser/n8n/MCP read-only -> voice/telegram -> external side effects
-```
-
-Não inverter essa ordem sem registrar uma decisão arquitetural nova.
-
-## regra para revisões externas
-
-GPT-6, Codex e Astra podem revisar roadmap, lacunas, dependências e riscos. Eles não são autoridade automática. A fonte de verdade é este roadmap versionado no repo, depois de revisão humana.
+Telegram outbound tem limite conhecido: não possui aprovação durável por mensagem.

@@ -1,5 +1,7 @@
 # codex astra architecture review
 
+> Histórico/insumo de revisão. Não define a sequência atual nem comprova capacidade operacional. Consulte o [índice canônico](index.md) e o [roadmap pós-PR90](roadmap.md).
+
 ## origem
 
 Revisao recebida em 2026-09-14 apos auditoria com Codex e Astra.
