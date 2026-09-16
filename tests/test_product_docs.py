@@ -26,6 +26,8 @@ class ProductDocsTest(unittest.TestCase):
             "pr_98_restricted_document_text.md",
             "pr_99_workbench_local_documents.md",
             "pr_100_technical_alpha_readiness.md",
+            "post_pr100_roadmap.md",
+            "pr_101_post_pr100_roadmap.md",
         ):
             path = PRODUCT_DOCS / name
             self.assertTrue(path.exists(), name)
@@ -353,6 +355,31 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("alpha-readiness", readme)
         self.assertIn("refresh-alpha-readiness", app)
         self.assertIn("/v1/gateway/alpha-readiness", app)
+
+    def test_pr101_post_pr100_roadmap_is_canonical_and_limited(self) -> None:
+        post = (PRODUCT_DOCS / "post_pr100_roadmap.md").read_text(encoding="utf-8")
+        spec = (PRODUCT_DOCS / "pr_101_post_pr100_roadmap.md").read_text(encoding="utf-8")
+        roadmap = (PRODUCT_DOCS / "roadmap.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        rows = re.findall(r"^\| PR(\d+) \| (.+)$", post, re.MULTILINE)
+        self.assertEqual([int(number) for number, _ in rows], list(range(101, 111)))
+        combined = post + "\n" + spec
+        for marker in (
+            "domínio",
+            "canal",
+            "autonomia",
+            "capacidade",
+            "publicação humana separada",
+            "sem mudança funcional",
+            "Sem browser, n8n, MCP tool execution",
+            "nunca autoriza a execução",
+        ):
+            self.assertIn(marker, combined)
+        self.assertIn("roadmap pós-PR100", roadmap)
+        self.assertIn("PR101 inicia apenas o planejamento pós-PR100", roadmap)
+        self.assertIn("[Roadmap pós-PR100](post_pr100_roadmap.md)", index)
+        self.assertIn("[PR101](pr_101_post_pr100_roadmap.md)", index)
+        self.assertIn("sem habilitar capacidades externas automaticamente", index)
 
     def test_pr93_identity_docs_are_canonical_and_limited(self) -> None:
         matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")

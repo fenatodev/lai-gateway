@@ -2,7 +2,7 @@
 
 ## Status e direção
 
-Fonte normativa pós-PR89, consolidada no PR90. [Índice canônico](index.md), [estado atual](implementation_matrix.md) e [alpha readiness](alpha_readiness.md) delimitam sua interpretação. A sequência antiga permanece histórica.
+Fonte normativa pós-PR89, consolidada no PR90. [Índice canônico](index.md), [estado atual](implementation_matrix.md), [alpha readiness](alpha_readiness.md) e [roadmap pós-PR100](post_pr100_roadmap.md) delimitam sua interpretação. A sequência PR90–PR100 está concluída; próximos trabalhos normativos usam o roadmap pós-PR100. A sequência antiga permanece histórica.
 
 Objetivo: sistema operacional pessoal de IA local, open-source-first e modular. Separar domínio, canal, autonomia e capacidade: mudar canal ou domínio nunca concede execução. Cada PR declara objetivo, dimensão afetada, estado anterior/novo, risco, gate e evidência. Estados e disponibilidade são definidos na matriz; roadmap não habilita capacidades.
 
@@ -25,6 +25,8 @@ PR61–73: contratos, conversation-first, mediação de ferramentas, skills, dev
 | PR98 | document_text_local restrito | `document-text-local/v1`; texto local em escopo permitido, limites, caminhos seguros, sem PDF/OCR/Office e conteúdo tratado como não confiável |
 | PR99 | Workbench para documentos locais | `document-workbench/v1`; seleção metadata-only, inspeção restrita via `document-text-local/v1`, estado e limites visíveis; sem envio externo |
 | PR100 | Alpha público técnico | `alpha-readiness/v1`; critérios go/no-go comprovados para candidato técnico, versão inequívoca, ausência de overclaiming e publicação humana separada |
+
+A sequência PR90–PR100 termina no alpha técnico. PR101 inicia apenas o planejamento pós-PR100; não cria capacidade externa, tag, release ou publicação.
 
 PR93 cria pré-condição de identidade local verificada, mas não cria login completo nem autorização. PR94 prova somente `local_status.status` sob `local-status-read`; `local_status.echo` permanece fora da autorização non-dry-run. PR95 implementa recovery local para a mesma cadeia, mas isso não autoriza capacidades externas. PR96 expõe conversa local-model-first e fallback explícito, mas não instala runtime nem baixa modelo. PR97 cria memória local explícita e escopada, mas memória não é autorização, não é approval e não é fonte confiável de instruções sensíveis. Persistência de audit log não equivale a persistência de aprovação.
 
