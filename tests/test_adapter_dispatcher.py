@@ -97,6 +97,20 @@ class AdapterDispatcherInterfaceTest(unittest.TestCase):
         self.assertFalse(dispatcher["adapter_executed"])
         self.assertIsNone(payload["handler_result"])
 
+    def test_local_status_dispatch_without_non_dry_run_authorization_is_blocked(self) -> None:
+        payload = collect_adapter_dispatcher_interface(
+            adapter_id="local_status",
+            requested_capability="local_status.status",
+            action="safe status check",
+            parameters={"label": "public"},
+            dispatch_requested=True,
+        )
+        dispatcher = payload["dispatcher"]
+        self.assertEqual(dispatcher["status"], "blocked")
+        self.assertFalse(dispatcher["dispatch_permitted"])
+        self.assertFalse(dispatcher["adapter_executed"])
+        self.assertEqual(dispatcher["operation_scope"], "adapter-dry-run")
+
     def test_local_status_dispatch_executes_only_in_process_handler(self) -> None:
         payload = collect_adapter_dispatcher_interface(
             adapter_id="local_status",
@@ -104,6 +118,7 @@ class AdapterDispatcherInterfaceTest(unittest.TestCase):
             action="safe status check",
             parameters={"label": "public"},
             dispatch_requested=True,
+            operation_scope="local-status-read",
         )
         dispatcher = payload["dispatcher"]
         self.assertEqual(dispatcher["status"], "dispatched_local")
@@ -115,6 +130,27 @@ class AdapterDispatcherInterfaceTest(unittest.TestCase):
         self.assertFalse(dispatcher["external_side_effects"])
         self.assertEqual(payload["result"], "local_status")
         self.assertEqual(payload["handler_result"]["status"], "ok")
+
+        self.assertTrue(dispatcher["effective_authorization"])
+        self.assertTrue(dispatcher["scope_authorized"])
+        self.assertTrue(dispatcher["adapter_capability_authorized"])
+        self.assertTrue(payload["effective"]["local_non_dry_run_authorized"])
+        self.assertEqual(payload["effective"]["authorized_target"], "local_status.status")
+
+    def test_local_status_dispatch_rejects_forged_identity(self) -> None:
+        payload = collect_adapter_dispatcher_interface(
+            adapter_id="local_status",
+            requested_capability="local_status.status",
+            dispatch_requested=True,
+            operation_scope="local-status-read",
+            claimed_user_id="other-user",
+        )
+        dispatcher = payload["dispatcher"]
+        self.assertEqual(dispatcher["status"], "blocked")
+        self.assertFalse(dispatcher["dispatch_permitted"])
+        self.assertFalse(dispatcher["adapter_executed"])
+        self.assertFalse(payload["effective"]["local_non_dry_run_authorized"])
+        self.assertFalse(payload["permission"]["identity_verified"])
 
     def test_sensitive_action_and_parameters_are_not_exposed(self) -> None:
         payload = collect_adapter_dispatcher_interface(
@@ -164,6 +200,28 @@ class AdapterDispatcherInterfaceTest(unittest.TestCase):
         self.assertEqual(cli_payload["dispatcher"]["status"], "planned_not_dispatched")
         self.assertFalse(cli_payload["dispatcher"]["dispatch_permitted"])
         self.assertNotIn(TOKEN, result.stdout)
+
+    def test_gateway_endpoint_dispatches_local_status_only_with_local_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with RunningGateway(config) as gateway:
+                url = (
+                    f"{gateway.url}/v1/gateway/adapter-dispatcher"
+                    "?adapter=local_status&capability=local_status.status"
+                    "&operation_scope=local-status-read&dispatch=true"
+                )
+                with urlopen(url, timeout=5) as response:
+                    body = response.read().decode("utf-8")
+                    status = response.status
+        payload = json.loads(body)
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["dispatcher"]["status"], "dispatched_local")
+        self.assertTrue(payload["dispatcher"]["effective_authorization"])
+        self.assertTrue(payload["effective"]["local_non_dry_run_authorized"])
+        self.assertEqual(payload["handler_result"]["status"], "ok")
+        self.assertNotIn(TOKEN, body)
 
     def test_gateway_endpoint_is_non_dispatching(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

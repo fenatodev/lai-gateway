@@ -41,6 +41,53 @@ class EffectiveAuthorizationTest(unittest.TestCase):
         self.assertFalse(payload["authorization_persisted"])
         self.assertFalse(payload["security"]["adapter_capability_elevated"])
 
+    def test_local_status_read_scope_authorizes_real_local_non_dry_run(self) -> None:
+        payload = collect_effective_authorization(
+            adapter_id="local_status",
+            requested_capability="local_status.status",
+            operation_scope="local-status-read",
+            actor="user",
+            channel="workbench",
+            domain="system_status",
+            action="safe local status check",
+        )
+        effective = payload["effective"]
+        self.assertEqual(effective["status"], "effective_for_local_status_read")
+        self.assertEqual(effective["operation_scope"], "local-status-read")
+        self.assertTrue(effective["effective_authorization"])
+        self.assertTrue(effective["scope_authorized"])
+        self.assertTrue(effective["adapter_capability_authorized"])
+        self.assertTrue(effective["local_non_dry_run_authorized"])
+        self.assertEqual(effective["authorized_resource"], "adapter:local_status")
+        self.assertEqual(effective["authorized_target"], "local_status.status")
+        self.assertFalse(payload["dispatch_enabled"])
+        self.assertFalse(payload["adapter_executed"])
+        self.assertFalse(payload["executes_tools"])
+
+    def test_local_status_read_scope_rejects_wrong_capability(self) -> None:
+        payload = collect_effective_authorization(
+            adapter_id="local_status",
+            requested_capability="local_status.echo",
+            operation_scope="local-status-read",
+        )
+        effective = payload["effective"]
+        self.assertEqual(effective["status"], "blocked")
+        self.assertFalse(effective["local_non_dry_run_authorized"])
+        self.assertFalse(effective["adapter_capability_authorized"])
+
+    def test_local_status_read_scope_rejects_untrusted_identity(self) -> None:
+        payload = collect_effective_authorization(
+            adapter_id="local_status",
+            requested_capability="local_status.status",
+            operation_scope="local-status-read",
+            identity_source="prompt-claim",
+        )
+        effective = payload["effective"]
+        self.assertEqual(effective["status"], "blocked")
+        self.assertFalse(effective["effective_authorization"])
+        self.assertFalse(effective["local_non_dry_run_authorized"])
+        self.assertFalse(payload["permission"]["identity_verified"])
+
     def test_without_approval_intent_stays_pending(self) -> None:
         payload = collect_effective_authorization(
             adapter_id="browser",

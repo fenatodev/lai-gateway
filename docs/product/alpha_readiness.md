@@ -11,7 +11,7 @@ Não declarar browser agent completo, automação n8n real, voz operacional, MCP
 ## Limitações conhecidas
 
 - Effective authorization está restrita a adapter-dry-run; não concede capability ampla e não persiste aprovação.
-- local_status executa código in-process restrito; não prova o ciclo geral de autorização non-dry-run.
+- local_status.status tem autorização efetiva non-dry-run estreita após PR94; local_status.echo e outros adapters não entram nesse escopo.
 - Identidade usuário/cliente/agente/serviço tem vínculo local testável após PR93, mas isso não equivale a login completo, identidade remota ou autorização.
 - Persistência, expiração, revogação, consumo único, restart recovery e bloqueio contra duplicação de efeito ainda precisam de prova integrada nessa cadeia.
 - Audit log sanitizado não equivale a execução autorizada, integridade inviolável ou recuperação transacional.

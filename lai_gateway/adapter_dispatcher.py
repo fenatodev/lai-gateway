@@ -10,6 +10,7 @@ from .permission_decision import collect_permission_decision
 
 _ADAPTER_DISPATCHER_VERSION = "adapter-dispatcher/v2"
 _DRY_RUN_SCOPE = "adapter-dry-run"
+_LOCAL_STATUS_READ_SCOPE = "local-status-read"
 _LOCAL_STATUS_HANDLER_ID = "local_status.in_process.v1"
 
 
@@ -126,12 +127,19 @@ def _local_status(
     *,
     dispatch_requested: bool,
     decision: dict[str, Any],
+    effective: dict[str, Any],
 ) -> tuple[str, str, bool, bool]:
     if not _local_handler_available(decision):
         return "blocked", "local handler is not allowlisted for this decision", False, False
     if not dispatch_requested:
         return "planned_local_handler", "local handler is registered but dispatch was not requested", False, True
-    return "dispatched_local", "allowlisted local handler executed in process", True, True
+    if effective.get("operation_scope") != _LOCAL_STATUS_READ_SCOPE:
+        return "blocked", "local_status dispatch requires local-status-read effective authorization", False, True
+    if not effective.get("effective_authorization") or not effective.get("local_non_dry_run_authorized"):
+        return "blocked", "local_status dispatch blocked without local non-dry-run authorization", False, True
+    if not effective.get("adapter_capability_authorized"):
+        return "blocked", "local_status dispatch requires adapter capability authorization", False, True
+    return "dispatched_local", "allowlisted local handler executed after effective local authorization", True, True
 
 
 def build_adapter_dispatcher_interface(
@@ -147,6 +155,16 @@ def build_adapter_dispatcher_interface(
     approved_by: str | None = None,
     operation_scope: str | None = None,
     dispatch_requested: bool = False,
+    user_id: str | None = None,
+    client_id: str | None = None,
+    agent_id: str | None = None,
+    service_id: str | None = None,
+    identity_source: str | None = None,
+    expected_identity_binding_id: str | None = None,
+    claimed_user_id: str | None = None,
+    claimed_client_id: str | None = None,
+    claimed_agent_id: str | None = None,
+    claimed_service_id: str | None = None,
 ) -> tuple[AdapterDispatcherInterface, dict[str, Any], dict[str, Any] | None]:
     permission_payload = collect_permission_decision(
         requested_capability=requested_capability,
@@ -155,6 +173,16 @@ def build_adapter_dispatcher_interface(
         channel=channel,
         domain=domain,
         action=action,
+        user_id=user_id,
+        client_id=client_id,
+        agent_id=agent_id,
+        service_id=service_id,
+        identity_source=identity_source,
+        expected_identity_binding_id=expected_identity_binding_id,
+        claimed_user_id=claimed_user_id,
+        claimed_client_id=claimed_client_id,
+        claimed_agent_id=claimed_agent_id,
+        claimed_service_id=claimed_service_id,
     )
     decision = permission_payload["decision"]
     effective_payload = collect_effective_authorization(
@@ -168,6 +196,16 @@ def build_adapter_dispatcher_interface(
         approval_intent=approval_intent,
         approved_by=approved_by,
         operation_scope=operation_scope,
+        user_id=user_id,
+        client_id=client_id,
+        agent_id=agent_id,
+        service_id=service_id,
+        identity_source=identity_source,
+        expected_identity_binding_id=expected_identity_binding_id,
+        claimed_user_id=claimed_user_id,
+        claimed_client_id=claimed_client_id,
+        claimed_agent_id=claimed_agent_id,
+        claimed_service_id=claimed_service_id,
     )
     effective = effective_payload["effective"]
     adapter_status = _adapter_status(decision.get("adapter_id"))
@@ -176,6 +214,7 @@ def build_adapter_dispatcher_interface(
         status, reason, executed, registered = _local_status(
             dispatch_requested=dispatch_requested,
             decision=decision,
+            effective=effective,
         )
     else:
         status, reason, executed, registered = _legacy_status(
@@ -228,7 +267,7 @@ def build_adapter_dispatcher_interface(
         permission_outcome=decision["outcome"],
         effective_authorization=bool(effective["effective_authorization"]),
         scope_authorized=bool(effective["scope_authorized"]),
-        adapter_capability_authorized=bool(decision.get("granted_capability")),
+        adapter_capability_authorized=bool(effective.get("adapter_capability_authorized")),
         handler_registered=registered,
         handler_id=_LOCAL_STATUS_HANDLER_ID if registered else None,
         dispatcher_version=_ADAPTER_DISPATCHER_VERSION,
@@ -252,6 +291,16 @@ def collect_adapter_dispatcher_interface(
     approved_by: str | None = None,
     operation_scope: str | None = None,
     dispatch_requested: bool = False,
+    user_id: str | None = None,
+    client_id: str | None = None,
+    agent_id: str | None = None,
+    service_id: str | None = None,
+    identity_source: str | None = None,
+    expected_identity_binding_id: str | None = None,
+    claimed_user_id: str | None = None,
+    claimed_client_id: str | None = None,
+    claimed_agent_id: str | None = None,
+    claimed_service_id: str | None = None,
 ) -> dict[str, Any]:
     dispatcher, governance_payload, handler_result = build_adapter_dispatcher_interface(
         requested_capability=requested_capability,
@@ -265,6 +314,16 @@ def collect_adapter_dispatcher_interface(
         approved_by=approved_by,
         operation_scope=operation_scope,
         dispatch_requested=dispatch_requested,
+        user_id=user_id,
+        client_id=client_id,
+        agent_id=agent_id,
+        service_id=service_id,
+        identity_source=identity_source,
+        expected_identity_binding_id=expected_identity_binding_id,
+        claimed_user_id=claimed_user_id,
+        claimed_client_id=claimed_client_id,
+        claimed_agent_id=claimed_agent_id,
+        claimed_service_id=claimed_service_id,
     )
     executed = bool(dispatcher.adapter_executed)
     return {
@@ -300,7 +359,7 @@ def collect_adapter_dispatcher_interface(
             "external_side_effects": False,
             "grants_permissions": False,
             "adapter_capability_elevated": False,
-            "requires_effective_authorization": not dispatcher.handler_registered,
+            "requires_effective_authorization": True,
             "requires_registered_handler": bool(dispatch_requested),
             "local_only": dispatcher.handler_registered,
             "network_access": False,

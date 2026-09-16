@@ -341,7 +341,7 @@ function governanceApprovedQuery() {
 function isSafeLocalStatusSelection() {
   const adapter = selectValue("governance-adapter") || "local_status";
   const capability = selectValue("governance-capability") || "local_status.status";
-  return adapter === "local_status" && ["local_status.status", "local_status.echo"].includes(capability);
+  return adapter === "local_status" && capability === "local_status.status";
 }
 
 function governanceState(payload) {
@@ -1313,14 +1313,14 @@ async function runAction(action) {
       const payload = await requestJson(`/v1/gateway/adapter-dispatcher?${governanceApprovedQuery()}`);
       setGovernanceOutput("dispatcher-output", payload);
     } else if (action === "dispatch-local-status") {
-      if (!isSafeLocalStatusSelection()) throw new Error("dispatch seguro permitido somente para local_status.status ou local_status.echo");
+      if (!isSafeLocalStatusSelection()) throw new Error("dispatch seguro permitido somente para local_status.status");
       const confirmation = [
         "Executar adapter local_status agora?",
         "Escopo: handler interno allowlisted.",
         "Sem rede, shell, credenciais, leitura/escrita de arquivo ou efeito externo.",
       ].join("\n");
       if (!window.confirm(confirmation)) return;
-      const query = governanceQuery({ approve: true, approvedBy: "workbench", operationScope: "adapter-dry-run", dispatch: true });
+      const query = governanceQuery({ approve: true, approvedBy: "workbench", operationScope: "local-status-read", dispatch: true });
       const payload = await requestJson(`/v1/gateway/adapter-dispatcher?${query}`);
       setGovernanceOutput("dispatcher-output", payload);
     } else if (action === "refresh-mcp-status") {
