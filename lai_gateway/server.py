@@ -341,6 +341,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
                     approval_intent=approval_intent,
                     approved_by=approved_by,
                     operation_scope=operation_scope,
+                    **self._identity_kwargs(values),
                 ),
             )
             return
@@ -364,6 +365,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 channel=channel, domain=domain, action=action, parameters=params,
                 approval_intent=approval_intent, approved_by=approved_by,
                 operation_scope=operation_scope, dispatch_requested=dispatch_requested,
+                **self._identity_kwargs(values),
             ))
             return
         if parsed.path == "/v1/gateway/persisted-audit-log":

@@ -124,12 +124,35 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("skills.py", rows["Scout"][3])
         self.assertEqual(rows["Scout"][1], "metadados de skill")
         self.assertIn(
-            "Apenas adapter-dry-run; adapter_capability_authorized=false; authorization_persisted=false",
+            "adapter-dry-run continua sem adapter capability; local-status-read só autoriza local_status.status; authorization_persisted=false",
             rows["effective authorization"][4],
         )
+        self.assertIn("local-status-read efetivo", rows["adapter dispatcher"][4])
+        self.assertIn("autorização non-dry-run só cobre status, não echo", rows["local_status adapter"][4])
         for term in ("adapter-dry-run", "authorization_persisted=false", "declarado", "simulado", "efetivamente imposto"):
             self.assertIn(term, text)
 
+
+    def test_pr94_local_non_dry_run_authorization_is_canonical_and_limited(self) -> None:
+        spec = (PRODUCT_DOCS / "pr_94_local_non_dry_run_authorization.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        roadmap = (PRODUCT_DOCS / "roadmap.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        app = (ROOT / "lai_gateway" / "static" / "app.js").read_text(encoding="utf-8")
+        for statement in (
+            "local-status-read",
+            "local_status.status",
+            "sem shell, sem rede, sem credenciais e sem filesystem write",
+            "não resolve restart recovery nem autorização persistida",
+        ):
+            self.assertIn(statement, spec)
+        self.assertIn("local-status-read só autoriza local_status.status", matrix)
+        self.assertIn("`local_status.echo` permanece fora da autorização non-dry-run", roadmap)
+        self.assertIn("local_status.echo e outros adapters não entram nesse escopo", alpha)
+        self.assertIn("one real local non-dry-run path", readme)
+        self.assertIn('operationScope: "local-status-read"', app)
+        self.assertNotIn('"local_status.echo"].includes', app)
 
     def test_pr93_identity_docs_are_canonical_and_limited(self) -> None:
         matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
@@ -166,9 +189,8 @@ class ProductDocsTest(unittest.TestCase):
         text = (ROOT / "README.md").read_text(encoding="utf-8")
         scope = text.split("## Current scope", 1)[1].split("## Requirements", 1)[0]
         for statement in (
-            "Effective authorization currently covers only `adapter-dry-run`; the real "
-            "`local_status` handler is a separate, tightly allowlisted in-process path, "
-            "not proof of general authorization.",
+            "Effective authorization currently covers `adapter-dry-run` and one real "
+            "local non-dry-run path: `local-status-read` for `local_status.status`.",
             "Browser, n8n, voice, broad MCP execution and social/career automation "
             "are not ready-to-use features.",
             "It is not general agent messaging authority or durable per-message approval.",
