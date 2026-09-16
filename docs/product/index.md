@@ -26,5 +26,6 @@ Os documentos `pr_*.md` têm rótulo **spec de PR / histórico**: são registros
 - **revisão externa / histórico** — [Revisão Astra](astra_architecture_review.md) e [revisão Codex/Astra](codex_astra_architecture_review.md): insumos históricos, sem autoridade automática.
 - **descritivo / insumo de revisão externa** — [Prompt de revisão](roadmap_review_prompt.md): instrumento de coleta, não decisão.
 - **spec de PR / histórico** — [PR89](pr_89_roadmap_alpha_readiness.md): baseline histórico da consolidação.
+- **spec de PR / histórico** — [PR93](pr_93_testable_identity.md): vínculo local testável de identidade usuário/cliente/agente/serviço.
 
 GPT-6/Astra, Claude e Codex são revisores. Recomendações precisam de confronto com código, testes e decisão humana versionada. Documentos antigos fora desta lista devem ser lidos no contexto da versão e do escopo em que foram escritos.

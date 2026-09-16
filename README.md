@@ -16,8 +16,8 @@ The current gateway provides:
 
 - a dependency-free Python client for the harness control plane;
 - validation of the `lai harness` gateway contract, including the MCP broker foundation, read-only run-event timelines, strict-template-safe remote diagnose runs, and the v0.5.0 local-chat workbench contract when available;
-- a local CLI for `config`, `contract`, `status`, `readiness`, `doctor`, `health-report`, `open-ui`, `stack-start`, `mcp`, `sessions`, and `runs`, including run-event timeline reads;
-- an HTTP gateway exposing harness status, readiness, contract, MCP metadata, session, read-only run, run-event, and local-chat workbench routes;
+- a local CLI for `config`, `contract`, `status`, `readiness`, `doctor`, `identity-binding`, `health-report`, `open-ui`, `stack-start`, `mcp`, `sessions`, and `runs`, including run-event timeline reads;
+- an HTTP gateway exposing harness status, readiness, contract, identity binding, MCP metadata, session, read-only run, run-event, and local-chat workbench routes;
 - read-only run creation for `diagnose`, `plan`, `release`, `review`, and `security`, plus metadata-only timeline polling in the local UI;
 - a loopback-only Local Workbench for `lai harness` v0.5.0 local-chat workspaces, model choices, work runs, review, lifecycle cancel, and hash-bound promotion.
 
