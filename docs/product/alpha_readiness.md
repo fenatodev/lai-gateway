@@ -32,6 +32,8 @@ Após o PR92, `docs/release_checklist.md` define a verificação source-only de 
 
 Após o PR110, `external-expansion-gate/v1` adiciona um go/no-go read-only para capacidades externas. PR110 mantém expansão externa em no-go read-only: browser autenticado, n8n real, MCP amplo, voz, social/carreira, credenciais, publicação, formulários e webhooks continuam bloqueados até spec própria, executor contido, testes negativos e aprovação humana separada.
 
+Após o PR111, o plano operacional pós-PR110 define PR111–PR120 para avançar do alpha técnico ao alpha operacional local. PR111 é documental: não cria executor, não emite grant, não consome grant, não despacha adapter e não libera capacidade externa.
+
 ## Go para alpha público técnico
 
 Todos os itens são obrigatórios; esta lista não afirma que já passaram:
