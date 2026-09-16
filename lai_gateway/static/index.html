@@ -219,6 +219,7 @@
             </label>
             <div class="actions">
               <button data-action="refresh-governance-chain">Atualizar cadeia</button>
+              <button data-action="refresh-permission-ux">UX de permissões</button>
               <button data-action="refresh-governance-decision">Decisão</button>
               <button data-action="refresh-governance-policy">Policy</button>
               <button data-action="refresh-governance-authorization">Autorização</button>
@@ -232,8 +233,14 @@
               <button class="primary" data-action="dispatch-local-status">Executar local_status seguro</button>
             </div>
             <p id="governance-summary" class="callout warn" aria-live="polite">Governança ainda não carregada. Apenas local_status pode ter dispatch real seguro.</p>
+            <p id="permission-ux-summary" class="callout warn" aria-live="polite">UX de permissões separa intenção, decisão, autorização efetiva, grant e execução.</p>
             <span id="governance-pill" class="pill muted">governança desconhecida</span>
             <pre id="governance-output" class="compact-output" aria-live="polite">Não carregado.</pre>
+            <details class="review-section clean-review-details" open>
+              <summary>UX de permissões</summary>
+              <p class="muted">Read-only: não emite grant, não consome grant, não despacha adapter e não concede autoridade.</p>
+              <pre id="permission-ux-output" class="compact-output" aria-live="polite">Não carregado.</pre>
+            </details>
             <details class="review-section clean-review-details">
               <summary>Decision</summary>
               <pre id="decision-output" class="compact-output" aria-live="polite">Não carregado.</pre>

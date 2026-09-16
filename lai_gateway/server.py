@@ -30,6 +30,7 @@ from .health import collect_health_report, render_health_report
 from .identity import collect_identity_binding
 from .ops import collect_ops_status
 from .permission_decision import collect_permission_decision
+from .permission_ux import collect_permission_ux
 from .persisted_audit_log import collect_persisted_audit_log
 from .policy_evaluator import collect_policy_evaluation
 from .public_browser import collect_public_browser
@@ -343,6 +344,36 @@ class GatewayHandler(BaseHTTPRequestHandler):
                     **self._identity_kwargs(values),
                 ),
             )
+            return
+        if parsed.path == "/v1/gateway/permission-ux":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            capability = values.get("capability", [None])[0] or None
+            adapter_id = values.get("adapter_id", [None])[0] or values.get("adapter", [None])[0] or None
+            actor = values.get("actor", [None])[0] or None
+            channel = values.get("channel", [None])[0] or None
+            domain = values.get("domain", [None])[0] or None
+            action = values.get("action", [None])[0] or None
+            approved_by = values.get("approved_by", [None])[0] or values.get("approved-by", [None])[0] or None
+            approval_intent = values.get("approve", [""])[0].strip().lower() in {"1", "true", "yes", "sim"}
+            operation_scope = values.get("operation_scope", [None])[0] or values.get("operation-scope", [None])[0] or None
+            grant_id = values.get("authorization_grant_id", [None])[0] or values.get("authorization-grant-id", [None])[0] or None
+            params = _query_parameters(values.get("param", []))
+            self._send_json(HTTPStatus.OK, collect_permission_ux(
+                requested_capability=capability,
+                adapter_id=adapter_id,
+                actor=actor,
+                channel=channel,
+                domain=domain,
+                action=action,
+                parameters=params,
+                approval_intent=approval_intent,
+                approved_by=approved_by,
+                operation_scope=operation_scope,
+                authorization_grant_id=grant_id,
+                **self._identity_kwargs(values),
+            ))
             return
         if parsed.path == "/v1/gateway/policy-eval":
             if not self._authorize_gateway_api(parsed.path):
@@ -1027,6 +1058,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/identity-binding",
             "/v1/gateway/adapters",
             "/v1/gateway/permission-decision",
+            "/v1/gateway/permission-ux",
             "/v1/gateway/policy-eval",
             "/v1/gateway/authorization-record",
             "/v1/gateway/adapter-invocation-proposal",

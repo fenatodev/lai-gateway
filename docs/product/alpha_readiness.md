@@ -19,7 +19,7 @@ Não declarar browser agent completo, automação n8n real, voz operacional, MCP
 - Dev/Workbench depende de Harness compatível; modelo local depende de runtime configurado. PR96 prova conversa local-model-first e fallback explícito, mas não prova instalação guiada nem disponibilidade universal de runtime.
 - Browser autenticado/n8n execução real/MCP amplo/voz/social permanecem contratos ou planos; n8n entra apenas como plano local por digest em PR108; documentos locais entram apenas no escopo restrito PR98–99.
 - Telegram outbound já realiza envio operacional opt-in. Requer ação explícita do operador e destino configurado; não possui a cadeia geral durável de aprovação por mensagem. Novos fluxos exigem aprovação explícita de conteúdo/destino e não podem usar enable-send como consentimento permanente.
-- PR100 adiciona `alpha-readiness/v1` para consolidar o go/no-go técnico; publicação pública, tag e anúncio continuam decisões humanas separadas.
+- PR100 adiciona `alpha-readiness/v1` para consolidar o go/no-go técnico; PR109 adiciona `permission-ux/v1` apenas como explicação read-only da cadeia de permissão. Publicação pública, tag e anúncio continuam decisões humanas separadas.
 
 ## Quickstart público
 

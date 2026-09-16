@@ -51,6 +51,7 @@ from .mobile import (
 )
 from .ops import collect_ops_status, render_ops_status
 from .permission_decision import collect_permission_decision, render_permission_decision
+from .permission_ux import collect_permission_ux, render_permission_ux
 from .policy_evaluator import collect_policy_evaluation, render_policy_evaluation
 from .proxy import collect_mobile_proxy_status, dump_mobile_proxy_json, render_mobile_proxy_status, run_mobile_proxy, validate_mobile_proxy_config
 from .release import collect_release_check, render_release_check
@@ -339,6 +340,19 @@ def main(argv: list[str] | None = None) -> int:
     permission_decision_parser.add_argument("--domain", default=None, help="decision domain label; defaults to unknown")
     permission_decision_parser.add_argument("--action", default=None, help="human-readable action label")
     permission_decision_parser.add_argument("--json", action="store_true", help="print JSON")
+    permission_ux_parser = sub.add_parser("permission-ux", help="show permission flow UX without issuing grants or dispatching adapters")
+    permission_ux_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
+    permission_ux_parser.add_argument("--capability", required=True, help="requested capability to explain")
+    permission_ux_parser.add_argument("--actor", default=None, help="actor label; defaults to user")
+    permission_ux_parser.add_argument("--channel", default=None, help="channel label; defaults to gateway")
+    permission_ux_parser.add_argument("--domain", default=None, help="domain label; defaults to unknown")
+    permission_ux_parser.add_argument("--action", default=None, help="human-readable action label")
+    permission_ux_parser.add_argument("--param", action="append", default=None, help="bounded public parameter as key=value; repeatable")
+    permission_ux_parser.add_argument("--approve", action="store_true", help="mark approval intent for visualization only")
+    permission_ux_parser.add_argument("--approved-by", default=None, help="bounded approver label")
+    permission_ux_parser.add_argument("--operation-scope", default=None, help="effective authorization scope to visualize")
+    permission_ux_parser.add_argument("--authorization-grant-id", default=None, help="optional grant id displayed as unverified by this read-only UX")
+    permission_ux_parser.add_argument("--json", action="store_true", help="print JSON")
     policy_eval_parser = sub.add_parser("policy-eval", help="evaluate minimal LAI policy rules without executing tools")
     policy_eval_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
     policy_eval_parser.add_argument("--capability", required=True, help="requested capability to evaluate")
@@ -971,6 +985,25 @@ def main(argv: list[str] | None = None) -> int:
             )
             if not args.json:
                 print(render_permission_decision(payload))
+                return 0
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        if args.command == "permission-ux":
+            payload = collect_permission_ux(
+                adapter_id=args.adapter,
+                requested_capability=args.capability,
+                actor=args.actor,
+                channel=args.channel,
+                domain=args.domain,
+                action=args.action,
+                parameters=_params_from_pairs(args.param),
+                approval_intent=bool(args.approve),
+                approved_by=args.approved_by,
+                operation_scope=args.operation_scope,
+                authorization_grant_id=args.authorization_grant_id,
+            )
+            if not args.json:
+                print(render_permission_ux(payload))
                 return 0
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
