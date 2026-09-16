@@ -1,4 +1,5 @@
 import re
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -231,6 +232,65 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("`docs/quickstart.md`", roadmap)
         self.assertIn("Após o PR91, `docs/quickstart.md`", alpha)
         self.assertIn("não transforma o alpha em produto completo", alpha)
+    def test_pr92_release_checklist_identifies_source_artifact(self) -> None:
+        release_checklist = ROOT / "docs" / "release_checklist.md"
+        self.assertTrue(release_checklist.is_file())
+        text = release_checklist.read_text(encoding="utf-8")
+        with open(ROOT / "pyproject.toml", "rb") as handle:
+            project_version = tomllib.load(handle)["project"]["version"]
+        for statement in (
+            "source-first",
+            "versão declarada em `lai_gateway.__version__` e `pyproject.toml`",
+            "commit exato integrado em `main` por PR com CI verde",
+            f"python3 -m lai_gateway release-check --target {project_version} --json",
+            f"TARGET_GATEWAY={project_version}",
+            "PYTHON=python3 make check",
+            "make milestone-gate",
+            "Não há promessa de PyPI, binário, instalador one-click, hosted service ou cloud",
+            "não publica tags, releases, pacotes, mensagens ou artefatos externos",
+        ):
+            self.assertIn(statement, text)
+
+    def test_pr92_workbench_visual_guide_is_sanitized_and_restricted(self) -> None:
+        guide = ROOT / "docs" / "workbench_visual_guide.md"
+        self.assertTrue(guide.is_file())
+        text = guide.read_text(encoding="utf-8")
+        for statement in (
+            "Guia visual mínimo e sanitizado",
+            "conversa normal `@lai` sem criar run dev implícito",
+            "painel Governance",
+            "fluxo seguro `local_status`",
+            "Evidência visual sanitizada",
+            "sem shell",
+            "sem filesystem write",
+            "sem rede externa",
+            "sem credenciais",
+            "sem MCP tool call",
+            "sem envio de mensagem",
+            "sem prova de autorização geral",
+            "Este guia não implementa UI nova",
+        ):
+            self.assertIn(statement, text)
+        for blocked in ("browser agent", "n8n real", "voz operacional", "MCP tool execution amplo", "publicação externa"):
+            self.assertIn(blocked, text)
+        self.assertNotIn("browser automation is ready", text)
+        self.assertNotIn("n8n workflows are ready", text)
+
+    def test_pr92_docs_are_linked_from_canonical_public_docs(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        roadmap = (PRODUCT_DOCS / "roadmap.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+        self.assertTrue((PRODUCT_DOCS / "pr_92_release_workbench_guide.md").is_file())
+        self.assertIn("](docs/release_checklist.md)", readme)
+        self.assertIn("](docs/workbench_visual_guide.md)", readme)
+        self.assertIn("[Release checklist](../release_checklist.md)", index)
+        self.assertIn("[Workbench visual guide](../workbench_visual_guide.md)", index)
+        self.assertIn("`docs/release_checklist.md`", roadmap)
+        self.assertIn("`docs/workbench_visual_guide.md`", roadmap)
+        self.assertIn("Após o PR92, `docs/release_checklist.md`", alpha)
+        self.assertIn("não publicam release, não fazem bump/tag e não habilitam capacidades externas", alpha)
+
 
 if __name__ == "__main__":
     unittest.main()

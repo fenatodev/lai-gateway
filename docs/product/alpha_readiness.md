@@ -25,6 +25,10 @@ Não declarar browser agent completo, automação n8n real, voz operacional, MCP
 
 Após o PR91, `docs/quickstart.md` descreve o caminho source-first para instalar wrappers locais, validar a suíte, checar compatibilidade Gateway/Harness, diagnosticar token/Harness/modelo e abrir a UI em loopback. Esse guia melhora a reprodutibilidade, mas não transforma o alpha em produto completo nem habilita capacidades externas.
 
+## Release checklist e guia visual
+
+Após o PR92, `docs/release_checklist.md` define a verificação source-only de versão, commit, CI, `make check`, `release-check` e milestone gate. `docs/workbench_visual_guide.md` define o padrão mínimo de evidência visual sanitizada para Workbench, Governance e `local_status`. Esses documentos não publicam release, não fazem bump/tag e não habilitam capacidades externas.
+
 ## Go para alpha público técnico
 
 Todos os itens são obrigatórios; esta lista não afirma que já passaram:

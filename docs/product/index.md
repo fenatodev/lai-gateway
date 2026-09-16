@@ -5,6 +5,8 @@
 ## Documentos atuais
 
 - **guia operacional público** — [Quickstart](../quickstart.md): instalação local source-first, diagnóstico e primeiro uso restrito.
+- **checklist operacional público** — [Release checklist](../release_checklist.md): verificação source-only de versão, commit, CI e gates locais.
+- **guia visual público** — [Workbench visual guide](../workbench_visual_guide.md): mapa sanitizado do Workbench, Governance e `local_status`.
 - **normativo** — [Roadmap](roadmap.md): sequência normativa pós-PR89, dependências e gates.
 - **matriz de estado, descritivo** — [Implementation matrix](implementation_matrix.md): maturidade, evidência e disponibilidade ao usuário.
 - **prontidão alpha, critérios normativos** — [Alpha readiness](alpha_readiness.md): limitações conhecidas e decisão go/no-go.
