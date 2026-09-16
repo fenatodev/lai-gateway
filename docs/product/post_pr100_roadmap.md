@@ -15,7 +15,7 @@ Roadmap normativo após o PR100. Ele substitui a sequência fechada PR90–PR100
 | PR | Trilha | Entrega | Gate de saída |
 | --- | --- | --- | --- |
 | PR101 | Planejamento | Roadmap pós-PR100 | Documento normativo versionado, índice atualizado e testes documentais sem mudança funcional |
-| PR102 | Release alpha técnico | Preparação source-first de tag/release | `release-check` e `alpha-readiness` em `main`, nota de release sem overclaiming, aprovação humana antes de tag/publicação |
+| PR102 | Release alpha técnico | Preparação source-first de tag/release | `release-check` e `alpha-readiness` em `main`, nota de release versionada sem overclaiming, aprovação humana antes de tag/publicação |
 | PR103 | Dogfood local limpo | Validação ponta a ponta em checkout limpo | Script/checklist reproduzível para stack local, Workbench, modelo local ausente/presente e documentos restritos |
 | PR104 | Onboarding/UX | Redução de fricção inicial | Workbench mostra próximos passos, falhas de Harness/token/modelo/documento sem vazar segredo |
 | PR105 | Modelo local operacional | Runtime local configurável com diagnóstico melhor | Sem download automático, sem nuvem, sem execução de tools e com health/fallback explícito |
