@@ -457,6 +457,51 @@
               </article>
 
               <article class="card compact-panel">
+                <h2>Proposta de ação</h2>
+                <p class="muted">Envelope read-only antes de aprovação: declara domínio, canal, autonomia, capacidade, alvo, dados, efeito e risco. Não autoriza nem executa.</p>
+                <div class="form-row">
+                  <label>Tarefa
+                    <input id="action-proposal-task-id" placeholder="pr114" autocomplete="off" autocapitalize="none" spellcheck="false">
+                  </label>
+                  <label>Domínio
+                    <input id="action-proposal-domain" placeholder="project" autocomplete="off" autocapitalize="none" spellcheck="false">
+                  </label>
+                  <label>Canal
+                    <input id="action-proposal-channel" placeholder="workbench" autocomplete="off" autocapitalize="none" spellcheck="false">
+                  </label>
+                </div>
+                <div class="form-row">
+                  <label>Autonomia
+                    <input id="action-proposal-autonomy" placeholder="high" autocomplete="off" autocapitalize="none" spellcheck="false">
+                  </label>
+                  <label>Capacidade
+                    <input id="action-proposal-capability" placeholder="action-proposal" autocomplete="off" autocapitalize="none" spellcheck="false">
+                  </label>
+                  <label>Risco
+                    <input id="action-proposal-risk" placeholder="low" autocomplete="off" autocapitalize="none" spellcheck="false">
+                  </label>
+                </div>
+                <label>Ação
+                  <input id="action-proposal-action" placeholder="descrever ação proposta" autocomplete="off" autocapitalize="none" spellcheck="false">
+                </label>
+                <label>Alvo
+                  <input id="action-proposal-target" placeholder="arquivo, módulo ou recurso" autocomplete="off" autocapitalize="none" spellcheck="false">
+                </label>
+                <div class="form-row">
+                  <label>Dados
+                    <input id="action-proposal-data" placeholder="dados tocados" autocomplete="off" autocapitalize="none" spellcheck="false">
+                  </label>
+                  <label>Efeito
+                    <input id="action-proposal-effect" placeholder="efeito esperado se autorizado depois" autocomplete="off" autocapitalize="none" spellcheck="false">
+                  </label>
+                </div>
+                <div class="actions">
+                  <button data-action="refresh-action-proposal">Preparar proposta</button>
+                </div>
+                <pre id="action-proposal-output" aria-live="polite">Não carregado.</pre>
+              </article>
+
+              <article class="card compact-panel">
                 <h2>Modelo</h2>
                 <p class="muted">Conversa direta usa somente modelo local/privado configurado. Sem nuvem, Harness run, tools ou elevação automática.</p>
                 <label>Primeira conversa local

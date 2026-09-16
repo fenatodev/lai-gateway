@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, urlparse
 
 from . import __version__
 from .adapter_invocation import collect_adapter_invocation_proposal
+from .action_proposal import collect_action_proposal
 from .alpha_readiness import collect_alpha_readiness
 from .adapter_dry_run import collect_adapter_dry_run
 from .adapter_dispatcher import collect_adapter_dispatcher_interface
@@ -458,6 +459,29 @@ class GatewayHandler(BaseHTTPRequestHandler):
                     domain=domain,
                     action=action,
                     parameters=params,
+                ),
+            )
+            return
+        if parsed.path == "/v1/gateway/action-proposal":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            self._send_json(
+                HTTPStatus.OK,
+                collect_action_proposal(
+                    workspace_root=values.get("workspace_root", ["."])[0] or ".",
+                    state_file=values.get("state_file", [None])[0] or None,
+                    task_id=values.get("task_id", [None])[0] or values.get("task-id", [None])[0] or None,
+                    actor=values.get("actor", [None])[0] or None,
+                    domain=values.get("domain", [None])[0] or None,
+                    channel=values.get("channel", [None])[0] or None,
+                    autonomy=values.get("autonomy", [None])[0] or None,
+                    capability=values.get("capability", [None])[0] or None,
+                    action=values.get("action", [None])[0] or None,
+                    target=values.get("target", [None])[0] or None,
+                    data=values.get("data", [None])[0] or None,
+                    effect=values.get("effect", [None])[0] or None,
+                    risk=values.get("risk", [None])[0] or None,
                 ),
             )
             return
@@ -1078,6 +1102,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/policy-eval",
             "/v1/gateway/authorization-record",
             "/v1/gateway/adapter-invocation-proposal",
+            "/v1/gateway/action-proposal",
             "/v1/gateway/audit-events",
             "/v1/gateway/adapter-dry-run",
             "/v1/gateway/authorization-capture-stub",

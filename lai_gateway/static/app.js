@@ -178,7 +178,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pareie este celular primeiro e atualize este painel.";
-  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "public-browser-output", "mcp-output", "n8n-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "permission-ux-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output", "external-expansion-output", "objective-output"]) {
+  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "public-browser-output", "mcp-output", "n8n-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "permission-ux-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output", "external-expansion-output", "objective-output", "action-proposal-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -291,6 +291,56 @@ function setObjectiveState(payload) {
   setPill("workbench-pill", `objetivo ${payload.overall || "desconhecido"}`, state);
   clearPairRequiredOutput("objective-output");
   show("objective-output", compactObjectiveStateText(payload));
+}
+
+function actionProposalParams() {
+  return new URLSearchParams({
+    workspace_root: byId("objective-workspace-root")?.value || ".",
+    state_file: byId("objective-state-file")?.value || ".lai/objective-state.json",
+    task_id: byId("action-proposal-task-id")?.value || "",
+    domain: byId("action-proposal-domain")?.value || "",
+    channel: byId("action-proposal-channel")?.value || "",
+    autonomy: byId("action-proposal-autonomy")?.value || "",
+    capability: byId("action-proposal-capability")?.value || "",
+    target: byId("action-proposal-target")?.value || "",
+    action: byId("action-proposal-action")?.value || "",
+    data: byId("action-proposal-data")?.value || "",
+    effect: byId("action-proposal-effect")?.value || "",
+    risk: byId("action-proposal-risk")?.value || "",
+  });
+}
+
+function compactActionProposalText(payload) {
+  const proposal = payload.proposal || {};
+  const lines = [
+    `lai-gateway action-proposal: ${payload.overall || "desconhecido"}`,
+    `schema: ${payload.schema_version || "action-proposal/v1"}`,
+    `status: ${proposal.status || "unknown"}`,
+    `domain: ${proposal.domain || "unknown"}`,
+    `channel: ${proposal.channel || "unknown"}`,
+    `autonomy: ${proposal.autonomy || "unknown"}`,
+    `capability: ${proposal.capability || "none"}`,
+    `target: ${proposal.target || "missing"}`,
+    `data: ${proposal.data || "missing"}`,
+    `effect: ${proposal.effect || "missing"}`,
+    `risk: ${proposal.risk || "unknown"}`,
+    `source: ${proposal.source || "unknown"}`,
+    "effective_authorization: false",
+    "issues_grants: false",
+    "dispatches_adapter: false",
+    "executes_tools: false",
+    "external_side_effects: false",
+  ];
+  if (proposal.action) lines.push(`action: ${proposal.action}`);
+  if (proposal.reason) lines.push(`reason: ${proposal.reason}`);
+  return lines.join("\n");
+}
+
+function setActionProposal(payload) {
+  const state = payload.overall === "blocked" ? "danger" : payload.overall === "ready" ? "ready" : "warn";
+  setPill("workbench-pill", `proposta ${payload.overall || "desconhecido"}`, state);
+  clearPairRequiredOutput("action-proposal-output");
+  show("action-proposal-output", compactActionProposalText(payload));
 }
 
 function setModelStatus(payload) {
@@ -1665,6 +1715,8 @@ async function runAction(action) {
       setExternalExpansionGate(await requestJson("/v1/gateway/external-expansion-gate"));
     } else if (action === "refresh-objective-state") {
       setObjectiveState(await requestJson(`/v1/gateway/objective-state?${objectiveStateParams()}`));
+    } else if (action === "refresh-action-proposal") {
+      setActionProposal(await requestJson(`/v1/gateway/action-proposal?${actionProposalParams()}`));
     } else if (action === "refresh-public-browser-plan") {
       setPublicBrowser(await requestJson(`/v1/gateway/public-browser?${publicBrowserParams("plan")}`));
     } else if (action === "fetch-public-browser") {
@@ -2047,6 +2099,8 @@ document.addEventListener("DOMContentLoaded", () => {
     runAction("refresh-readiness");
     runAction("refresh-alpha-readiness");
     runAction("refresh-external-expansion-gate");
+    runAction("refresh-objective-state");
+    runAction("refresh-action-proposal");
     runAction("refresh-health-report");
     runAction("refresh-local-chat-contract");
     runAction("load-local-chat-workspaces");
