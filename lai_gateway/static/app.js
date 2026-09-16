@@ -176,7 +176,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pareie este celular primeiro e atualize este painel.";
-  for (const id of ["health-output", "ops-output", "status-output", "model-output", "mcp-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output"]) {
+  for (const id of ["health-output", "ops-output", "status-output", "model-output", "mcp-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -226,6 +226,22 @@ function modelChatBody() {
   const message = byId("model-chat-message")?.value.trim() || "";
   if (!message) throw new Error("mensagem obrigatória para conversa local");
   return { message, timeout_seconds: 60, max_tokens: 768 };
+}
+
+function memoryContextBody(memoryAction = "show") {
+  const contextKind = byId("memory-context-kind")?.value || "project";
+  const projectId = byId("memory-project-id")?.value.trim() || "default";
+  const note = byId("memory-note")?.value.trim() || "";
+  const body = { memory_action: memoryAction, context_kind: contextKind, project_id: projectId, limit: 20 };
+  if (memoryAction === "remember") body.note = note;
+  return body;
+}
+
+function documentTextBody() {
+  const workspaceRoot = byId("document-workspace-root")?.value.trim() || ".";
+  const relativePath = byId("document-relative-path")?.value.trim() || "";
+  if (!relativePath) throw new Error("caminho relativo do documento obrigatório");
+  return { workspace_root: workspaceRoot, relative_path: relativePath, max_chars: 6000 };
 }
 
 function setMcpStatus(payload) {
@@ -1392,6 +1408,14 @@ async function runAction(action) {
       });
       setPill("model-pill", `memória ${payload.overall || "desconhecido"}`, payload.overall === "blocked" ? "danger" : "ready");
       show("memory-output", payload);
+    } else if (action === "read-document-text-local") {
+      const payload = await requestJson("/v1/gateway/document-text-local", {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify(documentTextBody()),
+      });
+      setPill("model-pill", `documento ${payload.overall || "desconhecido"}`, payload.overall === "blocked" ? "danger" : "ready");
+      show("document-output", payload);
     } else if (action === "refresh-local-chat-contract") {
       setLocalChatContract(await requestJson("/v1/local-chat/contract"));
     } else if (action === "load-local-chat-workspaces") {

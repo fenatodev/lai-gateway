@@ -36,7 +36,7 @@ Todos os itens são obrigatórios; esta lista não afirma que já passaram:
 - Quickstart reproduzível por usuário novo, instalação limpa em ambiente suportado e diagnóstico de Harness/token/modelo ausentes (PR91).
 - Empacotamento mínimo identificado, versionamento inequívoco, artefato correspondente ao commit e release checklist com guia visual sanitizado (PR92).
 - Identidade testável (PR93), uma ação local autorizada non-dry-run (PR94) e persistência/restart/recovery com expiração, revogação, consumo único e antirreplay para o escopo estreito PR95.
-- Contexto local por projeto/pessoal fica coberto por PR97; documentos locais restritos seguem para PR98–99. Primeira conversa local e health/fallback explícitos ficam cobertos por PR96.
+- Contexto local por projeto/pessoal fica coberto por PR97; `document_text_local` restrito para `.txt/.md/.json` em workspace explícito fica coberto por PR98; Workbench para documentos segue para PR99. Primeira conversa local e health/fallback explícitos ficam cobertos por PR96.
 - `python3 -m unittest tests.test_product_docs -v`, `PYTHON=python3 make check` e `git diff --check` verdes; CI e publication scan conferidos para o commit candidato, sem inferir verde histórico.
 - README, matriz e UI com ausência de overclaiming; limitações conhecidas visíveis, sem segredos ou dados privados nas evidências.
 - Capacidades externas bloqueadas conforme roadmap; aprovação humana separada para publicação do alpha.
@@ -58,3 +58,6 @@ local_status é apenas o primeiro adapter seguro restrito; não prova autorizaç
 Telegram outbound tem limite conhecido: não possui aprovação durável por mensagem.
 
 - Conteúdo de memória, arquivo, código, ferramenta ou modelo não concede autorização. Memória local PR97 é dado não confiável e não substitui aprovação.
+
+
+PR98 não habilita PDF, OCR, Office, mídia, HOME scan, upload externo, rede, escrita ou autorização por conteúdo de documento.

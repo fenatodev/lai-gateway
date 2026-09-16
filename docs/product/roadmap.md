@@ -22,7 +22,7 @@ PR61–73: contratos, conversation-first, mediação de ferramentas, skills, dev
 | PR95 | Persistência, expiração, revogação, consumo único e restart recovery | `authorization-recovery/v1`; grants locais expiram, podem ser revogados, são consumidos uma vez antes do dispatch; replay bloqueado; bloqueio contra duplicação de efeito; resultado desconhecido sem retry automático |
 | PR96 | Modelo local, primeira conversa, health e fallback | `model-chat` local-model-first; conversa sem run dev implícito; health/indisponibilidade explícitos; fallback sem nuvem ou elevação de permissão automática |
 | PR97 | memory_context local mínimo por projeto e contexto pessoal básico | `memory-context/v1`; CLI/API/UI; isolamento de projeto/pessoal, limites, tombstone e exclusão de segredos; memória não concede autoridade |
-| PR98 | document_text_local restrito | Texto local em escopo permitido, limites, caminhos seguros e conteúdo tratado como não confiável |
+| PR98 | document_text_local restrito | `document-text-local/v1`; texto local em escopo permitido, limites, caminhos seguros, sem PDF/OCR/Office e conteúdo tratado como não confiável |
 | PR99 | Workbench para documentos locais | Seleção/inspeção restritas, estado e limites visíveis; sem envio externo |
 | PR100 | Alpha público técnico | Todos os critérios go/no-go comprovados, instalação limpa, versão inequívoca e ausência de overclaiming |
 

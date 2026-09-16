@@ -23,6 +23,7 @@ from .access import collect_mobile_access, render_mobile_access
 from .config import GatewayConfig
 from .contract import summarize_contract
 from .doctor import collect_doctor, render_doctor
+from .document_text import collect_document_text_local, render_document_text_local
 from .daily_config import collect_daily_config, read_daily_config, render_daily_config, shell_exports, validate_daily_config, write_daily_config
 from .dev_control import collect_dev_control_policy, render_dev_control_policy
 from .effective_authorization import collect_effective_authorization, render_effective_authorization
@@ -233,6 +234,11 @@ def main(argv: list[str] | None = None) -> int:
     memory_parser.add_argument("--memory-dir", default=None, help="local memory directory under the repo scope")
     memory_parser.add_argument("--limit", type=int, default=20, help="maximum recent memory entries to show")
     memory_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    document_text_parser = sub.add_parser("document-text-local", help="extract text from one scoped local .txt/.md/.json document")
+    document_text_parser.add_argument("--workspace-root", required=True, help="workspace directory under the repo scope")
+    document_text_parser.add_argument("--relative-path", required=True, help="relative text document path inside the workspace")
+    document_text_parser.add_argument("--max-chars", type=int, default=6000, help="maximum characters to return")
+    document_text_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     daily_config_parser = sub.add_parser("daily-config", help="store or inspect token-free daily startup defaults")
     daily_config_sub = daily_config_parser.add_subparsers(dest="daily_config_command")
     daily_config_set = daily_config_sub.add_parser("set", help="write token-free daily startup defaults with 0600 permissions")
@@ -809,6 +815,17 @@ def main(argv: list[str] | None = None) -> int:
             )
             if not args.json:
                 print(render_memory_context(payload))
+                return 0 if payload["overall"] != "blocked" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] != "blocked" else 1
+        if args.command == "document-text-local":
+            payload = collect_document_text_local(
+                workspace_root=args.workspace_root,
+                relative_path=args.relative_path,
+                max_chars=args.max_chars,
+            )
+            if not args.json:
+                print(render_document_text_local(payload))
                 return 0 if payload["overall"] != "blocked" else 1
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0 if payload["overall"] != "blocked" else 1
