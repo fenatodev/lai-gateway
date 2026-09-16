@@ -13,7 +13,7 @@ Não declarar browser agent completo, automação n8n real, voz operacional, MCP
 - Effective authorization está restrita a adapter-dry-run; não concede capability ampla e não persiste aprovação.
 - local_status.status tem autorização efetiva non-dry-run estreita após PR94; local_status.echo e outros adapters não entram nesse escopo.
 - Identidade usuário/cliente/agente/serviço tem vínculo local testável após PR93, mas isso não equivale a login completo, identidade remota ou autorização.
-- Persistência, expiração, revogação, consumo único, restart recovery e bloqueio contra duplicação de efeito ainda precisam de prova integrada nessa cadeia.
+- Persistência, expiração, revogação, consumo único, restart recovery e bloqueio contra duplicação de efeito existem após PR95 somente para `local-status-read`/`local_status.status`.
 - Audit log sanitizado não equivale a execução autorizada, integridade inviolável ou recuperação transacional.
 - Read-only declarado ou simulado não é read-only efetivamente imposto; afirmar contenção apenas com evidência específica.
 - Dev/Workbench depende de Harness compatível; modelo local depende de runtime configurado. Interface existente não prova primeira execução reproduzível.
@@ -35,7 +35,7 @@ Todos os itens são obrigatórios; esta lista não afirma que já passaram:
 
 - Quickstart reproduzível por usuário novo, instalação limpa em ambiente suportado e diagnóstico de Harness/token/modelo ausentes (PR91).
 - Empacotamento mínimo identificado, versionamento inequívoco, artefato correspondente ao commit e release checklist com guia visual sanitizado (PR92).
-- Identidade testável (PR93), uma ação local autorizada non-dry-run (PR94) e persistência/restart/recovery com expiração, revogação, consumo único e antirreplay (PR95).
+- Identidade testável (PR93), uma ação local autorizada non-dry-run (PR94) e persistência/restart/recovery com expiração, revogação, consumo único e antirreplay para o escopo estreito PR95.
 - Primeira conversa local, health/fallback explícitos, contexto isolado e documentos locais restritos demonstrados nos escopos PR96–99.
 - `python3 -m unittest tests.test_product_docs -v`, `PYTHON=python3 make check` e `git diff --check` verdes; CI e publication scan conferidos para o commit candidato, sem inferir verde histórico.
 - README, matriz e UI com ausência de overclaiming; limitações conhecidas visíveis, sem segredos ou dados privados nas evidências.

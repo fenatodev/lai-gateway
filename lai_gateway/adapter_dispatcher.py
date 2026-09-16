@@ -1,14 +1,16 @@
 import hashlib
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any
 
 from . import __version__
 from .adapters import collect_adapter_registry
+from .authorization_recovery import collect_authorization_recovery
 from .effective_authorization import collect_effective_authorization
 from .local_status_adapter import can_handle_local_status, execute_local_status_adapter
 from .permission_decision import collect_permission_decision
 
-_ADAPTER_DISPATCHER_VERSION = "adapter-dispatcher/v2"
+_ADAPTER_DISPATCHER_VERSION = "adapter-dispatcher/v3"
 _DRY_RUN_SCOPE = "adapter-dry-run"
 _LOCAL_STATUS_READ_SCOPE = "local-status-read"
 _LOCAL_STATUS_HANDLER_ID = "local_status.in_process.v1"
@@ -54,6 +56,11 @@ class AdapterDispatcherInterface:
     modifies_files: bool = False
     starts_server: bool = False
     grants_permission: bool = False
+    authorization_grant_id: str | None = None
+    authorization_recovery_status: str | None = None
+    authorization_consumed: bool = False
+    recovered_after_restart: bool = False
+    retry_automatic: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -128,6 +135,8 @@ def _local_status(
     dispatch_requested: bool,
     decision: dict[str, Any],
     effective: dict[str, Any],
+    authorization_grant_id: str | None,
+    authorization_recovery: dict[str, Any] | None,
 ) -> tuple[str, str, bool, bool]:
     if not _local_handler_available(decision):
         return "blocked", "local handler is not allowlisted for this decision", False, False
@@ -139,7 +148,13 @@ def _local_status(
         return "blocked", "local_status dispatch blocked without local non-dry-run authorization", False, True
     if not effective.get("adapter_capability_authorized"):
         return "blocked", "local_status dispatch requires adapter capability authorization", False, True
-    return "dispatched_local", "allowlisted local handler executed after effective local authorization", True, True
+    if not authorization_grant_id:
+        return "blocked", "local_status dispatch requires a persisted single-use authorization grant", False, True
+    if not authorization_recovery or authorization_recovery.get("status") != "consumed_for_single_use":
+        return "blocked", "local_status dispatch blocked until persisted authorization is consumed", False, True
+    if not authorization_recovery.get("dispatch_allowed"):
+        return "blocked", "authorization recovery did not allow dispatch", False, True
+    return "dispatched_local", "allowlisted local handler executed after single-use persisted authorization", True, True
 
 
 def build_adapter_dispatcher_interface(
@@ -155,6 +170,9 @@ def build_adapter_dispatcher_interface(
     approved_by: str | None = None,
     operation_scope: str | None = None,
     dispatch_requested: bool = False,
+    authorization_grant_id: str | None = None,
+    authorization_dir: str | Path | None = None,
+    scope_root: Path | None = None,
     user_id: str | None = None,
     client_id: str | None = None,
     agent_id: str | None = None,
@@ -210,11 +228,45 @@ def build_adapter_dispatcher_interface(
     effective = effective_payload["effective"]
     adapter_status = _adapter_status(decision.get("adapter_id"))
     handler_registered = _local_handler_available(decision)
+    authorization_recovery_payload = None
+    if (
+        handler_registered
+        and dispatch_requested
+        and effective.get("operation_scope") == _LOCAL_STATUS_READ_SCOPE
+        and authorization_grant_id
+    ):
+        authorization_recovery_payload = collect_authorization_recovery(
+            recovery_action="consume",
+            authorization_grant_id=authorization_grant_id,
+            authorization_dir=authorization_dir,
+            scope_root=scope_root,
+            requested_capability=requested_capability,
+            adapter_id=adapter_id,
+            actor=actor,
+            channel=channel,
+            domain=domain,
+            action=action,
+            parameters=parameters,
+            approval_intent=approval_intent,
+            approved_by=approved_by,
+            user_id=user_id,
+            client_id=client_id,
+            agent_id=agent_id,
+            service_id=service_id,
+            identity_source=identity_source,
+            expected_identity_binding_id=expected_identity_binding_id,
+            claimed_user_id=claimed_user_id,
+            claimed_client_id=claimed_client_id,
+            claimed_agent_id=claimed_agent_id,
+            claimed_service_id=claimed_service_id,
+        )
     if handler_registered:
         status, reason, executed, registered = _local_status(
             dispatch_requested=dispatch_requested,
             decision=decision,
             effective=effective,
+            authorization_grant_id=authorization_grant_id,
+            authorization_recovery=authorization_recovery_payload,
         )
     else:
         status, reason, executed, registered = _legacy_status(
@@ -235,6 +287,7 @@ def build_adapter_dispatcher_interface(
             decision["decision_id"],
             effective["effective_authorization_id"],
             str(dispatch_requested).lower(),
+            authorization_grant_id or "",
             status,
             decision.get("adapter_id") or "",
             decision["requested_capability"],
@@ -274,8 +327,16 @@ def build_adapter_dispatcher_interface(
         dispatch_enabled=executed,
         adapter_dispatched=executed,
         adapter_executed=executed,
+        authorization_grant_id=authorization_grant_id,
+        authorization_recovery_status=(authorization_recovery_payload or {}).get("status"),
+        authorization_consumed=bool((authorization_recovery_payload or {}).get("authorization_consumed")),
+        recovered_after_restart=bool((authorization_recovery_payload or {}).get("recovered_after_restart")),
+        retry_automatic=False,
     )
-    return dispatcher, effective_payload | {"permission": permission_payload}, handler_result
+    governance = effective_payload | {"permission": permission_payload}
+    if authorization_recovery_payload is not None:
+        governance["authorization_recovery"] = authorization_recovery_payload
+    return dispatcher, governance, handler_result
 
 
 def collect_adapter_dispatcher_interface(
@@ -291,6 +352,9 @@ def collect_adapter_dispatcher_interface(
     approved_by: str | None = None,
     operation_scope: str | None = None,
     dispatch_requested: bool = False,
+    authorization_grant_id: str | None = None,
+    authorization_dir: str | Path | None = None,
+    scope_root: Path | None = None,
     user_id: str | None = None,
     client_id: str | None = None,
     agent_id: str | None = None,
@@ -314,6 +378,9 @@ def collect_adapter_dispatcher_interface(
         approved_by=approved_by,
         operation_scope=operation_scope,
         dispatch_requested=dispatch_requested,
+        authorization_grant_id=authorization_grant_id,
+        authorization_dir=authorization_dir,
+        scope_root=scope_root,
         user_id=user_id,
         client_id=client_id,
         agent_id=agent_id,
@@ -349,6 +416,7 @@ def collect_adapter_dispatcher_interface(
         "validation": _strip_raw_action(governance_payload["validation"]),
         "capture": _strip_raw_action(governance_payload["capture"]),
         "dry_run": _strip_raw_action(governance_payload["dry_run"]),
+        "authorization_recovery": _strip_raw_action(governance_payload.get("authorization_recovery")),
         "audit": governance_payload["audit"],
         "security": {
             "prints_tokens": False,
@@ -360,11 +428,14 @@ def collect_adapter_dispatcher_interface(
             "grants_permissions": False,
             "adapter_capability_elevated": False,
             "requires_effective_authorization": True,
+            "requires_single_use_authorization": dispatcher.handler_registered,
+            "authorization_consumed": dispatcher.authorization_consumed,
             "requires_registered_handler": bool(dispatch_requested),
             "local_only": dispatcher.handler_registered,
             "network_access": False,
             "credential_access": False,
-            "filesystem_write": False,
+            "filesystem_write": dispatcher.authorization_consumed,
+            "authorization_state_write": dispatcher.authorization_consumed,
             "shell_execution": False,
         },
     }
@@ -392,6 +463,10 @@ def render_adapter_dispatcher_interface(payload: dict[str, Any]) -> str:
         f"permission_outcome: {dispatcher['permission_outcome']}",
         f"effective_authorization: {str(dispatcher['effective_authorization']).lower()}",
         f"adapter_capability_authorized: {str(dispatcher['adapter_capability_authorized']).lower()}",
+        f"authorization_grant_id: {dispatcher.get('authorization_grant_id') or 'none'}",
+        f"authorization_recovery_status: {dispatcher.get('authorization_recovery_status') or 'none'}",
+        f"authorization_consumed: {str(dispatcher.get('authorization_consumed', False)).lower()}",
+        f"retry_automatic: {str(dispatcher.get('retry_automatic', False)).lower()}",
         f"result: {payload['result']}",
         f"reason: {dispatcher['reason']}",
         "executes_tools: false",
