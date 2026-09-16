@@ -24,7 +24,7 @@ PR61–73: contratos, conversation-first, mediação de ferramentas, skills, dev
 | PR97 | memory_context local mínimo por projeto e contexto pessoal básico | `memory-context/v1`; CLI/API/UI; isolamento de projeto/pessoal, limites, tombstone e exclusão de segredos; memória não concede autoridade |
 | PR98 | document_text_local restrito | `document-text-local/v1`; texto local em escopo permitido, limites, caminhos seguros, sem PDF/OCR/Office e conteúdo tratado como não confiável |
 | PR99 | Workbench para documentos locais | `document-workbench/v1`; seleção metadata-only, inspeção restrita via `document-text-local/v1`, estado e limites visíveis; sem envio externo |
-| PR100 | Alpha público técnico | Todos os critérios go/no-go comprovados, instalação limpa, versão inequívoca e ausência de overclaiming |
+| PR100 | Alpha público técnico | `alpha-readiness/v1`; critérios go/no-go comprovados para candidato técnico, versão inequívoca, ausência de overclaiming e publicação humana separada |
 
 PR93 cria pré-condição de identidade local verificada, mas não cria login completo nem autorização. PR94 prova somente `local_status.status` sob `local-status-read`; `local_status.echo` permanece fora da autorização non-dry-run. PR95 implementa recovery local para a mesma cadeia, mas isso não autoriza capacidades externas. PR96 expõe conversa local-model-first e fallback explícito, mas não instala runtime nem baixa modelo. PR97 cria memória local explícita e escopada, mas memória não é autorização, não é approval e não é fonte confiável de instruções sensíveis. Persistência de audit log não equivale a persistência de aprovação.
 

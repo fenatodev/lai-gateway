@@ -25,6 +25,7 @@ class ProductDocsTest(unittest.TestCase):
             "pr_97_local_memory_context.md",
             "pr_98_restricted_document_text.md",
             "pr_99_workbench_local_documents.md",
+            "pr_100_technical_alpha_readiness.md",
         ):
             path = PRODUCT_DOCS / name
             self.assertTrue(path.exists(), name)
@@ -59,7 +60,9 @@ class ProductDocsTest(unittest.TestCase):
         )
         for criterion in ("Limitações conhecidas", "Quickstart reproduzível", "instalação limpa", "versionamento", "overclaiming", "restart recovery", "No-go"):
             self.assertIn(criterion, text)
-        self.assertIn("Ainda não está apto a ser chamado de produto completo", text)
+        self.assertIn("PR100 permite `candidate_go` técnico somente quando", text)
+        self.assertIn("não torna o LAI produto completo", text)
+        self.assertIn("publicação pública exige aprovação humana separada", text)
 
 
     def test_canonical_index_links_resolve_and_readme_points_to_it(self) -> None:
@@ -319,6 +322,38 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("inspect-document-workbench", app)
         self.assertIn("document-relative-select", app)
 
+
+    def test_pr100_technical_alpha_readiness_is_canonical_and_limited(self) -> None:
+        spec = (PRODUCT_DOCS / "pr_100_technical_alpha_readiness.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        roadmap = (PRODUCT_DOCS / "roadmap.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        app = (ROOT / "lai_gateway" / "static" / "app.js").read_text(encoding="utf-8")
+        lower_spec = spec.lower()
+        for statement in (
+            "alpha-readiness/v1",
+            "go/no-go",
+            "candidate_go",
+            "sem tag",
+            "sem release",
+            "sem publicação",
+            "aprovação humana separada",
+            "não equivale a publicar alpha",
+        ):
+            self.assertIn(statement, lower_spec)
+        self.assertIn("alpha readiness | experimental", matrix)
+        self.assertIn("alpha_readiness.py", matrix)
+        self.assertIn("tests/test_alpha_readiness.py", matrix)
+        self.assertIn("`alpha-readiness/v1`", roadmap)
+        self.assertIn("candidate_go", alpha)
+        self.assertIn("aprovação humana separada", alpha)
+        self.assertIn("[PR100](pr_100_technical_alpha_readiness.md)", index)
+        self.assertIn("alpha-readiness", readme)
+        self.assertIn("refresh-alpha-readiness", app)
+        self.assertIn("/v1/gateway/alpha-readiness", app)
+
     def test_pr93_identity_docs_are_canonical_and_limited(self) -> None:
         matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
         roadmap = (PRODUCT_DOCS / "roadmap.md").read_text(encoding="utf-8")
@@ -360,7 +395,8 @@ class ProductDocsTest(unittest.TestCase):
             "are not ready-to-use features.",
             "It is not general agent messaging authority or durable per-message approval.",
             "New governed sends require explicit approval of content and destination plus the roadmap gates.",
-            "A public technical alpha is planned, not declared ready or complete.",
+            "PR100 adds a read-only `alpha-readiness` go/no-go check for a public technical alpha candidate; "
+            "publication remains a separate explicit human decision and the product is not declared complete.",
         ):
             self.assertIn(statement, scope)
         for name in ("index.md", "roadmap.md", "implementation_matrix.md", "alpha_readiness.md"):

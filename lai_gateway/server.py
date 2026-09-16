@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, urlparse
 
 from . import __version__
 from .adapter_invocation import collect_adapter_invocation_proposal
+from .alpha_readiness import collect_alpha_readiness
 from .adapter_dry_run import collect_adapter_dry_run
 from .adapter_dispatcher import collect_adapter_dispatcher_interface
 from .authorization_capture import collect_authorization_capture_stub
@@ -156,6 +157,14 @@ class GatewayHandler(BaseHTTPRequestHandler):
             if max_results is None:
                 return
             self._send_json(HTTPStatus.OK, collect_model_files(max_results=max_results, max_seconds=12.0))
+            return
+        if parsed.path == "/v1/gateway/alpha-readiness":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            self._send_json(HTTPStatus.OK, collect_alpha_readiness(
+                target_version=values.get("target", [__version__])[0] or __version__,
+            ))
             return
         if parsed.path == "/v1/gateway/model-runs":
             if not self._authorize_gateway_api(parsed.path):
@@ -948,6 +957,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/adapter-dispatcher",
             "/v1/gateway/persisted-audit-log",
             "/v1/gateway/model-status",
+            "/v1/gateway/alpha-readiness",
             "/v1/gateway/model-plan",
             "/v1/gateway/model-files",
             "/v1/gateway/model-task",

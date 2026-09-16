@@ -8,7 +8,7 @@ It is intentionally a separate project. The harness owns local coding authority 
 
 Start with the [public quickstart](docs/quickstart.md) for source-first local installation and diagnostics. Use the [release checklist](docs/release_checklist.md) and [Workbench visual guide](docs/workbench_visual_guide.md) for PR92-level candidate verification. For product direction, use the [canonical product documentation](docs/product/index.md): the [post-PR89 roadmap consolidated in PR90](docs/product/roadmap.md), [implementation matrix](docs/product/implementation_matrix.md), and [public alpha go/no-go criteria](docs/product/alpha_readiness.md).
 
-The product is experimental. Effective authorization currently covers `adapter-dry-run` and one real local non-dry-run path: `local-status-read` for `local_status.status`. Direct chat is local-model-first: it uses only the configured local/private model endpoint and otherwise returns explicit local fallback without cloud, Harness run or permission elevation. PR95 adds local persisted single-use authorization grants for that path only. It is not proof of general authorization. Browser, n8n, voice, broad MCP execution and social/career automation are not ready-to-use features. Their contracts do not establish runtime capability. A public technical alpha is planned, not declared ready or complete.
+The product is experimental. Effective authorization currently covers `adapter-dry-run` and one real local non-dry-run path: `local-status-read` for `local_status.status`. Direct chat is local-model-first: it uses only the configured local/private model endpoint and otherwise returns explicit local fallback without cloud, Harness run or permission elevation. PR95 adds local persisted single-use authorization grants for that path only. It is not proof of general authorization. Browser, n8n, voice, broad MCP execution and social/career automation are not ready-to-use features. Their contracts do not establish runtime capability. PR100 adds a read-only `alpha-readiness` go/no-go check for a public technical alpha candidate; publication remains a separate explicit human decision and the product is not declared complete.
 
 Telegram outbound has an existing operator-invoked, opt-in notification path with a configured destination. It is not general agent messaging authority or durable per-message approval. New governed sends require explicit approval of content and destination plus the roadmap gates. Read-only declarations and simulations must not be presented as enforced isolation without executor-specific evidence.
 
@@ -83,11 +83,11 @@ python3 -m lai_gateway mcp tools
 python3 -m lai_gateway mcp policy-check --operation call-tool --server desktop-commander --tool start_process
 
 # Validate the local Gateway/Harness stack without publishing anything
-bash scripts/stack-check.sh --harness-repo ../lai-local-agent --target-gateway 0.1.34 --min-harness 0.4.6
+bash scripts/stack-check.sh --harness-repo ../lai-local-agent --target-gateway 0.1.35 --min-harness 0.4.6
 # Machine-readable form for automation:
-bash scripts/stack-check.sh --harness-repo ../lai-local-agent --target-gateway 0.1.34 --min-harness 0.4.6 --json
+bash scripts/stack-check.sh --harness-repo ../lai-local-agent --target-gateway 0.1.35 --min-harness 0.4.6 --json
 # Full local milestone gate: make check + stack compatibility JSON validation
-make milestone-gate HARNESS_REPO=../lai-local-agent TARGET_GATEWAY=0.1.34 MIN_HARNESS=0.4.6
+make milestone-gate HARNESS_REPO=../lai-local-agent TARGET_GATEWAY=0.1.35 MIN_HARNESS=0.4.6
 python3 -m lai_gateway doctor
 python3 -m lai_gateway mcp status
 python3 -m lai_gateway mcp tools
@@ -146,7 +146,7 @@ The report summarizes doctor, mobile, Telegram, model, model-runs, and MCP broke
 
 ## MCP broker foundation
 
-Gateway 0.1.34 validates Harness 0.4.6+ plus required contract capabilities; Harness 0.4.8 is the current verified baseline. MCP support remains metadata-only: the gateway can read MCP broker status, list declared MCP servers/tools, and ask the harness to classify an MCP operation. It does not execute MCP tools.
+Gateway 0.1.35 validates Harness 0.4.6+ plus required contract capabilities; Harness 0.4.8 is the current verified baseline. MCP support remains metadata-only: the gateway can read MCP broker status, list declared MCP servers/tools, and ask the harness to classify an MCP operation. It does not execute MCP tools.
 
 ```bash
 lai-gateway mcp status
@@ -319,3 +319,5 @@ Local memory is explicit and scoped: `lai-gateway memory-context` can show, reme
 `lai-gateway document-text-local --workspace-root . --relative-path docs/product/roadmap.md --json` extracts only bounded local `.txt`, `.md`, or `.json` text from an explicit workspace. Document content is untrusted and grants no permission, approval, or authority. PDF, OCR, Office files, media, HOME scans, network access, and filesystem writes remain blocked.
 
 The Workbench document panel uses `document-workbench/v1` for metadata-only local selection and delegates inspection to `document-text-local/v1`. It shows state and limits, lists only bounded top-level candidates, and does not upload, index, summarize, execute tools, or infer approval from document content.
+
+`lai-gateway alpha-readiness --target 0.1.35 --json` checks the public technical alpha candidate state without creating tags, releases, packages, announcements or external side effects. `candidate_go` is a technical gate only; publication still needs explicit human approval.
