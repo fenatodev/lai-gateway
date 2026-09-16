@@ -176,7 +176,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pareie este celular primeiro e atualize este painel.";
-  for (const id of ["health-output", "ops-output", "status-output", "model-output", "mcp-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output"]) {
+  for (const id of ["health-output", "ops-output", "status-output", "model-output", "mcp-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -213,6 +213,15 @@ function setMobileAccess(payload) {
   show("mobile-access-output", browserUrl ? { ...payload, active_phone_url: browserUrl } : payload);
 }
 
+
+function setAlphaReadiness(payload) {
+  const overall = payload.overall || "desconhecido";
+  const decision = payload.decision || "sem decisão";
+  const state = overall === "ready" ? "ready" : "danger";
+  setPill("readiness-pill", `alpha ${decision}`, state);
+  clearPairRequiredOutput("alpha-output");
+  show("alpha-output", payload);
+}
 
 function setModelStatus(payload) {
   const overall = payload.overall || "desconhecido";
@@ -1402,6 +1411,8 @@ async function runAction(action) {
         body: JSON.stringify(modelChatBody()),
       });
       setModelStatus(payload);
+    } else if (action === "refresh-alpha-readiness") {
+      setAlphaReadiness(await requestJson("/v1/gateway/alpha-readiness"));
     } else if (action === "refresh-model-status") {
       setModelStatus(await requestJson("/v1/gateway/model-status"));
     } else if (action === "refresh-model-plan") {
@@ -1662,6 +1673,8 @@ async function runAction(action) {
           ? "runs-output"
           : action.includes("mcp")
             ? "mcp-output"
+          : action.includes("alpha")
+            ? "alpha-output"
           : action.includes("ops")
             ? "ops-output"
           : action.includes("memory")
@@ -1761,6 +1774,7 @@ document.addEventListener("DOMContentLoaded", () => {
     runAction("refresh-document-workbench");
     runAction("refresh-mcp-status");
     runAction("refresh-readiness");
+    runAction("refresh-alpha-readiness");
     runAction("refresh-health-report");
     runAction("refresh-local-chat-contract");
     runAction("load-local-chat-workspaces");

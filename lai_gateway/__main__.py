@@ -10,6 +10,7 @@ from typing import Any
 
 from . import __version__
 from .adapter_invocation import collect_adapter_invocation_proposal, render_adapter_invocation_proposal
+from .alpha_readiness import collect_alpha_readiness, render_alpha_readiness
 from .adapter_dry_run import collect_adapter_dry_run, render_adapter_dry_run
 from .adapter_dispatcher import collect_adapter_dispatcher_interface, render_adapter_dispatcher_interface
 from .authorization_capture import collect_authorization_capture_stub, render_authorization_capture_stub
@@ -615,6 +616,9 @@ def main(argv: list[str] | None = None) -> int:
     release_parser = sub.add_parser("release-check", help="check local release readiness")
     release_parser.add_argument("--target", required=True, help="target semantic version, for example 0.1.0")
     release_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    alpha_parser = sub.add_parser("alpha-readiness", help="check public technical alpha go/no-go without publishing")
+    alpha_parser.add_argument("--target", default=__version__, help="target semantic version; defaults to the package version")
+    alpha_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     serve_parser = sub.add_parser("serve", help="serve the gateway with configured bind policy")
     serve_parser.add_argument("--bind", default=None, help="gateway bind address allowed by config policy")
     serve_parser.add_argument("--port", type=int, default=None, help="gateway port")
@@ -1479,11 +1483,16 @@ def main(argv: list[str] | None = None) -> int:
             if not args.json:
                 print(render_release_check(payload))
                 return 0 if payload["overall"] == "ready" else 1
+        elif args.command == "alpha-readiness":
+            payload = collect_alpha_readiness(repo=_release_check_repo(), target_version=args.target)
+            if not args.json:
+                print(render_alpha_readiness(payload))
+                return 0 if payload["overall"] == "ready" else 1
         else:
             parser.print_help()
             return 0
         print(json.dumps(payload, indent=2, sort_keys=True))
-        if args.command == "release-check" and payload["overall"] != "ready":
+        if args.command in {"release-check", "alpha-readiness"} and payload["overall"] != "ready":
             return 1
         return 0
     except GatewayError as exc:

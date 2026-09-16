@@ -79,6 +79,9 @@ class GatewayUITest(unittest.TestCase):
                 self.assertIn('data-action="use-gateway-token"', html)
                 self.assertIn('data-action="forget-gateway-token"', html)
                 self.assertIn('id="readiness-pill"', html)
+                self.assertIn('id="alpha-output"', html)
+                self.assertIn('data-action="refresh-alpha-readiness"', html)
+                self.assertIn("Alpha técnico", html)
                 self.assertIn('id="memory-output"', html)
                 self.assertIn('data-action="refresh-memory-context"', html)
                 self.assertIn('data-action="remember-memory-context"', html)
@@ -281,6 +284,9 @@ class GatewayUITest(unittest.TestCase):
         self.assertIn("send-health-report-telegram", js)
         self.assertIn("/v1/gateway/ops-status", js)
         self.assertIn("/v1/gateway/model-status", js)
+        self.assertIn("/v1/gateway/alpha-readiness", js)
+        self.assertIn("refresh-alpha-readiness", js)
+        self.assertIn("setAlphaReadiness", js)
         self.assertIn("/v1/gateway/chat", js)
         self.assertIn("send-model-chat", js)
         self.assertIn("modelChatBody", js)
@@ -897,6 +903,28 @@ class GatewayUITest(unittest.TestCase):
         self.assertFalse(payload["security"]["supports_pdf"])
         self.assertNotIn(TOKEN, body_text)
         self.assertNotIn("Bearer", body_text)
+
+
+    def test_gateway_alpha_readiness_endpoint_is_read_only_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with RunningGateway(config) as gateway:
+                status, headers, body = read_url(f"{gateway.url}/v1/gateway/alpha-readiness")
+        payload = json.loads(body)
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        self.assertEqual(payload["operation"], "alpha-readiness")
+        self.assertEqual(payload["schema_version"], "alpha-readiness/v1")
+        self.assertFalse(payload["publication_allowed"])
+        self.assertTrue(payload["human_publication_approval_required"])
+        self.assertFalse(payload["tag_or_release_created"])
+        self.assertFalse(payload["security"]["publishes_release"])
+        self.assertFalse(payload["security"]["creates_tag"])
+        self.assertFalse(payload["security"]["prints_tokens"])
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
 
     def test_gateway_document_workbench_endpoint_lists_metadata_only_and_is_secret_free(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp, fake_harness() as harness:

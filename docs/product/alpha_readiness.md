@@ -19,7 +19,7 @@ Não declarar browser agent completo, automação n8n real, voz operacional, MCP
 - Dev/Workbench depende de Harness compatível; modelo local depende de runtime configurado. PR96 prova conversa local-model-first e fallback explícito, mas não prova instalação guiada nem disponibilidade universal de runtime.
 - Browser/n8n/MCP/voz/social permanecem contratos ou planos; documentos locais entram apenas no escopo restrito PR98–99.
 - Telegram outbound já realiza envio operacional opt-in. Requer ação explícita do operador e destino configurado; não possui a cadeia geral durável de aprovação por mensagem. Novos fluxos exigem aprovação explícita de conteúdo/destino e não podem usar enable-send como consentimento permanente.
-- Quickstart, empacotamento mínimo, guia visual e versão alpha ainda precisam de consolidação e evidência.
+- PR100 adiciona `alpha-readiness/v1` para consolidar o go/no-go técnico; publicação pública, tag e anúncio continuam decisões humanas separadas.
 
 ## Quickstart público
 
@@ -37,7 +37,7 @@ Todos os itens são obrigatórios; esta lista não afirma que já passaram:
 - Empacotamento mínimo identificado, versionamento inequívoco, artefato correspondente ao commit e release checklist com guia visual sanitizado (PR92).
 - Identidade testável (PR93), uma ação local autorizada non-dry-run (PR94) e persistência/restart/recovery com expiração, revogação, consumo único e antirreplay para o escopo estreito PR95.
 - Contexto local por projeto/pessoal fica coberto por PR97; `document_text_local` restrito para `.txt/.md/.json` em workspace explícito fica coberto por PR98; PR99 adiciona seleção/inspeção restrita no Workbench com estado e limites visíveis, sem envio externo. Primeira conversa local e health/fallback explícitos ficam cobertos por PR96.
-- `python3 -m unittest tests.test_product_docs -v`, `PYTHON=python3 make check` e `git diff --check` verdes; CI e publication scan conferidos para o commit candidato, sem inferir verde histórico.
+- `python3 -m unittest tests.test_product_docs -v`, `PYTHON=python3 make check`, `git diff --check` e `python3 -m lai_gateway alpha-readiness --target 0.1.35 --json` verdes; CI e publication scan conferidos para o commit candidato, sem inferir verde histórico.
 - README, matriz e UI com ausência de overclaiming; limitações conhecidas visíveis, sem segredos ou dados privados nas evidências.
 - Capacidades externas bloqueadas conforme roadmap; aprovação humana separada para publicação do alpha.
 
@@ -47,7 +47,7 @@ Qualquer critério sem evidência impede o go. Em especial: instalação não re
 
 ## Decisão atual
 
-No-go para declarar prontidão pública apenas com a consolidação documental PR90. PR91–99 devem fornecer as evidências, avaliadas no PR100. Ainda não está apto a ser chamado de produto completo. Não há bump, tag, publicação ou mudança funcional neste PR.
+PR100 permite `candidate_go` técnico somente quando `alpha-readiness/v1`, `make check`, CI e publication scan estiverem verdes para o commit candidato. Isso não publica alpha, não cria tag, não faz bump, não envia anúncio e não torna o LAI produto completo; a publicação pública exige aprovação humana separada.
 
 ## Restrições públicas
 
