@@ -21,6 +21,10 @@ Não declarar browser agent completo, automação n8n real, voz operacional, MCP
 - Telegram outbound já realiza envio operacional opt-in. Requer ação explícita do operador e destino configurado; não possui a cadeia geral durável de aprovação por mensagem. Novos fluxos exigem aprovação explícita de conteúdo/destino e não podem usar enable-send como consentimento permanente.
 - Quickstart, empacotamento mínimo, guia visual e versão alpha ainda precisam de consolidação e evidência.
 
+## Quickstart público
+
+Após o PR91, `docs/quickstart.md` descreve o caminho source-first para instalar wrappers locais, validar a suíte, checar compatibilidade Gateway/Harness, diagnosticar token/Harness/modelo e abrir a UI em loopback. Esse guia melhora a reprodutibilidade, mas não transforma o alpha em produto completo nem habilita capacidades externas.
+
 ## Go para alpha público técnico
 
 Todos os itens são obrigatórios; esta lista não afirma que já passaram:
