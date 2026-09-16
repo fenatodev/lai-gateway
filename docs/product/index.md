@@ -6,6 +6,7 @@
 
 - **guia operacional público** — [Quickstart](../quickstart.md): instalação local source-first, diagnóstico e primeiro uso restrito.
 - **checklist operacional público** — [Release checklist](../release_checklist.md): verificação source-only de versão, commit, CI e gates locais.
+- **checklist operacional público** — [Local clean dogfood](../local_clean_dogfood.md): validação local reproduzível do alpha técnico sem capacidades externas.
 - **guia visual público** — [Workbench visual guide](../workbench_visual_guide.md): mapa sanitizado do Workbench, Governance e `local_status`.
 - **normativo** — [Roadmap](roadmap.md): sequência normativa pós-PR89 até PR100, dependências e gates.
 - **normativo** — [Roadmap pós-PR100](post_pr100_roadmap.md): próximas trilhas após o alpha técnico, sem habilitar capacidades externas automaticamente.
@@ -27,8 +28,9 @@ Os documentos `pr_*.md` têm rótulo **spec de PR / histórico**: são registros
 - **revisão externa / histórico** — [Revisão Astra](astra_architecture_review.md) e [revisão Codex/Astra](codex_astra_architecture_review.md): insumos históricos, sem autoridade automática.
 - **descritivo / insumo de revisão externa** — [Prompt de revisão](roadmap_review_prompt.md): instrumento de coleta, não decisão.
 - **spec de PR / histórico** — [PR89](pr_89_roadmap_alpha_readiness.md): baseline histórico da consolidação.
+- **spec de PR / atual** — [PR103](pr_103_clean_local_dogfood.md): dogfood local limpo com script/checklist reproduzível.
 - **release notes / atual** — [v0.1.35](../releases/v0.1.35.md): nota source-first do alpha técnico, com limites públicos.
-- **spec de PR / atual** — [PR102](pr_102_release_alpha_technical.md): preparação source-first de tag/release alpha técnico, sem mudança funcional.
+- **spec de PR / histórico** — [PR102](pr_102_release_alpha_technical.md): preparação source-first de tag/release alpha técnico, sem mudança funcional.
 - **spec de PR / histórico** — [PR101](pr_101_post_pr100_roadmap.md): roadmap pós-PR100, sem mudança funcional nem publicação.
 - **spec de PR / histórico** — [PR100](pr_100_technical_alpha_readiness.md): alpha público técnico com verificação `alpha-readiness/v1` e go/no-go read-only.
 - **spec de PR / histórico** — [PR99](pr_99_workbench_local_documents.md): Workbench para documentos locais com seleção metadata-only e inspeção restrita.

@@ -262,6 +262,58 @@ class ScriptTest(unittest.TestCase):
 
 
 
+    def test_local_clean_dogfood_script_runs_bounded_loop(self) -> None:
+        repo = Path(__file__).parents[1]
+        env = {
+            **os.environ,
+            "PYTHON": sys.executable,
+            "LAI_GATEWAY_DOGFOOD_TARGET": "0.1.36",
+            "LAI_GATEWAY_MODEL_CONFIG_FILE": str(Path(repo) / "state" / "missing-test-model.json"),
+        }
+        result = subprocess.run(
+            ["bash", "scripts/local-clean-dogfood.sh", "--allow-dirty"],
+            cwd=repo,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+            timeout=30,
+        )
+
+        self.assertIn("release gate: ready", result.stdout)
+        self.assertIn("alpha gate: ready", result.stdout)
+        self.assertIn("workbench surface: ready", result.stdout)
+        self.assertIn("model absent fallback: ready", result.stdout)
+        self.assertIn("model present loopback: ready", result.stdout)
+        self.assertIn("document text: ready", result.stdout)
+        self.assertIn("document pdf block: ready", result.stdout)
+        self.assertIn("document workbench: ready", result.stdout)
+        self.assertIn("local-clean-dogfood: ready", result.stdout)
+        self.assertNotIn("chat_id", result.stdout)
+        self.assertNotIn("Bearer", result.stdout)
+        self.assertNotIn("/home/", result.stdout)
+        self.assertEqual(result.stderr, "")
+
+    def test_local_clean_dogfood_check_only_is_non_mutating_plan(self) -> None:
+        repo = Path(__file__).parents[1]
+        result = subprocess.run(
+            ["bash", "scripts/local-clean-dogfood.sh", "--check-only"],
+            cwd=repo,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+            timeout=10,
+        )
+        self.assertIn("local-clean-dogfood: plan", result.stdout)
+        self.assertIn("no install", result.stdout)
+        self.assertIn("no browser", result.stdout)
+        self.assertIn("no n8n", result.stdout)
+        self.assertIn("no MCP tool execution", result.stdout)
+        self.assertIn("no publication", result.stdout)
+        self.assertEqual(result.stderr, "")
+
     def test_mobile_readonly_dogfood_script_uses_sanitized_read_only_loop(self) -> None:
         repo = Path(__file__).parents[1]
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

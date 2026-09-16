@@ -29,6 +29,7 @@ class ProductDocsTest(unittest.TestCase):
             "post_pr100_roadmap.md",
             "pr_101_post_pr100_roadmap.md",
             "pr_102_release_alpha_technical.md",
+            "pr_103_clean_local_dogfood.md",
         ):
             path = PRODUCT_DOCS / name
             self.assertTrue(path.exists(), name)
@@ -356,6 +357,31 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("alpha-readiness", readme)
         self.assertIn("refresh-alpha-readiness", app)
         self.assertIn("/v1/gateway/alpha-readiness", app)
+
+    def test_pr103_clean_local_dogfood_is_canonical_and_limited(self) -> None:
+        spec = (PRODUCT_DOCS / "pr_103_clean_local_dogfood.md").read_text(encoding="utf-8")
+        checklist = (ROOT / "docs" / "local_clean_dogfood.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        post = (PRODUCT_DOCS / "post_pr100_roadmap.md").read_text(encoding="utf-8")
+        script = (ROOT / "scripts" / "local-clean-dogfood.sh").read_text(encoding="utf-8")
+        combined = "\n".join([spec, checklist, post, script])
+        for marker in (
+            "dogfood local",
+            "release-check",
+            "alpha-readiness",
+            "modelo local ausente",
+            "modelo local presente",
+            "document-text-local/v1",
+            "document-workbench/v1",
+            "sem browser",
+            "sem n8n",
+            "sem MCP tool execution",
+            "sem publicação",
+        ):
+            self.assertIn(marker, combined)
+        self.assertIn("[Local clean dogfood](../local_clean_dogfood.md)", index)
+        self.assertIn("[PR103](pr_103_clean_local_dogfood.md)", index)
+        self.assertIn("scripts/local-clean-dogfood.sh", post)
 
     def test_pr102_release_alpha_technical_is_source_first_and_limited(self) -> None:
         spec = (PRODUCT_DOCS / "pr_102_release_alpha_technical.md").read_text(encoding="utf-8")
