@@ -6,6 +6,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 from unittest.mock import patch
 
@@ -1155,6 +1156,53 @@ class GatewayUITest(unittest.TestCase):
                     read_url(f"{gateway.url}/v1/gateway/model-files")
         self.assertEqual(ctx.exception.code, 401)
 
+
+    def test_gateway_public_browser_endpoint_is_read_only_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with RunningGateway(config) as gateway:
+                with patch("lai_gateway.server.collect_public_browser") as collect:
+                    collect.return_value = {
+                        "operation": "public-browser",
+                        "schema_version": "public-browser-read/v1",
+                        "overall": "ready_to_fetch",
+                        "fetch_attempted": False,
+                        "network_calls": False,
+                        "security": {"uses_cookies": False, "executes_javascript": False, "downloads_files": False},
+                    }
+                    url = quote("https://example.com/docs", safe="")
+                    status, headers, body = read_url(f"{gateway.url}/v1/gateway/public-browser?url={url}&browser_action=plan")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        payload = json.loads(body)
+        self.assertEqual(payload["operation"], "public-browser")
+        collect.assert_called_once()
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
+
+    def test_private_public_browser_requires_gateway_auth(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            access_file = Path(tmp) / "access-token"
+            access = "gateway-access-secret-value-1234567890"
+            access_file.write_text(access, encoding="utf-8")
+            access_file.chmod(0o600)
+            pair_file = Path(tmp) / "pair-token.json"
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                bind="127.0.0.1",
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            with RunningGateway(config) as gateway:
+                with self.assertRaises(__import__("urllib.error").error.HTTPError) as ctx:
+                    read_url(f"{gateway.url}/v1/gateway/public-browser?url=https%3A%2F%2Fexample.com%2F")
+        self.assertEqual(ctx.exception.code, 401)
 
     def test_gateway_model_runtime_endpoint_is_configurable_and_secret_free(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

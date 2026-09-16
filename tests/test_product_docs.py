@@ -32,6 +32,7 @@ class ProductDocsTest(unittest.TestCase):
             "pr_103_clean_local_dogfood.md",
             "pr_104_onboarding_ux_next_steps.md",
             "pr_105_operational_local_model.md",
+            "pr_106_public_browser_readonly.md",
         ):
             path = PRODUCT_DOCS / name
             self.assertTrue(path.exists(), name)
@@ -49,7 +50,7 @@ class ProductDocsTest(unittest.TestCase):
         text = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
         for state in ("implemented", "experimental", "contract", "simulado/dry-run", "planned", "Disponível ao usuário"):
             self.assertIn(state, text)
-        self.assertIn("browser | contract", text)
+        self.assertIn("browser | experimental", text)
         self.assertIn("n8n | contract", text)
         self.assertIn("voice | contract", text)
         self.assertIn("local_status adapter | experimental", text)
@@ -114,8 +115,11 @@ class ProductDocsTest(unittest.TestCase):
             if line.startswith("| ") and not line.startswith("| ---"):
                 cells = [cell.strip() for cell in line.strip("|").split("|")]
                 rows[cells[0]] = cells[1:]
-        for area in ("browser", "n8n", "voice", "MCP execution", "social/career", "document/media"):
+        for area in ("n8n", "voice", "MCP execution", "social/career", "document/media"):
             self.assertEqual(rows[area][0], "contract", area)
+        self.assertEqual(rows["browser"][0], "experimental")
+        self.assertIn("public-browser-read/v1", rows["browser"][4])
+        self.assertIn("sem browser autenticado", rows["browser"][4])
         self.assertEqual(rows["identidade usuário/cliente/agente/serviço"][0], "experimental")
         self.assertEqual(rows["identidade usuário/cliente/agente/serviço"][1], "binding local testável")
         self.assertEqual(rows["effective authorization"][0], "experimental")
@@ -360,6 +364,33 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("refresh-alpha-readiness", app)
         self.assertIn("/v1/gateway/alpha-readiness", app)
 
+
+    def test_pr106_public_browser_readonly_is_canonical_and_limited(self) -> None:
+        spec = (PRODUCT_DOCS / "pr_106_public_browser_readonly.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        post = (PRODUCT_DOCS / "post_pr100_roadmap.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        html = (ROOT / "lai_gateway" / "static" / "index.html").read_text(encoding="utf-8")
+        js = (ROOT / "lai_gateway" / "static" / "app.js").read_text(encoding="utf-8")
+        module = (ROOT / "lai_gateway" / "public_browser.py").read_text(encoding="utf-8")
+        combined = "\n".join([spec, index, post, matrix, html, js, module])
+        for marker in (
+            "public-browser-read/v1",
+            "Browser público",
+            "GET público único",
+            "Sem browser autenticado",
+            "Sem cookies",
+            "Sem JavaScript automation",
+            "Sem formulário",
+            "Sem download de arquivo",
+            "Conteúdo recuperado da web é não confiável",
+            "não concede autoridade",
+        ):
+            self.assertIn(marker, combined)
+        self.assertIn("[PR106](pr_106_public_browser_readonly.md)", index)
+        self.assertIn("/v1/gateway/public-browser", js)
+        self.assertIn("public-browser-output", html)
+        self.assertNotIn("browser automation is ready", combined)
 
     def test_pr105_operational_local_model_is_canonical_and_limited(self) -> None:
         spec = (PRODUCT_DOCS / "pr_105_operational_local_model.md").read_text(encoding="utf-8")

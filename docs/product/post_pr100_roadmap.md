@@ -19,7 +19,7 @@ Roadmap normativo após o PR100. Ele substitui a sequência fechada PR90–PR100
 | PR103 | Dogfood local limpo | Validação ponta a ponta em checkout limpo | `scripts/local-clean-dogfood.sh`, checklist versionado, Workbench, modelo local ausente/presente e documentos restritos |
 | PR104 | Onboarding/UX | Redução de fricção inicial | Workbench mostra próximos passos sanitizados para Harness/token/modelo/documento sem vazar segredo |
 | PR105 | Modelo local operacional | Runtime local configurável com diagnóstico melhor | Sem download automático, sem nuvem, sem execução de tools e com health/fallback explícito |
-| PR106 | Browser público read-only | Spec e contenção demonstrada para navegação pública | Sem login, sem cookies sensíveis, sem formulário, sem download perigoso e com executor/testes negativos próprios |
+| PR106 | Browser público read-only | Implementado como GET público único com extração textual limitada | Sem login, sem cookies, sem formulário, sem download, sem JavaScript automation e com testes negativos próprios |
 | PR107 | MCP mínimo governado | Uma tool MCP local não sensível sob autorização | Capability exata, escopo mínimo, identidade, grant single-use e bloqueio de replay |
 | PR108 | n8n governado | Adapter n8n inativo por padrão | Sem activation automática, sem credenciais no Gateway, sem execução real até aprovação de workflow específico |
 | PR109 | UX de permissões | Revisão humana mais clara | Diferença visível entre intenção, decisão, autorização efetiva, grant e execução |
@@ -27,7 +27,7 @@ Roadmap normativo após o PR100. Ele substitui a sequência fechada PR90–PR100
 
 ## Ordem recomendada
 
-Executar PR101 antes de qualquer release ou expansão. Depois, preferir PR102–PR105 para consolidar alpha técnico local antes de PR106+. O risco de pular direto para browser/n8n/MCP é alto: aumenta superfície externa antes de dogfood, UX de falha e diagnóstico de modelo estarem estáveis.
+Executar PR101 antes de qualquer release ou expansão. Depois, preferir PR102–PR106 para consolidar alpha técnico local e primeira navegação pública restrita antes de PR107+. O risco de pular direto para browser/n8n/MCP é alto: aumenta superfície externa antes de dogfood, UX de falha e diagnóstico de modelo estarem estáveis.
 
 ## Fora de escopo até spec própria
 
