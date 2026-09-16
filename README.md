@@ -2,11 +2,15 @@
 
 `lai-gateway` is a private companion gateway for `lai harness`.
 
-It is intentionally a separate project. The harness owns local coding authority and guarded execution. The gateway owns private client adapters such as a future PWA or Telegram bot. That separation is not bureaucracy; it is how we avoid turning the core harness into a carnival ride with credentials.
+It is intentionally a separate project. The harness owns local coding authority and guarded execution. The gateway provides local UI and client channels, plus an experimental governance foundation. Its adapter contracts do not grant general execution authority.
 
 ## Current scope
 
-Roadmap status: see `docs/product/roadmap.md` for the post-PR88 direction, `docs/product/implementation_matrix.md` for what is implemented versus contract-only, and `docs/product/alpha_readiness.md` for public alpha readiness.
+Start with the [canonical product documentation](docs/product/index.md): the [post-PR89 roadmap consolidated in PR90](docs/product/roadmap.md), [implementation matrix](docs/product/implementation_matrix.md), and [public alpha go/no-go criteria](docs/product/alpha_readiness.md).
+
+The product is experimental. Effective authorization currently covers only `adapter-dry-run`; the real `local_status` handler is a separate, tightly allowlisted in-process path, not proof of general authorization. Browser, n8n, voice, broad MCP execution and social/career automation are not ready-to-use features. Their contracts do not establish runtime capability. A public technical alpha is planned, not declared ready or complete.
+
+Telegram outbound has an existing operator-invoked, opt-in notification path with a configured destination. It is not general agent messaging authority or durable per-message approval. New governed sends require explicit approval of content and destination plus the roadmap gates. Read-only declarations and simulations must not be presented as enforced isolation without executor-specific evidence.
 
 The current gateway provides:
 

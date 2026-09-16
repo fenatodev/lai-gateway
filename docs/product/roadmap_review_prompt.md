@@ -1,5 +1,7 @@
 # LAI roadmap external review prompt
 
+> Histórico/insumo de revisão. Não define a sequência atual nem comprova capacidade operacional. Consulte o [índice canônico](index.md) e o [roadmap pós-PR90](roadmap.md).
+
 Use este prompt para revisar o roadmap com GPT-6, Codex, Astra ou outro revisor crítico.
 
 ```text

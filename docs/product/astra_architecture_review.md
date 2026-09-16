@@ -1,5 +1,7 @@
 # astra architecture review
 
+> Histórico/insumo de revisão. Não define a sequência atual nem comprova capacidade operacional. Consulte o [índice canônico](index.md) e o [roadmap pós-PR90](roadmap.md).
+
 ## resumo executivo
 
 A revisão do Astra validou a direção geral do LAI, mas apontou uma falha de arquitetura importante: o plano inicial misturava domínio, canal, capacidade e autonomia como se fossem o mesmo tipo de "modo". Essa mistura pode causar roteamento ambíguo e permissões indevidas.

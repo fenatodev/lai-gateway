@@ -1,85 +1,42 @@
 # LAI alpha readiness
 
-## status
+Critérios pós-PR90 para alpha público técnico no PR100. [Índice](index.md), [roadmap](roadmap.md) e [matriz](implementation_matrix.md).
 
-Checklist para decidir quando o `lai-gateway` pode ser apresentado publicamente como alpha técnico.
+## Promessa pública permitida
 
-## declaração permitida
+Workbench local-first experimental para conversa e dev assistido via Harness, com fundação de governança e um adapter local mínimo. Alpha público não significa produto completo nem autorização para capacidades externas.
 
-O projeto pode ser descrito como:
+Não declarar browser agent completo, automação n8n real, voz operacional, MCP tool execution generalizado, automação social/carreira com envio real, processamento completo de documentos/mídia ou instalação one-click universal.
 
-```text
-LAI Gateway alpha: Workbench local-first para conversa, dev assistido via Harness e fundação de execução governada por capabilities.
-```
+## Limitações conhecidas
 
-## declaração proibida neste estágio
+- Effective authorization está restrita a adapter-dry-run; não concede capability ampla e não persiste aprovação.
+- local_status executa código in-process restrito; não prova o ciclo geral de autorização non-dry-run.
+- Identidade usuário/cliente/agente/serviço precisa de vínculo testado, além de campos declarativos.
+- Persistência, expiração, revogação, consumo único, restart recovery e bloqueio contra duplicação de efeito ainda precisam de prova integrada nessa cadeia.
+- Audit log sanitizado não equivale a execução autorizada, integridade inviolável ou recuperação transacional.
+- Read-only declarado ou simulado não é read-only efetivamente imposto; afirmar contenção apenas com evidência específica.
+- Dev/Workbench depende de Harness compatível; modelo local depende de runtime configurado. Interface existente não prova primeira execução reproduzível.
+- Browser/n8n/MCP/voz/social permanecem contratos ou planos; documentos locais entram apenas no escopo restrito PR98–99.
+- Telegram outbound já realiza envio operacional opt-in. Requer ação explícita do operador e destino configurado; não possui a cadeia geral durável de aprovação por mensagem. Novos fluxos exigem aprovação explícita de conteúdo/destino e não podem usar enable-send como consentimento permanente.
+- Quickstart, empacotamento mínimo, guia visual e versão alpha ainda precisam de consolidação e evidência.
 
-Não declarar ainda que o LAI possui:
+## Go para alpha público técnico
 
-```text
-browser agent completo
-automação n8n real
-voz operacional
-MCP tool execution generalizado
-automação social/carreira com envio real
-processamento completo de documentos e mídia
-instalação one-click para qualquer sistema
-```
+Todos os itens são obrigatórios; esta lista não afirma que já passaram:
 
-## pronto agora
+- Quickstart reproduzível por usuário novo, instalação limpa em ambiente suportado e diagnóstico de Harness/token/modelo ausentes (PR91).
+- Empacotamento mínimo identificado, versionamento inequívoco, artefato correspondente ao commit e release checklist com guia visual sanitizado (PR92).
+- Identidade testável (PR93), uma ação local autorizada non-dry-run (PR94) e persistência/restart/recovery com expiração, revogação, consumo único e antirreplay (PR95).
+- Primeira conversa local, health/fallback explícitos, contexto isolado e documentos locais restritos demonstrados nos escopos PR96–99.
+- `python3 -m unittest tests.test_product_docs -v`, `PYTHON=python3 make check` e `git diff --check` verdes; CI e publication scan conferidos para o commit candidato, sem inferir verde histórico.
+- README, matriz e UI com ausência de overclaiming; limitações conhecidas visíveis, sem segredos ou dados privados nas evidências.
+- Capacidades externas bloqueadas conforme roadmap; aprovação humana separada para publicação do alpha.
 
-```text
-arquitetura documentada
-CI verde em Python 3.11 e 3.12
-Workbench local com três modos
-harness/gateway separados
-chat comum sem run automático
-session/runs read-only
-local-chat workbench com review/promotion
-policy/capability chain
-audit events e log local sanitizado
-dispatcher com primeiro adapter local seguro
-mobile/private mode com pareamento e tokens em memória
-Telegram outbound controlado
-```
+## No-go
 
-## lacunas antes de alpha público
+Qualquer critério sem evidência impede o go. Em especial: instalação não reproduzível, versão ambígua, falha de validação, identidade autodeclarada tratada como autoridade, aprovação reutilizada após reinício, duplicação de efeito, adapter sensível sem gate, shell genérico no caminho de adapter ou promessa de contrato como funcionalidade pronta.
 
-```text
-README precisa refletir pós-PR88 e roadmap atual
-versão precisa ser planejada para 0.2.0-alpha ou equivalente
-quickstart precisa ser testável por usuário novo
-troubleshooting precisa cobrir harness ausente, token ausente e modelo ausente
-promessas de adapters precisam ficar marcadas como contract ou planned
-screenshots/guia visual do Workbench ainda faltam
-release checklist público precisa existir
-```
+## Decisão atual
 
-## critérios de go/no-go
-
-### go para alpha técnico
-
-```text
-make check verde
-CI verde
-README alinhado ao roadmap
-instalação local documentada
-sem tokens ou caminhos privados em superfícies públicas
-browser/n8n/voz/social/documentos não vendidos como implementados
-primeiro fluxo seguro demonstrável no Workbench
-```
-
-### no-go
-
-```text
-qualquer adapter sensível executável sem approval gate
-qualquer uso de shell genérico no caminho de adapter
-README prometendo funcionalidade não implementada
-release sem instrução de instalação limpa
-publicação com versão ambígua
-falha de CI ou publication scan
-```
-
-## decisão atual
-
-Pós-PR88, o projeto está apto a virar alpha técnico depois de documentação pública, quickstart e versionamento. Ainda não está apto a ser chamado de produto completo.
+No-go para declarar prontidão pública apenas com a consolidação documental PR90. PR91–99 devem fornecer as evidências, avaliadas no PR100. Ainda não está apto a ser chamado de produto completo. Não há bump, tag, publicação ou mudança funcional neste PR.
