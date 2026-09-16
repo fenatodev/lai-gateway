@@ -28,6 +28,7 @@ class ProductDocsTest(unittest.TestCase):
             "pr_100_technical_alpha_readiness.md",
             "post_pr100_roadmap.md",
             "pr_101_post_pr100_roadmap.md",
+            "pr_102_release_alpha_technical.md",
         ):
             path = PRODUCT_DOCS / name
             self.assertTrue(path.exists(), name)
@@ -355,6 +356,28 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("alpha-readiness", readme)
         self.assertIn("refresh-alpha-readiness", app)
         self.assertIn("/v1/gateway/alpha-readiness", app)
+
+    def test_pr102_release_alpha_technical_is_source_first_and_limited(self) -> None:
+        spec = (PRODUCT_DOCS / "pr_102_release_alpha_technical.md").read_text(encoding="utf-8")
+        notes = (ROOT / "docs" / "releases" / "v0.1.35.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        post = (PRODUCT_DOCS / "post_pr100_roadmap.md").read_text(encoding="utf-8")
+        combined = spec + "\n" + notes
+        for marker in (
+            "source-first",
+            "0.1.35",
+            "release-check",
+            "alpha-readiness",
+            "sem mudança funcional",
+            "aprovação humana",
+            "not a hosted service",
+            "does not enable browser authenticated sessions",
+            "general MCP tool execution",
+        ):
+            self.assertIn(marker, combined)
+        self.assertIn("[v0.1.35](../releases/v0.1.35.md)", index)
+        self.assertIn("[PR102](pr_102_release_alpha_technical.md)", index)
+        self.assertIn("nota de release versionada sem overclaiming", post)
 
     def test_pr101_post_pr100_roadmap_is_canonical_and_limited(self) -> None:
         post = (PRODUCT_DOCS / "post_pr100_roadmap.md").read_text(encoding="utf-8")

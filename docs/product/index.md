@@ -27,7 +27,9 @@ Os documentos `pr_*.md` têm rótulo **spec de PR / histórico**: são registros
 - **revisão externa / histórico** — [Revisão Astra](astra_architecture_review.md) e [revisão Codex/Astra](codex_astra_architecture_review.md): insumos históricos, sem autoridade automática.
 - **descritivo / insumo de revisão externa** — [Prompt de revisão](roadmap_review_prompt.md): instrumento de coleta, não decisão.
 - **spec de PR / histórico** — [PR89](pr_89_roadmap_alpha_readiness.md): baseline histórico da consolidação.
-- **spec de PR / atual** — [PR101](pr_101_post_pr100_roadmap.md): roadmap pós-PR100, sem mudança funcional nem publicação.
+- **release notes / atual** — [v0.1.35](../releases/v0.1.35.md): nota source-first do alpha técnico, com limites públicos.
+- **spec de PR / atual** — [PR102](pr_102_release_alpha_technical.md): preparação source-first de tag/release alpha técnico, sem mudança funcional.
+- **spec de PR / histórico** — [PR101](pr_101_post_pr100_roadmap.md): roadmap pós-PR100, sem mudança funcional nem publicação.
 - **spec de PR / histórico** — [PR100](pr_100_technical_alpha_readiness.md): alpha público técnico com verificação `alpha-readiness/v1` e go/no-go read-only.
 - **spec de PR / histórico** — [PR99](pr_99_workbench_local_documents.md): Workbench para documentos locais com seleção metadata-only e inspeção restrita.
 - **spec de PR / histórico** — [PR98](pr_98_restricted_document_text.md): `document_text_local` restrito para `.txt/.md/.json` em workspace explícito.
