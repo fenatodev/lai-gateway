@@ -32,6 +32,7 @@ from .ops import collect_ops_status
 from .permission_decision import collect_permission_decision
 from .persisted_audit_log import collect_persisted_audit_log
 from .policy_evaluator import collect_policy_evaluation
+from .public_browser import collect_public_browser
 from .skills import collect_skills_registry
 from .config import GatewayConfig, read_gateway_access_token, validate_gateway_bind
 from .dev_control import collect_dev_control_policy
@@ -127,6 +128,21 @@ class GatewayHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.OK, collect_onboarding_status(
                 config=self.server.config,
                 workspace_root=values.get("workspace_root", [""])[0] or None,
+            ))
+            return
+        if parsed.path == "/v1/gateway/public-browser":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            max_bytes = self._positive_int_query(values.get("max_bytes", ["65536"])[0], default=65536, maximum=262144)
+            timeout = self._positive_float_query(values.get("timeout_seconds", ["8"])[0], default=8.0, maximum=20.0)
+            if max_bytes is None or timeout is None:
+                return
+            self._send_json(HTTPStatus.OK, collect_public_browser(
+                url=values.get("url", [""])[0],
+                browser_action=values.get("browser_action", ["plan"])[0] or "plan",
+                max_bytes=max_bytes,
+                timeout_seconds=timeout,
             ))
             return
         if parsed.path == "/v1/gateway/model-status":
@@ -995,6 +1011,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/adapter-dispatcher",
             "/v1/gateway/persisted-audit-log",
             "/v1/gateway/model-status",
+            "/v1/gateway/public-browser",
             "/v1/gateway/model-runtime",
             "/v1/gateway/alpha-readiness",
             "/v1/gateway/model-plan",

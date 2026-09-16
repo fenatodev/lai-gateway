@@ -461,6 +461,19 @@
               </article>
 
               <article class="card compact-panel">
+                <h2>Browser público</h2>
+                <p class="muted">GET público único com extração textual limitada. Sem cookies, login, formulário, download ou JavaScript automation.</p>
+                <label>URL pública
+                  <input id="public-browser-url" placeholder="https://example.com/" autocomplete="off" autocapitalize="none" spellcheck="false">
+                </label>
+                <div class="actions">
+                  <button data-action="refresh-public-browser-plan">Planejar fetch público</button>
+                  <button data-action="fetch-public-browser">Buscar texto público</button>
+                </div>
+                <pre id="public-browser-output" aria-live="polite">Não carregado.</pre>
+              </article>
+
+              <article class="card compact-panel">
                 <h2>Memória local</h2>
                 <p class="muted">Contexto local por projeto ou pessoal. Memória não concede autoridade nem aprovação.</p>
                 <div class="form-row">

@@ -34,6 +34,7 @@ from .health import collect_health_report, render_health_report
 from .identity import collect_identity_binding, render_identity_binding
 from .lan import collect_lan_info, render_lan_info
 from .persisted_audit_log import collect_persisted_audit_log, render_persisted_audit_log
+from .public_browser import collect_public_browser, render_public_browser
 from .model import check_model_api_key_file, collect_model_chat, collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_runtime, collect_model_smoke, collect_model_status, collect_model_task, create_model_api_key_file, render_model_chat, render_model_eval, render_model_files, render_model_key, render_model_plan, render_model_runs, render_model_runtime, render_model_smoke, render_model_status, render_model_task
 from .memory_context import collect_memory_context, render_memory_context
 from .mobile import (
@@ -177,6 +178,12 @@ def main(argv: list[str] | None = None) -> int:
     health_parser.add_argument("--telegram-chat-id", default=None, help="telegram chat id for preflight or notification")
     health_parser.add_argument("--telegram-notify", action="store_true", help="send this health report to Telegram when explicitly enabled")
     health_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    public_browser_parser = sub.add_parser("public-browser", help="plan or fetch one bounded public read-only URL")
+    public_browser_parser.add_argument("--url", required=True, help="public http/https URL without credentials")
+    public_browser_parser.add_argument("--browser-action", choices=["plan", "fetch", "extract"], default="plan", help="plan without network or perform one public GET")
+    public_browser_parser.add_argument("--max-bytes", type=int, default=65536, help="maximum response bytes to read")
+    public_browser_parser.add_argument("--timeout-seconds", type=float, default=8.0, help="bounded public GET timeout")
+    public_browser_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     model_parser = sub.add_parser("model-status", help="inspect local model runtime readiness without starting or downloading models")
     model_parser.add_argument("--probe-openai", action="store_true", help="probe the configured local OpenAI-compatible /v1/models endpoint")
     model_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
@@ -735,6 +742,18 @@ def main(argv: list[str] | None = None) -> int:
                 print(render_health_report(payload))
                 if args.telegram_notify:
                     print(f"telegram_notify: sent {payload['telegram_notify'].get('message_id')}")
+                return 0 if payload["overall"] != "blocked" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] != "blocked" else 1
+        if args.command == "public-browser":
+            payload = collect_public_browser(
+                url=args.url,
+                browser_action=args.browser_action,
+                max_bytes=args.max_bytes,
+                timeout_seconds=args.timeout_seconds,
+            )
+            if not args.json:
+                print(render_public_browser(payload))
                 return 0 if payload["overall"] != "blocked" else 1
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0 if payload["overall"] != "blocked" else 1
