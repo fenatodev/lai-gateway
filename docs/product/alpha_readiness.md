@@ -42,6 +42,8 @@ Após o PR114, `action-proposal/v1` monta proposta unificada read-only com domí
 
 Após o PR115, `approval-inbox/v1` cria uma caixa local de aprovação pendente. `show` é read-only; `enqueue` persiste somente registro sanitizado em workspace explícito. PR115 não aprova, não cria autorização efetiva, não emite grant, não consome grant, não despacha adapter, não chama Harness, não executa tools, não usa credenciais, não envia mensagens, não publica e não realiza efeito externo.
 
+Após o PR116, `dev-loop-fixture/v1` adiciona fixture local Observe/Work/Review/Apply sobre approval inbox sanitizado. PR116 não habilita browser autenticado, não ativa n8n real, não chama MCP amplo, não usa credenciais, não envia mensagem, não publica, não cria autorização efetiva, não emite grant, não consome grant, não despacha adapter, não chama Harness, não executa tools, não escreve source checkout, não faz merge automático, não faz HOME scan, não faz ingestão implícita e não realiza efeito externo.
+
 ## Go para alpha público técnico
 
 Todos os itens são obrigatórios; esta lista não afirma que já passaram:

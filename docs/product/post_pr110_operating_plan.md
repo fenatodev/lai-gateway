@@ -27,7 +27,7 @@ O foco não é adicionar mais adapters sensíveis. O foco é tornar o fluxo loca
 | PR113 | Objetivos e tarefas locais | `objective-state/v1` | Registro local read-only de objetivo/tarefas/checkpoints, sem grants, adapters ou execução |
 | PR114 | Proposta unificada | `action-proposal/v1` | Proposta implementada declara domínio, canal, autonomia, capacidade, alvo, dados, efeito e risco; sem autorização efetiva |
 | PR115 | Caixa de aprovação | `approval-inbox/v1` | Aprovações pendentes persistidas e sanitizadas; sem grant, dispatch, execução ou efeito externo |
-| PR116 | Loop dev local controlado | Dev loop fixture | Observe/Work/Apply testado em fixture local, com review e evidência; sem publicação ou merge automático |
+| PR116 | Loop dev local controlado | `dev-loop-fixture/v1` | Observe/Work/Review/Apply testado em fixture local, com evidência; sem browser autenticado, n8n real, MCP amplo, credenciais, mensagens, publicação, grants, adapter dispatch, Harness, tools, merge automático ou escrita no source checkout |
 | PR117 | Context pack local | Contexto explícito por tarefa | Memória/documentos/projeto selecionados explicitamente, sem confiança implícita, embeddings obrigatórios ou varredura ampla |
 | PR118 | Modelo local operacional UX | Runtime profile UX | Perfil de modelo local visível, fallback e diagnóstico; sem baixar/iniciar runtime automaticamente |
 | PR119 | Browser público v2 | Source inspector público restrito | GET público read-only ampliado por spec estreita; sem login, cookies, JS automation, formulários ou downloads |

@@ -36,6 +36,7 @@ _REQUIRED_EVIDENCE_MARKERS = (
     "objective-state/v1",
     "action-proposal/v1",
     "approval-inbox/v1",
+    "dev-loop-fixture/v1",
 )
 
 _BLOCKED_CAPABILITY_MARKERS = (

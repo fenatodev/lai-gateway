@@ -95,6 +95,8 @@ class GatewayUITest(unittest.TestCase):
                 self.assertIn('id="approval-inbox-output"', html)
                 self.assertIn('data-action="refresh-approval-inbox"', html)
                 self.assertIn('data-action="enqueue-approval-inbox"', html)
+                self.assertIn('id="dev-loop-fixture-output"', html)
+                self.assertIn('data-action="refresh-dev-loop-fixture"', html)
                 self.assertIn("Caixa de aprovação", html)
                 self.assertIn('id="memory-output"', html)
                 self.assertIn('data-action="refresh-memory-context"', html)
@@ -691,6 +693,78 @@ class GatewayUITest(unittest.TestCase):
         self.assertNotIn(access, body)
         self.assertNotIn(TOKEN, body)
 
+
+    def test_gateway_dev_loop_fixture_endpoint_is_fixture_only_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp, fake_harness() as harness:
+            workspace = Path(tmp) / "project"
+            workspace.mkdir()
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            enqueue_query = (
+                f"workspace_root={quote(str(workspace))}&inbox_action=enqueue"
+                "&domain=project&channel=workbench&autonomy=high"
+                "&capability=dev-loop-fixture&target=tests/fixtures/local-dev-loop.md"
+                "&action=prepare%20local%20fixture%20review&data=sanitized%20proposal%20fields&effect=fixture%20review%20only&risk=low"
+            )
+            with RunningGateway(config) as gateway:
+                read_url(f"{gateway.url}/v1/gateway/approval-inbox?{enqueue_query}")
+                status, headers, body = read_url(
+                    f"{gateway.url}/v1/gateway/dev-loop-fixture?workspace_root={quote(str(workspace))}&phase=full"
+                )
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        payload = json.loads(body)
+        self.assertEqual(payload["operation"], "dev-loop-fixture")
+        self.assertEqual(payload["schema_version"], "dev-loop-fixture/v1")
+        self.assertEqual(payload["overall"], "ready")
+        self.assertTrue(payload["security"]["fixture_only"])
+        self.assertFalse(payload["security"]["effective_authorization"])
+        self.assertFalse(payload["security"]["issues_grants"])
+        self.assertFalse(payload["security"]["consumes_grants"])
+        self.assertFalse(payload["security"]["dispatches_adapter"])
+        self.assertFalse(payload["security"]["executes_tools"])
+        self.assertFalse(payload["security"]["external_side_effects"])
+        self.assertFalse(payload["security"]["uses_credentials"])
+        self.assertFalse(payload["security"]["sends_messages"])
+        self.assertFalse(payload["security"]["publishes"])
+        self.assertFalse(payload["security"]["source_checkout_write"])
+        self.assertFalse(payload["security"]["merge_allowed"])
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
+
+    def test_private_dev_loop_fixture_requires_gateway_auth(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp, fake_harness() as harness:
+            workspace = Path(tmp) / "project"
+            workspace.mkdir()
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            access_file = Path(tmp) / "access-token"
+            access = "gateway-access-secret-value-1234567890"
+            access_file.write_text(access, encoding="utf-8")
+            access_file.chmod(0o600)
+            pair_file = Path(tmp) / "pair-token.json"
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                bind="127.0.0.1",
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            with RunningGateway(config) as gateway:
+                url = f"{gateway.url}/v1/gateway/dev-loop-fixture?workspace_root={quote(str(workspace))}"
+                with self.assertRaises(__import__("urllib.error").error.HTTPError) as unauth:
+                    read_url(url)
+                status, _headers, body = read_url(
+                    url,
+                    headers={"Authorization": f"Bearer {access}"},
+                )
+        self.assertEqual(unauth.exception.code, 401)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["operation"], "dev-loop-fixture")
+        self.assertNotIn(access, body)
+        self.assertNotIn(TOKEN, body)
 
     def test_gateway_action_proposal_endpoint_is_read_only_and_secret_free(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp, fake_harness() as harness:

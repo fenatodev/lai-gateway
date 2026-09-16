@@ -956,6 +956,57 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("approval-inbox-output", html)
 
 
+    def test_pr116_dev_loop_fixture_is_canonical_and_limited(self) -> None:
+        spec = (PRODUCT_DOCS / "pr_116_dev_loop_fixture.md").read_text(encoding="utf-8")
+        contract = (PRODUCT_DOCS / "dev_loop_fixture.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        plan = (PRODUCT_DOCS / "post_pr110_operating_plan.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        main_py = (ROOT / "lai_gateway" / "__main__.py").read_text(encoding="utf-8")
+        server_py = (ROOT / "lai_gateway" / "server.py").read_text(encoding="utf-8")
+        app = (ROOT / "lai_gateway" / "static" / "app.js").read_text(encoding="utf-8")
+        html = (ROOT / "lai_gateway" / "static" / "index.html").read_text(encoding="utf-8")
+
+        for statement in (
+            "dev-loop-fixture/v1",
+            "Observe/Work/Review/Apply",
+            "fixture local",
+            "source checkout",
+        ):
+            self.assertIn(statement, spec + contract)
+        for blocked in (
+            "Não habilita browser autenticado",
+            "Não ativa n8n real",
+            "Não chama MCP amplo",
+            "Não usa credenciais",
+            "Não envia mensagem",
+            "Não publica",
+            "Não cria autorização efetiva",
+            "Não emite grant",
+            "Não consome grant",
+            "Não despacha adapter",
+            "Não chama Harness",
+            "Não executa tools",
+            "Não escreve source checkout",
+            "Não faz merge automático",
+            "Não faz HOME scan",
+            "Não faz ingestão implícita",
+        ):
+            self.assertIn(blocked, spec)
+        self.assertIn("| PR116 | Loop dev local controlado | `dev-loop-fixture/v1`", plan)
+        self.assertIn("[Dev loop fixture](dev_loop_fixture.md)", index)
+        self.assertIn("[PR116](pr_116_dev_loop_fixture.md)", index)
+        self.assertIn("dev_loop_fixture | experimental", matrix)
+        self.assertIn("sem autorização efetiva, grants, credenciais", matrix)
+        self.assertIn("Após o PR116", alpha)
+        self.assertIn("dev-loop-fixture/v1", readme)
+        self.assertIn("dev-loop-fixture", main_py)
+        self.assertIn("/v1/gateway/dev-loop-fixture", server_py)
+        self.assertIn("refresh-dev-loop-fixture", app)
+        self.assertIn("dev-loop-fixture-output", html)
+
     def test_matrix_evidence_links_exist(self) -> None:
         text = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
         links = re.findall(r"\]\(([^)]+)\)", text)
