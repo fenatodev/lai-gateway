@@ -16,7 +16,7 @@ Não declarar browser agent completo, automação n8n real, voz operacional, MCP
 - Persistência, expiração, revogação, consumo único, restart recovery e bloqueio contra duplicação de efeito existem após PR95 somente para `local-status-read`/`local_status.status`.
 - Audit log sanitizado não equivale a execução autorizada, integridade inviolável ou recuperação transacional.
 - Read-only declarado ou simulado não é read-only efetivamente imposto; afirmar contenção apenas com evidência específica.
-- Dev/Workbench depende de Harness compatível; modelo local depende de runtime configurado. Interface existente não prova primeira execução reproduzível.
+- Dev/Workbench depende de Harness compatível; modelo local depende de runtime configurado. PR96 prova conversa local-model-first e fallback explícito, mas não prova instalação guiada nem disponibilidade universal de runtime.
 - Browser/n8n/MCP/voz/social permanecem contratos ou planos; documentos locais entram apenas no escopo restrito PR98–99.
 - Telegram outbound já realiza envio operacional opt-in. Requer ação explícita do operador e destino configurado; não possui a cadeia geral durável de aprovação por mensagem. Novos fluxos exigem aprovação explícita de conteúdo/destino e não podem usar enable-send como consentimento permanente.
 - Quickstart, empacotamento mínimo, guia visual e versão alpha ainda precisam de consolidação e evidência.
@@ -36,7 +36,7 @@ Todos os itens são obrigatórios; esta lista não afirma que já passaram:
 - Quickstart reproduzível por usuário novo, instalação limpa em ambiente suportado e diagnóstico de Harness/token/modelo ausentes (PR91).
 - Empacotamento mínimo identificado, versionamento inequívoco, artefato correspondente ao commit e release checklist com guia visual sanitizado (PR92).
 - Identidade testável (PR93), uma ação local autorizada non-dry-run (PR94) e persistência/restart/recovery com expiração, revogação, consumo único e antirreplay para o escopo estreito PR95.
-- Primeira conversa local, health/fallback explícitos, contexto isolado e documentos locais restritos demonstrados nos escopos PR96–99.
+- Contexto isolado e documentos locais restritos demonstrados nos escopos PR97–99; primeira conversa local e health/fallback explícitos ficam cobertos por PR96.
 - `python3 -m unittest tests.test_product_docs -v`, `PYTHON=python3 make check` e `git diff --check` verdes; CI e publication scan conferidos para o commit candidato, sem inferir verde histórico.
 - README, matriz e UI com ausência de overclaiming; limitações conhecidas visíveis, sem segredos ou dados privados nas evidências.
 - Capacidades externas bloqueadas conforme roadmap; aprovação humana separada para publicação do alpha.

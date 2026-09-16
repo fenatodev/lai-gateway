@@ -376,28 +376,24 @@ def collect_model_chat(
     timeout_seconds: float = 60.0,
     max_tokens: int = 768,
 ) -> dict[str, Any]:
-    """Run one bounded conversation turn against the configured local model."""
+    """Run one bounded local-model-first conversation turn."""
     message = (prompt or "").strip()
     if not message or len(message) > 12000:
+        fallback = _model_chat_fallback({"status": "blocked", "detail": "prompt is empty or too long"}, used=False)
         return {
             "product": "lai-gateway",
             "version": __version__,
             "operation": "model-chat",
             "overall": "blocked",
             "message": "",
+            "conversation": {"mode": "local-model-first", "first_turn": True, "prompt_accepted": False},
+            "fallback": fallback,
+            "health": _model_chat_health({}, {"status": "blocked", "network_call": False, "detail": "prompt is empty or too long"}),
             "starts_server": False,
             "modifies_files": False,
             "downloads_models": False,
             "network_calls": {"local_openai_chat_completion": False},
-            "security": {
-                "prints_tokens": False,
-                "starts_server": False,
-                "modifies_files": False,
-                "downloads_models": False,
-                "executes_tools": False,
-                "creates_harness_run": False,
-                "echoes_user_prompt": False,
-            },
+            "security": _model_chat_security(),
         }
     values = _model_values(env)
     started = time.monotonic()
@@ -411,15 +407,24 @@ def collect_model_chat(
         timeout_seconds=timeout_seconds,
     )
     elapsed_ms = round((time.monotonic() - started) * 1000, 1)
-    overall = result.get("status", "blocked")
-    if result.get("status") == "ready" and result.get("message"):
-        overall = "ready"
+    ready = bool(result.get("status") == "ready" and result.get("message"))
+    overall = "ready" if ready else result.get("status", "blocked")
+    fallback = _model_chat_fallback(result, used=not ready)
     payload = {
         "product": "lai-gateway",
         "version": __version__,
         "operation": "model-chat",
         "overall": overall,
-        "message": result.get("message", ""),
+        "message": result.get("message", "") if ready else fallback["message"],
+        "conversation": {
+            "mode": "local-model-first",
+            "first_turn": True,
+            "prompt_accepted": True,
+            "direct_gateway_chat": True,
+            "creates_harness_run": False,
+        },
+        "fallback": fallback,
+        "health": _model_chat_health(values, result),
         "starts_server": False,
         "modifies_files": False,
         "downloads_models": False,
@@ -427,31 +432,83 @@ def collect_model_chat(
         "model_config": _model_env_config(values),
         "result": {key: value for key, value in result.items() if key != "message"},
         "elapsed_ms": elapsed_ms,
-        "security": {
-            "prints_tokens": False,
-            "starts_server": False,
-            "modifies_files": False,
-            "downloads_models": False,
-            "executes_tools": False,
-            "creates_harness_run": False,
-            "echoes_user_prompt": False,
-        },
+        "security": _model_chat_security(),
     }
     return payload
 
 
+def _model_chat_security() -> dict[str, bool]:
+    return {
+        "prints_tokens": False,
+        "starts_server": False,
+        "modifies_files": False,
+        "downloads_models": False,
+        "executes_tools": False,
+        "creates_harness_run": False,
+        "echoes_user_prompt": False,
+        "cloud_fallback": False,
+        "harness_fallback": False,
+        "permission_elevation": False,
+        "stores_prompt": False,
+    }
+
+
+def _model_chat_fallback(result: dict[str, Any], *, used: bool) -> dict[str, Any]:
+    detail = str(result.get("detail") or result.get("status") or "local model is not ready")[:180]
+    return {
+        "used": used,
+        "kind": "explicit_local_model_unavailable" if used else "not_used",
+        "message": (
+            "Modelo local indisponível ou não configurado. "
+            "Nenhum fallback em nuvem, run no Harness ou elevação de permissão foi usado. "
+            "Configure um endpoint OpenAI-compatible local/privado e rode model-status --probe-openai."
+        ) if used else "",
+        "reason": detail if used else "local model returned a direct answer",
+        "cloud_fallback": False,
+        "harness_fallback": False,
+        "permission_elevation": False,
+        "retry_automatic": False,
+    }
+
+
+def _model_chat_health(values: dict[str, str], result: dict[str, Any]) -> dict[str, Any]:
+    base_url = values.get("LAI_GATEWAY_MODEL_BASE_URL", "").strip() if values else ""
+    model_name = values.get("LAI_GATEWAY_MODEL_NAME", "").strip() if values else ""
+    validation = _validate_local_model_base_url(base_url) if base_url else {"status": "needs_config", "detail": "model base URL is not configured"}
+    return {
+        "status": result.get("status", "blocked"),
+        "detail": result.get("detail"),
+        "local_model_configured": bool(base_url and model_name),
+        "base_url_allowed": validation.get("status") == "ok",
+        "requires_model_name": not bool(model_name),
+        "network_call_attempted": bool(result.get("network_call")),
+        "cloud_fallback_attempted": False,
+        "harness_run_attempted": False,
+        "permission_elevation_attempted": False,
+    }
+
+
 def render_model_chat(payload: dict[str, Any]) -> str:
+    fallback = payload.get("fallback", {})
     lines = [
         f"lai-gateway model-chat: {payload['overall']}",
         f"version: {payload['version']}",
+        "conversation_mode: local-model-first",
         "starts_server: false",
         "modifies_files: false",
         "downloads_models: false",
         "executes_tools: false",
-        f"elapsed_ms: {payload['elapsed_ms']}",
+        "creates_harness_run: false",
+        f"fallback_used: {str(bool(fallback.get('used'))).lower()}",
+        "cloud_fallback: false",
+        "harness_fallback: false",
+        "permission_elevation: false",
+        f"elapsed_ms: {payload.get('elapsed_ms', 0)}",
     ]
     if payload.get("result", {}).get("detail"):
         lines.append(f"detail: {payload['result']['detail']}")
+    if fallback.get("used") and fallback.get("reason"):
+        lines.append(f"fallback_reason: {fallback['reason']}")
     return "\n".join(lines)
 
 

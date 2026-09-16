@@ -404,8 +404,12 @@
 
               <article class="card compact-panel">
                 <h2>Modelo</h2>
-                <p class="muted">Leitura do modelo local. Não baixa modelos nem envia prompts livres.</p>
+                <p class="muted">Conversa direta usa somente modelo local/privado configurado. Sem nuvem, Harness run, tools ou elevação automática.</p>
+                <label>Primeira conversa local
+                  <textarea id="model-chat-message" rows="3" maxlength="12000" spellcheck="true" placeholder="Digite uma pergunta curta para o modelo local"></textarea>
+                </label>
                 <div class="actions">
+                  <button class="primary" data-action="send-model-chat">Enviar conversa local</button>
                   <button data-action="refresh-model-status">Status do modelo</button>
                   <button data-action="refresh-model-plan">Plano do modelo</button>
                   <button data-action="refresh-model-files">Encontrar modelos</button>

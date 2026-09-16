@@ -357,13 +357,69 @@ class ModelStatusTest(unittest.TestCase):
         self.assertEqual(payload["operation"], "model-chat")
         self.assertEqual(payload["overall"], "ready")
         self.assertEqual(payload["message"], "resposta direta do lai")
+        self.assertEqual(payload["conversation"]["mode"], "local-model-first")
+        self.assertFalse(payload["fallback"]["used"])
+        self.assertFalse(payload["fallback"]["cloud_fallback"])
+        self.assertFalse(payload["fallback"]["harness_fallback"])
         self.assertTrue(payload["network_calls"]["local_openai_chat_completion"])
         self.assertFalse(payload["starts_server"])
         self.assertFalse(payload["modifies_files"])
         self.assertFalse(payload["downloads_models"])
         self.assertFalse(payload["security"]["creates_harness_run"])
+        self.assertFalse(payload["security"]["cloud_fallback"])
+        self.assertFalse(payload["security"]["permission_elevation"])
+        self.assertIn("conversation_mode: local-model-first", rendered)
+        self.assertIn("creates_harness_run: false", rendered)
         self.assertNotIn("segredo-local-nao-ecoar", text)
         self.assertNotIn("Bearer", text)
+
+    def test_model_chat_missing_config_returns_explicit_local_fallback_without_cloud_or_harness(self) -> None:
+        payload = collect_model_chat(env={}, prompt="plain-chat-question segredo-local-nao-ecoar")
+        rendered = render_model_chat(payload)
+        text = json.dumps(payload, sort_keys=True) + rendered
+        self.assertEqual(payload["operation"], "model-chat")
+        self.assertEqual(payload["overall"], "needs_config")
+        self.assertEqual(payload["conversation"]["mode"], "local-model-first")
+        self.assertTrue(payload["fallback"]["used"])
+        self.assertIn("Modelo local indisponível", payload["message"])
+        self.assertFalse(payload["fallback"]["cloud_fallback"])
+        self.assertFalse(payload["fallback"]["harness_fallback"])
+        self.assertFalse(payload["fallback"]["permission_elevation"])
+        self.assertFalse(payload["fallback"]["retry_automatic"])
+        self.assertFalse(payload["health"]["cloud_fallback_attempted"])
+        self.assertFalse(payload["health"]["harness_run_attempted"])
+        self.assertFalse(payload["network_calls"]["local_openai_chat_completion"])
+        self.assertIn("fallback_used: true", rendered)
+        self.assertNotIn("segredo-local-nao-ecoar", text)
+        self.assertNotIn("Bearer", text)
+
+    def test_cli_model_chat_json_is_secret_free_and_has_no_cloud_fallback(self) -> None:
+        env = dict(os.environ)
+        env.update({
+            "LAI_GATEWAY_MODEL_BASE_URL": "http://8.8.8.8:11434",
+            "LAI_GATEWAY_MODEL_NAME": "local-code-model",
+            "LAI_GATEWAY_MODEL_API_KEY": SECRET,
+        })
+        result = subprocess.run(
+            [sys.executable, "-m", "lai_gateway", "model-chat", "--message", "plain-chat-question segredo-local-nao-ecoar", "--json"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+            check=False,
+            timeout=10,
+        )
+        self.assertEqual(result.returncode, 1)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["operation"], "model-chat")
+        self.assertEqual(payload["overall"], "blocked")
+        self.assertTrue(payload["fallback"]["used"])
+        self.assertFalse(payload["fallback"]["cloud_fallback"])
+        self.assertFalse(payload["security"]["creates_harness_run"])
+        self.assertFalse(payload["network_calls"]["local_openai_chat_completion"])
+        self.assertNotIn(SECRET, result.stdout + result.stderr)
+        self.assertNotIn("segredo-local-nao-ecoar", result.stdout + result.stderr)
+        self.assertNotIn("Bearer", result.stdout + result.stderr)
 
     def test_model_chat_blocks_public_urls_before_network(self) -> None:
         with patch("urllib.request.urlopen") as opener:
