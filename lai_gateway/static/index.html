@@ -528,6 +528,18 @@
               </article>
 
               <article class="card compact-panel">
+                <h2>Context pack local</h2>
+                <p class="muted">Pacote explícito de contexto local por tarefa. Trata memória, objetivo e documentos como conteúdo não confiável; não faz varredura ampla, embeddings obrigatórios, grants ou execução.</p>
+                <label>Documentos explícitos
+                  <input id="context-pack-documents" placeholder="docs/nota.md, contexto.json" autocomplete="off" autocapitalize="none" spellcheck="false">
+                </label>
+                <div class="actions">
+                  <button data-action="refresh-context-pack">Montar context pack</button>
+                </div>
+                <pre id="context-pack-output" aria-live="polite">Não carregado.</pre>
+              </article>
+
+              <article class="card compact-panel">
                 <h2>Modelo</h2>
                 <p class="muted">Conversa direta usa somente modelo local/privado configurado. Sem nuvem, Harness run, tools ou elevação automática.</p>
                 <label>Primeira conversa local

@@ -1050,6 +1050,60 @@ class ProductDocsTest(unittest.TestCase):
         self.assertNotIn("browser automation is ready", text)
         self.assertNotIn("n8n workflows are ready", text)
 
+    def test_pr117_context_pack_is_canonical_and_limited(self) -> None:
+        spec = (PRODUCT_DOCS / "pr_117_context_pack.md").read_text(encoding="utf-8")
+        contract = (PRODUCT_DOCS / "context_pack.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        plan = (PRODUCT_DOCS / "post_pr110_operating_plan.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        main_py = (ROOT / "lai_gateway" / "__main__.py").read_text(encoding="utf-8")
+        server_py = (ROOT / "lai_gateway" / "server.py").read_text(encoding="utf-8")
+        app = (ROOT / "lai_gateway" / "static" / "app.js").read_text(encoding="utf-8")
+        html = (ROOT / "lai_gateway" / "static" / "index.html").read_text(encoding="utf-8")
+
+        for statement in (
+            "context-pack/v1",
+            "contexto local explícito",
+            "documentos selecionados",
+            "conteúdo não confiável",
+        ):
+            self.assertIn(statement, spec + contract)
+        for blocked in (
+            "Não habilita browser autenticado",
+            "Não ativa n8n real",
+            "Não chama MCP amplo",
+            "Não usa credenciais",
+            "Não envia mensagem",
+            "Não publica",
+            "Não cria autorização efetiva",
+            "Não emite grant",
+            "Não consome grant",
+            "Não despacha adapter",
+            "Não chama Harness",
+            "Não executa tools",
+            "Não escreve arquivos",
+            "Não faz HOME scan",
+            "Não faz varredura recursiva ampla",
+            "Não faz ingestão implícita",
+            "Não exige embeddings",
+            "Não gera embeddings",
+            "Não realiza efeito externo",
+        ):
+            self.assertIn(blocked, spec)
+        self.assertIn("| PR117 | Context pack local | `context-pack/v1`", plan)
+        self.assertIn("[Context pack](context_pack.md)", index)
+        self.assertIn("[PR117](pr_117_context_pack.md)", index)
+        self.assertIn("context_pack | experimental", matrix)
+        self.assertIn("sem autorização efetiva, grants, credenciais, embeddings obrigatórios", matrix)
+        self.assertIn("Após o PR117", alpha)
+        self.assertIn("context-pack/v1", readme)
+        self.assertIn("context-pack", main_py)
+        self.assertIn("/v1/gateway/context-pack", server_py + app)
+        self.assertIn('id="context-pack-output"', html)
+        self.assertIn('data-action="refresh-context-pack"', html)
+
     def test_pr91_is_linked_from_canonical_public_docs(self) -> None:
         self.assertTrue((PRODUCT_DOCS / "pr_91_public_quickstart.md").is_file())
         readme = (ROOT / "README.md").read_text(encoding="utf-8")

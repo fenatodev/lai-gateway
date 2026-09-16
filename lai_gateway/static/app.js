@@ -178,7 +178,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pareie este celular primeiro e atualize este painel.";
-  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "public-browser-output", "mcp-output", "n8n-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "permission-ux-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output", "external-expansion-output", "objective-output", "action-proposal-output", "approval-inbox-output", "dev-loop-fixture-output", "dev-loop-fixture-output"]) {
+  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "public-browser-output", "mcp-output", "n8n-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "permission-ux-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output", "external-expansion-output", "objective-output", "action-proposal-output", "approval-inbox-output", "dev-loop-fixture-output", "context-pack-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -421,6 +421,59 @@ function setDevLoopFixture(payload) {
   setPill("workbench-pill", `dev loop ${payload.overall || "desconhecido"}`, state);
   clearPairRequiredOutput("dev-loop-fixture-output");
   show("dev-loop-fixture-output", compactDevLoopFixtureText(payload));
+}
+
+function contextPackParams() {
+  const documents = byId("context-pack-documents")?.value || "";
+  const params = new URLSearchParams({
+    workspace_root: byId("objective-workspace-root")?.value || ".",
+    state_file: byId("objective-state-file")?.value || ".lai/objective-state.json",
+    task_id: byId("action-proposal-task-id")?.value || "",
+    project_id: byId("memory-project-id")?.value || "default",
+    context_kind: byId("memory-context-kind")?.value || "project",
+    memory_limit: "5",
+    max_document_chars: "2000",
+  });
+  for (const item of documents.split(",")) {
+    const value = item.trim();
+    if (value) params.append("document", value);
+  }
+  return params;
+}
+
+function compactContextPackText(payload) {
+  const pack = payload.context_pack || {};
+  const lines = [
+    `lai-gateway context-pack: ${payload.overall || "desconhecido"}`,
+    `schema: ${payload.schema_version || "context-pack/v1"}`,
+    `context_pack_id: ${pack.context_pack_id || "none"}`,
+    `project_id: ${pack.project_id || "default"}`,
+    `source_count: ${pack.source_count || 0}`,
+    "read_only: true",
+    "untrusted_content: true",
+    "content_grants_authority: false",
+    "effective_authorization: false",
+    "issues_grants: false",
+    "consumes_grants: false",
+    "dispatches_adapter: false",
+    "executes_tools: false",
+    "external_side_effects: false",
+    "filesystem_write: false",
+    "recursive_scan: false",
+    "home_scan: false",
+    "implicit_ingestion: false",
+    "embeddings_required: false",
+  ];
+  for (const source of (pack.sources || []).slice(0, 8)) lines.push(`source: ${source.source_type} ${source.status} ${source.title}`);
+  if (payload.reason) lines.push(`reason: ${payload.reason}`);
+  return lines.join("\n");
+}
+
+function setContextPack(payload) {
+  const state = payload.overall === "blocked" ? "danger" : payload.overall === "ready" ? "ready" : "warn";
+  setPill("workbench-pill", `contexto ${payload.overall || "desconhecido"}`, state);
+  clearPairRequiredOutput("context-pack-output");
+  show("context-pack-output", compactContextPackText(payload));
 }
 
 function setModelStatus(payload) {
@@ -1805,6 +1858,8 @@ async function runAction(action) {
       setDevLoopFixture(await requestJson(`/v1/gateway/dev-loop-fixture?${devLoopFixtureParams("full")}`));
     } else if (action === "review-dev-loop-fixture") {
       setDevLoopFixture(await requestJson(`/v1/gateway/dev-loop-fixture?${devLoopFixtureParams("review")}`));
+    } else if (action === "refresh-context-pack") {
+      setContextPack(await requestJson(`/v1/gateway/context-pack?${contextPackParams()}`));
     } else if (action === "refresh-public-browser-plan") {
       setPublicBrowser(await requestJson(`/v1/gateway/public-browser?${publicBrowserParams("plan")}`));
     } else if (action === "fetch-public-browser") {
@@ -2086,6 +2141,8 @@ async function runAction(action) {
             ? "external-expansion-output"
           : action.includes("ops")
             ? "ops-output"
+          : action.includes("context-pack")
+            ? "context-pack-output"
           : action.includes("memory")
             ? "memory-output"
             : action.includes("document")

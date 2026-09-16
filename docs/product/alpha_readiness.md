@@ -44,6 +44,8 @@ Após o PR115, `approval-inbox/v1` cria uma caixa local de aprovação pendente.
 
 Após o PR116, `dev-loop-fixture/v1` adiciona fixture local Observe/Work/Review/Apply sobre approval inbox sanitizado. PR116 não habilita browser autenticado, não ativa n8n real, não chama MCP amplo, não usa credenciais, não envia mensagem, não publica, não cria autorização efetiva, não emite grant, não consome grant, não despacha adapter, não chama Harness, não executa tools, não escreve source checkout, não faz merge automático, não faz HOME scan, não faz ingestão implícita e não realiza efeito externo.
 
+Após o PR117, `context-pack/v1` monta contexto local explícito por tarefa a partir de objetivo, memória e documentos selecionados. PR117 é read-only: não habilita browser autenticado, não ativa n8n real, não chama MCP amplo, não usa credenciais, não envia mensagem, não publica, não cria autorização efetiva, não emite grant, não consome grant, não despacha adapter, não chama Harness, não executa tools, não escreve arquivos, não faz HOME scan, não faz varredura recursiva ampla, não faz ingestão implícita, não exige embeddings, não gera embeddings e não realiza efeito externo.
+
 ## Go para alpha público técnico
 
 Todos os itens são obrigatórios; esta lista não afirma que já passaram:
