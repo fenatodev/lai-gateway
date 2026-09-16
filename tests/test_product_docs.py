@@ -38,7 +38,9 @@ class ProductDocsTest(unittest.TestCase):
             "pr_109_permission_ux.md",
             "pr_110_external_expansion_gate.md",
             "post_pr110_operating_plan.md",
+            "project_workspace_contract.md",
             "pr_111_operating_objective_plan.md",
+            "pr_112_project_workspace_contract.md",
         ):
             path = PRODUCT_DOCS / name
             self.assertTrue(path.exists(), name)
@@ -763,6 +765,42 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("não cria executor, grant, adapter", matrix)
         self.assertIn("Após o PR111", alpha)
         self.assertIn("does not create an executor, grant, adapter", readme)
+
+    def test_pr112_project_workspace_contract_is_canonical_and_limited(self) -> None:
+        contract = (PRODUCT_DOCS / "project_workspace_contract.md").read_text(encoding="utf-8")
+        spec = (PRODUCT_DOCS / "pr_112_project_workspace_contract.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+        for statement in (
+            "root_path explícito",
+            "allowed_relative_roots",
+            "excluded_relative_roots",
+            "data_touched",
+            "capabilities_granted",
+            "A raiz do workspace deve ser escolhida pelo operador",
+            "HOME scan",
+            "ingestão implícita",
+            "Conteúdo encontrado no workspace continua dado não confiável",
+        ):
+            self.assertIn(statement, contract)
+        for blocked in (
+            "Não cria scanner de arquivos",
+            "Não cria endpoint, CLI ou UI nova",
+            "Não altera executor, adapter, grant ou policy runtime",
+            "Não faz HOME scan",
+            "Não faz ingestão implícita",
+            "Não libera capacidades externas",
+        ):
+            self.assertIn(blocked, spec)
+        self.assertIn("[Project workspace contract](project_workspace_contract.md)", index)
+        self.assertIn("[PR112](pr_112_project_workspace_contract.md)", index)
+        self.assertIn("project workspace contract | contract", matrix)
+        self.assertIn("sem HOME scan, ingestão implícita, executor, grant, adapter", matrix)
+        self.assertIn("Após o PR112", alpha)
+        self.assertIn("does not scan HOME, ingest files implicitly", readme)
 
 
     def test_matrix_evidence_links_exist(self) -> None:
