@@ -11,6 +11,7 @@ from typing import Any
 from . import __version__
 from .adapter_invocation import collect_adapter_invocation_proposal, render_adapter_invocation_proposal
 from .action_proposal import collect_action_proposal, render_action_proposal
+from .approval_inbox import collect_approval_inbox, render_approval_inbox
 from .alpha_readiness import collect_alpha_readiness, render_alpha_readiness
 from .adapter_dry_run import collect_adapter_dry_run, render_adapter_dry_run
 from .adapter_dispatcher import collect_adapter_dispatcher_interface, render_adapter_dispatcher_interface
@@ -396,6 +397,23 @@ def main(argv: list[str] | None = None) -> int:
     action_proposal_parser.add_argument("--effect", default=None, help="expected effect if later authorized")
     action_proposal_parser.add_argument("--risk", default=None, help="risk label: low, medium, high, or unknown")
     action_proposal_parser.add_argument("--json", action="store_true", help="print JSON")
+    approval_inbox_parser = sub.add_parser("approval-inbox", help="show or enqueue sanitized pending approvals without granting execution")
+    approval_inbox_parser.add_argument("--workspace-root", default=".", help="explicit project workspace root")
+    approval_inbox_parser.add_argument("--inbox-file", default=None, help="relative inbox JSONL file; defaults to .lai/approval-inbox.jsonl")
+    approval_inbox_parser.add_argument("--inbox-action", choices=("show", "enqueue"), default="show", help="show pending approvals or enqueue a ready proposal")
+    approval_inbox_parser.add_argument("--state-file", default=None, help="relative objective state file used only for optional proposal context")
+    approval_inbox_parser.add_argument("--task-id", default=None, help="optional objective-state task id to select as untrusted context")
+    approval_inbox_parser.add_argument("--actor", default=None, help="proposal actor label; defaults to user")
+    approval_inbox_parser.add_argument("--domain", default=None, help="proposal domain label")
+    approval_inbox_parser.add_argument("--channel", default=None, help="proposal channel label")
+    approval_inbox_parser.add_argument("--autonomy", default=None, help="requested autonomy label")
+    approval_inbox_parser.add_argument("--capability", default=None, help="requested capability label")
+    approval_inbox_parser.add_argument("--action", default=None, help="human-readable proposed action")
+    approval_inbox_parser.add_argument("--target", default=None, help="proposed target")
+    approval_inbox_parser.add_argument("--data", default=None, help="data touched by the proposed action")
+    approval_inbox_parser.add_argument("--effect", default=None, help="expected effect if later authorized")
+    approval_inbox_parser.add_argument("--risk", default=None, help="risk label: low, medium, high, or unknown")
+    approval_inbox_parser.add_argument("--json", action="store_true", help="print JSON")
     adapter_dry_run_parser = sub.add_parser("adapter-dry-run", help="run a simulated adapter path without dispatch")
     adapter_dry_run_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
     adapter_dry_run_parser.add_argument("--capability", required=True, help="requested capability to simulate")
@@ -1092,6 +1110,29 @@ def main(argv: list[str] | None = None) -> int:
             )
             if not args.json:
                 print(render_action_proposal(payload))
+                return 0 if payload["overall"] != "blocked" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] != "blocked" else 1
+        if args.command == "approval-inbox":
+            payload = collect_approval_inbox(
+                workspace_root=args.workspace_root,
+                inbox_file=args.inbox_file,
+                inbox_action=args.inbox_action,
+                state_file=args.state_file,
+                task_id=args.task_id,
+                actor=args.actor,
+                domain=args.domain,
+                channel=args.channel,
+                autonomy=args.autonomy,
+                capability=args.capability,
+                action=args.action,
+                target=args.target,
+                data=args.data,
+                effect=args.effect,
+                risk=args.risk,
+            )
+            if not args.json:
+                print(render_approval_inbox(payload))
                 return 0 if payload["overall"] != "blocked" else 1
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0 if payload["overall"] != "blocked" else 1

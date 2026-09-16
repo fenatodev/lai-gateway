@@ -502,6 +502,19 @@
               </article>
 
               <article class="card compact-panel">
+                <h2>Caixa de aprovação</h2>
+                <p class="muted">Pendências locais sanitizadas a partir de proposta pronta. Não aprova, não emite grant, não executa e não despacha adapter.</p>
+                <label>Arquivo do inbox
+                  <input id="approval-inbox-file" value=".lai/approval-inbox.jsonl" autocomplete="off" autocapitalize="none" spellcheck="false">
+                </label>
+                <div class="actions">
+                  <button data-action="refresh-approval-inbox">Listar pendências</button>
+                  <button data-action="enqueue-approval-inbox">Enfileirar proposta</button>
+                </div>
+                <pre id="approval-inbox-output" aria-live="polite">Não carregado.</pre>
+              </article>
+
+              <article class="card compact-panel">
                 <h2>Modelo</h2>
                 <p class="muted">Conversa direta usa somente modelo local/privado configurado. Sem nuvem, Harness run, tools ou elevação automática.</p>
                 <label>Primeira conversa local
