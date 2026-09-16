@@ -37,6 +37,8 @@ class ProductDocsTest(unittest.TestCase):
             "pr_108_n8n_minimal_governed.md",
             "pr_109_permission_ux.md",
             "pr_110_external_expansion_gate.md",
+            "post_pr110_operating_plan.md",
+            "pr_111_operating_objective_plan.md",
         ):
             path = PRODUCT_DOCS / name
             self.assertTrue(path.exists(), name)
@@ -723,6 +725,45 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn(
             "Revisões externas e specs históricas não sobrepõem os documentos normativos atuais", text,
         )
+
+    def test_pr111_operating_objective_plan_is_canonical_and_limited(self) -> None:
+        plan = (PRODUCT_DOCS / "post_pr110_operating_plan.md").read_text(encoding="utf-8")
+        spec = (PRODUCT_DOCS / "pr_111_operating_objective_plan.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("sistema operacional pessoal de IA local", plan)
+        self.assertIn("alpha operacional local", plan)
+        self.assertIn("PR110 permanece como no-go", plan)
+        rows = re.findall(r"^\| PR(\d+) \| (.+)$", plan, re.MULTILINE)
+        self.assertEqual([int(number) for number, _ in rows], list(range(111, 121)))
+        self.assertLess(plan.index("| PR112 |"), plan.index("| PR119 |"))
+        self.assertLess(plan.index("| PR118 |"), plan.index("| PR120 |"))
+        for blocked in (
+            "Browser autenticado",
+            "n8n activation ou execução real de workflow",
+            "MCP amplo ou execução externa de tools",
+            "Uso de credenciais por agente",
+            "Envio governado de mensagens",
+            "PDF/OCR/Office/mídia ampla",
+        ):
+            self.assertIn(blocked, plan)
+        for statement in (
+            "sem mudança funcional",
+            "não altera executor, adapter, grant, policy runtime",
+            "não libera capacidades externas",
+            "não deve ser lido como evidência de capacidade operacional nova",
+        ):
+            self.assertIn(statement, spec)
+        self.assertIn("[Plano operacional pós-PR110](post_pr110_operating_plan.md)", index)
+        self.assertIn("[PR111](pr_111_operating_objective_plan.md)", index)
+        self.assertIn("operating objective plan | contract", matrix)
+        self.assertIn("não cria executor, grant, adapter", matrix)
+        self.assertIn("Após o PR111", alpha)
+        self.assertIn("does not create an executor, grant, adapter", readme)
+
 
     def test_matrix_evidence_links_exist(self) -> None:
         text = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")

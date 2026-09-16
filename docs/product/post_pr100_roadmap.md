@@ -43,3 +43,8 @@ Executar PR101 antes de qualquer release ou expansão. Depois, preferir PR102–
 ## Critério de mudança
 
 Qualquer PR que altere capacidade funcional sensível deve começar por spec curta e declarar: domínio, canal, autonomia, capacidade, executor, dados tocados, efeito externo, política de autorização, teste positivo e testes negativos. Conteúdo recuperado de arquivos ou memória pode informar a proposta, mas nunca autoriza a execução.
+
+
+## Handoff pós-PR110
+
+A sequência PR101–PR110 está concluída após o merge do PR110. Próximos trabalhos normativos devem usar o [plano operacional pós-PR110](post_pr110_operating_plan.md), começando pelo PR111. Este handoff não habilita capacidades externas nem altera o histórico dos PRs anteriores.
