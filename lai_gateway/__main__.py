@@ -41,6 +41,7 @@ from .lan import collect_lan_info, render_lan_info
 from .persisted_audit_log import collect_persisted_audit_log, render_persisted_audit_log
 from .public_browser import collect_public_browser, render_public_browser
 from .model import check_model_api_key_file, collect_model_chat, collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_runtime, collect_model_smoke, collect_model_status, collect_model_task, create_model_api_key_file, render_model_chat, render_model_eval, render_model_files, render_model_key, render_model_plan, render_model_runs, render_model_runtime, render_model_smoke, render_model_status, render_model_task
+from .model_runtime_profile import collect_model_runtime_profile, render_model_runtime_profile
 from .memory_context import collect_memory_context, render_memory_context
 from .mcp_local_tool import collect_mcp_local_tool, render_mcp_local_tool
 from .n8n_local_plan import collect_n8n_local_plan, render_n8n_local_plan
@@ -209,6 +210,10 @@ def main(argv: list[str] | None = None) -> int:
     model_runtime_parser.add_argument("--config-path", default=None, help="model runtime config path")
     model_runtime_parser.add_argument("--probe-openai", action="store_true", help="probe the configured local /v1/models endpoint")
     model_runtime_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    model_profile_parser = sub.add_parser("model-runtime-profile", help="show a read-only UX profile for the local model runtime")
+    model_profile_parser.add_argument("--config-path", default=None, help="model runtime config path")
+    model_profile_parser.add_argument("--no-plan", action="store_true", help="omit the non-mutating setup plan")
+    model_profile_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     model_files_parser = sub.add_parser("model-files", help="find local GGUF model files without downloads or server startup")
     model_files_parser.add_argument("--path", action="append", default=None, help="directory to scan for GGUF files; repeatable")
     model_files_parser.add_argument("--max-results", type=int, default=20, help="maximum grouped models to print")
@@ -874,6 +879,13 @@ def main(argv: list[str] | None = None) -> int:
                 return 0 if payload["overall"] != "needs_config" else 1
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0 if payload["overall"] != "needs_config" else 1
+        if args.command == "model-runtime-profile":
+            payload = collect_model_runtime_profile(config_path=args.config_path, include_plan=not args.no_plan)
+            if not args.json:
+                print(render_model_runtime_profile(payload))
+                return 0 if payload["overall"] != "blocked" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] != "blocked" else 1
         if args.command == "model-files":
             payload = collect_model_files(paths=args.path, max_results=args.max_results, max_seconds=args.max_seconds)
             if not args.json:

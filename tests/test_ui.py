@@ -1815,6 +1815,61 @@ class GatewayUITest(unittest.TestCase):
         self.assertNotIn(TOKEN, body)
         self.assertNotIn("Bearer", body)
 
+    def test_gateway_model_runtime_profile_endpoint_is_read_only_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with RunningGateway(config) as gateway:
+                with patch("lai_gateway.server.collect_model_runtime_profile") as collect:
+                    collect.return_value = {
+                        "operation": "model-runtime-profile",
+                        "schema_version": "model-runtime-profile/v1",
+                        "overall": "needs_config",
+                        "profile": {"ready_for_chat": False},
+                        "security": {"read_only": True, "prints_tokens": False},
+                    }
+                    status, headers, body = read_url(f"{gateway.url}/v1/gateway/model-runtime-profile")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        payload = json.loads(body)
+        self.assertEqual(payload["operation"], "model-runtime-profile")
+        self.assertEqual(payload["schema_version"], "model-runtime-profile/v1")
+        collect.assert_called_once()
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
+
+    def test_private_model_runtime_profile_requires_gateway_auth(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            access_file = Path(tmp) / "access-token"
+            access = "gateway-access-secret-value-1234567890"
+            access_file.write_text(access, encoding="utf-8")
+            access_file.chmod(0o600)
+            pair_file = Path(tmp) / "pair-token.json"
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                bind="127.0.0.1",
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            with RunningGateway(config) as gateway:
+                url = f"{gateway.url}/v1/gateway/model-runtime-profile"
+                with self.assertRaises(__import__("urllib.error").error.HTTPError) as unauth:
+                    read_url(url)
+                status, _headers, body = read_url(
+                    url,
+                    headers={"Authorization": f"Bearer {access}"},
+                )
+        self.assertEqual(unauth.exception.code, 401)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["operation"], "model-runtime-profile")
+        self.assertNotIn(access, body)
+        self.assertNotIn(TOKEN, body)
+
     def test_private_model_runtime_requires_gateway_auth(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
             token_file = Path(tmp) / "token"

@@ -1104,6 +1104,60 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn('id="context-pack-output"', html)
         self.assertIn('data-action="refresh-context-pack"', html)
 
+    def test_pr118_model_runtime_profile_is_canonical_and_limited(self) -> None:
+        spec = (PRODUCT_DOCS / "pr_118_model_runtime_profile.md").read_text(encoding="utf-8")
+        contract = (PRODUCT_DOCS / "model_runtime_profile.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        plan = (PRODUCT_DOCS / "post_pr110_operating_plan.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        main_py = (ROOT / "lai_gateway" / "__main__.py").read_text(encoding="utf-8")
+        server_py = (ROOT / "lai_gateway" / "server.py").read_text(encoding="utf-8")
+        app = (ROOT / "lai_gateway" / "static" / "app.js").read_text(encoding="utf-8")
+        html = (ROOT / "lai_gateway" / "static" / "index.html").read_text(encoding="utf-8")
+
+        for statement in (
+            "model-runtime-profile/v1",
+            "perfil UX read-only",
+            "runtime local",
+            "fallback",
+        ):
+            self.assertIn(statement, spec + contract)
+        for blocked in (
+            "Não baixa modelo",
+            "Não inicia runtime",
+            "Não inicia servidor",
+            "Não chama endpoint público",
+            "Não roda probe local automaticamente",
+            "Não usa cloud fallback",
+            "Não imprime token",
+            "Não escreve arquivo",
+            "Não executa tool",
+            "Não chama Harness",
+            "Não emite grant",
+            "Não consome grant",
+            "Não despacha adapter",
+            "Não habilita browser autenticado",
+            "Não ativa n8n real",
+            "Não chama MCP amplo",
+            "Não envia mensagem",
+            "Não publica",
+            "Não realiza efeito externo",
+        ):
+            self.assertIn(blocked, spec)
+        self.assertIn("| PR118 | Modelo local operacional UX | `model-runtime-profile/v1`", plan)
+        self.assertIn("[Model runtime profile](model_runtime_profile.md)", index)
+        self.assertIn("[PR118](pr_118_model_runtime_profile.md)", index)
+        self.assertIn("model_runtime_profile | experimental", matrix)
+        self.assertIn("sem baixar modelo, iniciar runtime", matrix)
+        self.assertIn("Após o PR118", alpha)
+        self.assertIn("model-runtime-profile/v1", readme)
+        self.assertIn("model-runtime-profile", main_py)
+        self.assertIn("/v1/gateway/model-runtime-profile", server_py + app)
+        self.assertIn('id="model-runtime-profile-output"', html)
+        self.assertIn('data-action="refresh-model-runtime-profile"', html)
+
     def test_pr91_is_linked_from_canonical_public_docs(self) -> None:
         self.assertTrue((PRODUCT_DOCS / "pr_91_public_quickstart.md").is_file())
         readme = (ROOT / "README.md").read_text(encoding="utf-8")

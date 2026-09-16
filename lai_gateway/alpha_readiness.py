@@ -38,6 +38,7 @@ _REQUIRED_EVIDENCE_MARKERS = (
     "approval-inbox/v1",
     "dev-loop-fixture/v1",
     "context-pack/v1",
+    "model-runtime-profile/v1",
 )
 
 _BLOCKED_CAPABILITY_MARKERS = (
