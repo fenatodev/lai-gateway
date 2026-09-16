@@ -92,6 +92,10 @@ class GatewayUITest(unittest.TestCase):
                 self.assertIn('id="action-proposal-output"', html)
                 self.assertIn('data-action="refresh-action-proposal"', html)
                 self.assertIn("Proposta de ação", html)
+                self.assertIn('id="approval-inbox-output"', html)
+                self.assertIn('data-action="refresh-approval-inbox"', html)
+                self.assertIn('data-action="enqueue-approval-inbox"', html)
+                self.assertIn("Caixa de aprovação", html)
                 self.assertIn('id="memory-output"', html)
                 self.assertIn('data-action="refresh-memory-context"', html)
                 self.assertIn('data-action="remember-memory-context"', html)
@@ -618,6 +622,74 @@ class GatewayUITest(unittest.TestCase):
         self.assertFalse(payload["security"]["implicit_ingestion"])
         self.assertNotIn(TOKEN, body)
         self.assertNotIn("Bearer", body)
+
+
+
+    def test_gateway_approval_inbox_endpoint_is_sanitized_and_non_authorizing(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp, fake_harness() as harness:
+            workspace = Path(tmp) / "project"
+            workspace.mkdir()
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            query = (
+                f"workspace_root={quote(str(workspace))}&inbox_action=enqueue"
+                "&domain=project&channel=workbench&autonomy=high"
+                "&capability=approval-inbox&target=.lai/approval-inbox.jsonl"
+                "&action=record%20pending%20approval&data=proposal%20fields&effect=record%20only&risk=low"
+            )
+            with RunningGateway(config) as gateway:
+                status, headers, body = read_url(f"{gateway.url}/v1/gateway/approval-inbox?{query}")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        payload = json.loads(body)
+        self.assertEqual(payload["operation"], "approval-inbox")
+        self.assertEqual(payload["schema_version"], "approval-inbox/v1")
+        self.assertEqual(payload["overall"], "ready")
+        self.assertTrue(payload["data_touched"]["filesystem_write"])
+        self.assertFalse(payload["security"]["issues_grants"])
+        self.assertFalse(payload["security"]["consumes_grants"])
+        self.assertFalse(payload["security"]["dispatches_adapter"])
+        self.assertFalse(payload["security"]["executes_tools"])
+        self.assertFalse(payload["security"]["external_side_effects"])
+        self.assertFalse(payload["security"]["uses_credentials"])
+        self.assertFalse(payload["security"]["sends_messages"])
+        self.assertFalse(payload["security"]["publishes"])
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
+
+    def test_private_approval_inbox_requires_gateway_auth(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp, fake_harness() as harness:
+            workspace = Path(tmp) / "project"
+            workspace.mkdir()
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            access_file = Path(tmp) / "access-token"
+            access = "gateway-access-secret-value-1234567890"
+            access_file.write_text(access, encoding="utf-8")
+            access_file.chmod(0o600)
+            pair_file = Path(tmp) / "pair-token.json"
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                bind="127.0.0.1",
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            with RunningGateway(config) as gateway:
+                url = f"{gateway.url}/v1/gateway/approval-inbox?workspace_root={quote(str(workspace))}"
+                with self.assertRaises(__import__("urllib.error").error.HTTPError) as unauth:
+                    read_url(url)
+                status, _headers, body = read_url(
+                    url,
+                    headers={"Authorization": f"Bearer {access}"},
+                )
+        self.assertEqual(unauth.exception.code, 401)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["operation"], "approval-inbox")
+        self.assertNotIn(access, body)
+        self.assertNotIn(TOKEN, body)
 
 
     def test_gateway_action_proposal_endpoint_is_read_only_and_secret_free(self) -> None:

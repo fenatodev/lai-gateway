@@ -33,6 +33,7 @@ Read-only declarado representa intenção; read-only simulado não prova conten�
 | project workspace contract | contract | declaração normativa | Documentação | [contrato](project_workspace_contract.md), [spec](pr_112_project_workspace_contract.md) | Exige raiz explícita, escopo local, dados tocados e exclusões; sem HOME scan, ingestão implícita, executor, grant, adapter ou autorização efetiva | PR113 objective-state/v1 |
 | objective_state | experimental | estado local read-only | CLI/API/Workbench | [módulo](../../lai_gateway/objective_state.py), [testes](../../tests/test_objective_state.py), [spec](pr_113_objective_state.md), [contrato](objective_state.md) | `objective-state/v1`; lê objetivo/tarefas/checkpoints de arquivo explícito no workspace; sem escrita, HOME scan, ingestão implícita, grants, adapter dispatch, Harness ou tools | PR114 action-proposal/v1 |
 | action_proposal | experimental | proposta read-only | CLI/API/Workbench | [módulo](../../lai_gateway/action_proposal.py), [testes](../../tests/test_action_proposal.py), [spec](pr_114_action_proposal.md), [contrato](action_proposal.md) | `action-proposal/v1`; declara domínio, canal, autonomia, capacidade, alvo, dados, efeito e risco; sem autorização efetiva, grants, adapter dispatch, Harness, tools, escrita ou efeito externo | PR115 approval-inbox/v1 |
+| approval_inbox | experimental | inbox local sanitizado | CLI/API/Workbench | [módulo](../../lai_gateway/approval_inbox.py), [testes](../../tests/test_approval_inbox.py), [spec](pr_115_approval_inbox.md), [contrato](approval_inbox.md) | `approval-inbox/v1`; `show` é read-only e `enqueue` persiste pendência sanitizada em workspace explícito; sem autorização efetiva, grants, credenciais, mensagens, publicação, adapter dispatch, Harness, tools ou efeito externo | PR116 dev loop fixture |
 | adapter dry-run | implemented | simulado/dry-run | CLI/API/UI | [testes](../../tests/test_adapter_dry_run.py) | Simulação implementada, sem execução da capability | Não usar como prova de efeito real |
 | audit events | implemented | metadados | Metadados | [testes](../../tests/test_audit_events.py) | Eventos derivados; não provam execução nem identidade | Correlacionar com ação real |
 | persisted audit log | experimental | persistência local restrita | Operação local escopada | [testes](../../tests/test_persisted_audit_log.py) | JSONL sanitizado; não prova integridade inviolável ou recovery de autorizações | PR95 evidência de recuperação |
@@ -78,5 +79,9 @@ PR111 registra apenas direção operacional pós-PR110. Ele não torna pronta ne
 PR112 registra contrato documental de workspace de projeto. Ele define fronteira local explícita para próximos PRs, mas não lê conteúdo, não persiste estado operacional, não executa adapters e não concede autorização.
 
 PR113 implementa leitura read-only de estado de objetivo local. O estado pode orientar propostas futuras, mas conteúdo de objetivo/tarefa/checkpoint continua não confiável e não autoriza execução.
+
+PR114 implementa proposta unificada read-only. A proposta organiza domínio, canal, autonomia e capacidade, mas não autoriza execução.
+
+PR115 implementa caixa local de aprovação pendente. O inbox pode persistir registros sanitizados, mas não aprova, não emite grant, não consome grant e não executa.
 
 PR114 implementa `action-proposal/v1`. A proposta unificada declara domínio, canal, autonomia, capacidade, alvo, dados, efeito e risco, mas continua sem autorização efetiva, grants, dispatch, Harness, tools, escrita ou efeito externo.

@@ -178,7 +178,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pareie este celular primeiro e atualize este painel.";
-  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "public-browser-output", "mcp-output", "n8n-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "permission-ux-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output", "external-expansion-output", "objective-output", "action-proposal-output"]) {
+  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "public-browser-output", "mcp-output", "n8n-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "permission-ux-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output", "external-expansion-output", "objective-output", "action-proposal-output", "approval-inbox-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -341,6 +341,45 @@ function setActionProposal(payload) {
   setPill("workbench-pill", `proposta ${payload.overall || "desconhecido"}`, state);
   clearPairRequiredOutput("action-proposal-output");
   show("action-proposal-output", compactActionProposalText(payload));
+}
+
+function approvalInboxParams(inboxAction = "show") {
+  const params = actionProposalParams();
+  params.set("inbox_action", inboxAction);
+  params.set("inbox_file", byId("approval-inbox-file")?.value || ".lai/approval-inbox.jsonl");
+  return params;
+}
+
+function compactApprovalInboxText(payload) {
+  const inbox = payload.inbox || {};
+  const lines = [
+    `lai-gateway approval-inbox: ${payload.overall || "desconhecido"}`,
+    `schema: ${payload.schema_version || "approval-inbox/v1"}`,
+    `pending_count: ${inbox.pending_count || 0}`,
+    `inbox_action: ${payload.inbox_action || "show"}`,
+    "approval_record_only: true",
+    "effective_authorization: false",
+    "issues_grants: false",
+    "consumes_grants: false",
+    "dispatches_adapter: false",
+    "executes_tools: false",
+    "external_side_effects: false",
+    "uses_credentials: false",
+    "sends_messages: false",
+    "publishes: false",
+  ];
+  for (const entry of (inbox.entries || []).slice(0, 5)) {
+    lines.push(`pending: ${entry.approval_id} ${entry.capability} [${entry.risk}] ${entry.target}`);
+  }
+  if (inbox.reason) lines.push(`reason: ${inbox.reason}`);
+  return lines.join("\n");
+}
+
+function setApprovalInbox(payload) {
+  const state = payload.overall === "blocked" ? "danger" : payload.overall === "ready" ? "ready" : "warn";
+  setPill("workbench-pill", `aprovação ${payload.overall || "desconhecido"}`, state);
+  clearPairRequiredOutput("approval-inbox-output");
+  show("approval-inbox-output", compactApprovalInboxText(payload));
 }
 
 function setModelStatus(payload) {
@@ -1717,6 +1756,10 @@ async function runAction(action) {
       setObjectiveState(await requestJson(`/v1/gateway/objective-state?${objectiveStateParams()}`));
     } else if (action === "refresh-action-proposal") {
       setActionProposal(await requestJson(`/v1/gateway/action-proposal?${actionProposalParams()}`));
+    } else if (action === "refresh-approval-inbox") {
+      setApprovalInbox(await requestJson(`/v1/gateway/approval-inbox?${approvalInboxParams("show")}`));
+    } else if (action === "enqueue-approval-inbox") {
+      setApprovalInbox(await requestJson(`/v1/gateway/approval-inbox?${approvalInboxParams("enqueue")}`));
     } else if (action === "refresh-public-browser-plan") {
       setPublicBrowser(await requestJson(`/v1/gateway/public-browser?${publicBrowserParams("plan")}`));
     } else if (action === "fetch-public-browser") {
@@ -2101,6 +2144,7 @@ document.addEventListener("DOMContentLoaded", () => {
     runAction("refresh-external-expansion-gate");
     runAction("refresh-objective-state");
     runAction("refresh-action-proposal");
+    runAction("refresh-approval-inbox");
     runAction("refresh-health-report");
     runAction("refresh-local-chat-contract");
     runAction("load-local-chat-workspaces");
