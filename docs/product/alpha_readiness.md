@@ -40,3 +40,11 @@ Qualquer critério sem evidência impede o go. Em especial: instalação não re
 ## Decisão atual
 
 No-go para declarar prontidão pública apenas com a consolidação documental PR90. PR91–99 devem fornecer as evidências, avaliadas no PR100. Ainda não está apto a ser chamado de produto completo. Não há bump, tag, publicação ou mudança funcional neste PR.
+
+## Restrições públicas
+
+Browser, n8n, voz, execução real de tools MCP, social e automações externas governadas não estão disponíveis como funcionalidades prontas. Contratos e simulações não autorizam execução real.
+
+local_status é apenas o primeiro adapter seguro restrito; não prova autorização geral.
+
+Telegram outbound tem limite conhecido: não possui aprovação durável por mensagem.

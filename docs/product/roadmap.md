@@ -45,3 +45,11 @@ Read-only declarado é intenção de contrato; simulado/dry-run não executa o e
 ## Revisões externas
 
 GPT-6/Astra, Claude e Codex são revisores, não são autoridade automática. Os pontos recebidos são insumos críticos registrados na [consolidação](roadmap_review_consolidation.md). A direção é decidida por revisão humana versionada, confrontada com evidência local; nenhum parecer libera execução ou publicação.
+
+## Restrições públicas
+
+Browser, n8n, voz, execução real de tools MCP, social e automações externas governadas não estão disponíveis como funcionalidades prontas. Contratos e simulações não autorizam execução real.
+
+local_status é apenas o primeiro adapter seguro restrito; não prova autorização geral.
+
+Telegram outbound tem limite conhecido: não possui aprovação durável por mensagem.
