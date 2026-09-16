@@ -32,7 +32,7 @@ from .health import collect_health_report, render_health_report
 from .identity import collect_identity_binding, render_identity_binding
 from .lan import collect_lan_info, render_lan_info
 from .persisted_audit_log import collect_persisted_audit_log, render_persisted_audit_log
-from .model import check_model_api_key_file, collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_smoke, collect_model_status, collect_model_task, create_model_api_key_file, render_model_eval, render_model_files, render_model_key, render_model_plan, render_model_runs, render_model_smoke, render_model_status, render_model_task
+from .model import check_model_api_key_file, collect_model_chat, collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_smoke, collect_model_status, collect_model_task, create_model_api_key_file, render_model_chat, render_model_eval, render_model_files, render_model_key, render_model_plan, render_model_runs, render_model_smoke, render_model_status, render_model_task
 from .mobile import (
     collect_mobile_repair,
     collect_mobile_start,
@@ -199,6 +199,12 @@ def main(argv: list[str] | None = None) -> int:
     model_task_parser.add_argument("--record", action="store_true", help="append a prompt-free metric record to the local model runs file")
     model_task_parser.add_argument("--runs-file", default=None, help="model runs JSONL file path")
     model_task_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    model_chat_parser = sub.add_parser("model-chat", help="run one direct local-model-first conversation turn")
+    model_chat_parser.add_argument("--message", default=None, help="message for the local model; prefer --stdin for sensitive text")
+    model_chat_parser.add_argument("--stdin", action="store_true", help="read the message from stdin")
+    model_chat_parser.add_argument("--timeout-seconds", type=float, default=60.0, help="bounded local completion timeout")
+    model_chat_parser.add_argument("--max-tokens", type=int, default=768, help="bounded local response token cap")
+    model_chat_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     model_runs_parser = sub.add_parser("model-runs", help="show prompt-free local model run metrics")
     model_runs_parser.add_argument("--path", default=None, help="model runs JSONL file path")
     model_runs_parser.add_argument("--limit", type=int, default=20, help="maximum recent records to show")
@@ -736,6 +742,17 @@ def main(argv: list[str] | None = None) -> int:
             payload = collect_model_task(task=args.task, timeout_seconds=args.timeout_seconds, record=args.record, runs_file=Path(args.runs_file).expanduser() if args.runs_file else None)
             if not args.json:
                 print(render_model_task(payload))
+                return 0 if payload["overall"] == "ready" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] == "ready" else 1
+        if args.command == "model-chat":
+            message = sys.stdin.read(12001) if args.stdin else (args.message or "")
+            payload = collect_model_chat(prompt=message, timeout_seconds=args.timeout_seconds, max_tokens=args.max_tokens)
+            if not args.json:
+                print(render_model_chat(payload))
+                if payload.get("message"):
+                    print("message:")
+                    print(payload["message"])
                 return 0 if payload["overall"] == "ready" else 1
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0 if payload["overall"] == "ready" else 1

@@ -217,8 +217,15 @@ function setMobileAccess(payload) {
 function setModelStatus(payload) {
   const overall = payload.overall || "desconhecido";
   const state = overall === "ready" ? "ready" : overall === "blocked" ? "danger" : "running";
+  const fallback = payload.fallback?.used ? " · fallback local explícito" : "";
   show("model-output", payload);
-  setCheck("check-model", `Modelo ${overall}.`, state);
+  setCheck("check-model", `Modelo ${overall}${fallback}.`, state);
+}
+
+function modelChatBody() {
+  const message = byId("model-chat-message")?.value.trim() || "";
+  if (!message) throw new Error("mensagem obrigatória para conversa local");
+  return { message, timeout_seconds: 60, max_tokens: 768 };
 }
 
 function setMcpStatus(payload) {
@@ -1338,6 +1345,13 @@ async function runAction(action) {
         body: JSON.stringify(mcpPolicyBody()),
       });
       setMcpStatus(payload);
+    } else if (action === "send-model-chat") {
+      const payload = await requestJson("/v1/gateway/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify(modelChatBody()),
+      });
+      setModelStatus(payload);
     } else if (action === "refresh-model-status") {
       setModelStatus(await requestJson("/v1/gateway/model-status"));
     } else if (action === "refresh-model-plan") {

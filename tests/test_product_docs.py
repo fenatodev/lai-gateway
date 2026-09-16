@@ -21,6 +21,7 @@ class ProductDocsTest(unittest.TestCase):
             "pr_93_testable_identity.md",
             "pr_94_local_non_dry_run_authorization.md",
             "pr_95_authorization_recovery.md",
+            "pr_96_local_model_chat_health_fallback.md",
         ):
             path = PRODUCT_DOCS / name
             self.assertTrue(path.exists(), name)
@@ -186,6 +187,35 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("authorization-recovery", readme)
         self.assertIn("authorization-recovery", app)
         self.assertIn("authorization_grant_id", app)
+
+    def test_pr96_local_model_chat_is_canonical_and_limited(self) -> None:
+        spec = (PRODUCT_DOCS / "pr_96_local_model_chat_health_fallback.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        roadmap = (PRODUCT_DOCS / "roadmap.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        app = (ROOT / "lai_gateway" / "static" / "app.js").read_text(encoding="utf-8")
+        lower_spec = spec.lower()
+        for statement in (
+            "local-model-first",
+            "sem cloud fallback",
+            "sem harness fallback",
+            "sem permission elevation",
+            "sem executar tools",
+            "sem iniciar runs",
+            "não instala runtime",
+            "não baixa modelo",
+        ):
+            self.assertIn(statement, lower_spec)
+        self.assertIn("`model-chat` local-model-first", roadmap)
+        self.assertIn("`model-chat` não cria Harness run, não usa nuvem", matrix)
+        self.assertIn("PR96 prova conversa local-model-first e fallback explícito", alpha)
+        self.assertIn("[PR96](pr_96_local_model_chat_health_fallback.md)", index)
+        self.assertIn("Direct chat is local-model-first", readme)
+        self.assertIn("send-model-chat", app)
+        self.assertIn("/v1/gateway/chat", app)
+        self.assertIn("fallback local explícito", app)
 
     def test_pr93_identity_docs_are_canonical_and_limited(self) -> None:
         matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")

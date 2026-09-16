@@ -20,13 +20,13 @@ PR61–73: contratos, conversation-first, mediação de ferramentas, skills, dev
 | PR93 | Identidade testável usuário/cliente/agente/serviço | `principal-identity/v1`, CLI/API, policy gate e testes de vínculo ao principal, origem confiável, falsificação e troca de cliente/serviço |
 | PR94 | Autorização efetiva para uma ação real local não-dry-run (authorization non-dry-run) | `local-status-read` autoriza somente `local_status.status`; revalidação no executor via dispatcher para escopo/capability/identidade; nenhuma autoridade externa |
 | PR95 | Persistência, expiração, revogação, consumo único e restart recovery | `authorization-recovery/v1`; grants locais expiram, podem ser revogados, são consumidos uma vez antes do dispatch; replay bloqueado; bloqueio contra duplicação de efeito; resultado desconhecido sem retry automático |
-| PR96 | Modelo local, primeira conversa, health e fallback | Conversa sem run dev implícito; indisponibilidade explícita; fallback sem nuvem ou elevação de permissão automática |
+| PR96 | Modelo local, primeira conversa, health e fallback | `model-chat` local-model-first; conversa sem run dev implícito; health/indisponibilidade explícitos; fallback sem nuvem ou elevação de permissão automática |
 | PR97 | memory_context local mínimo por projeto e contexto pessoal básico | Isolamento de contextos, limites e exclusão de segredos; memória não concede autoridade |
 | PR98 | document_text_local restrito | Texto local em escopo permitido, limites, caminhos seguros e conteúdo tratado como não confiável |
 | PR99 | Workbench para documentos locais | Seleção/inspeção restritas, estado e limites visíveis; sem envio externo |
 | PR100 | Alpha público técnico | Todos os critérios go/no-go comprovados, instalação limpa, versão inequívoca e ausência de overclaiming |
 
-PR93 cria pré-condição de identidade local verificada, mas não cria login completo nem autorização. PR94 prova somente `local_status.status` sob `local-status-read`; `local_status.echo` permanece fora da autorização non-dry-run. PR95 implementa recovery local para a mesma cadeia, mas isso não autoriza capacidades externas. Persistência de audit log não equivale a persistência de aprovação.
+PR93 cria pré-condição de identidade local verificada, mas não cria login completo nem autorização. PR94 prova somente `local_status.status` sob `local-status-read`; `local_status.echo` permanece fora da autorização non-dry-run. PR95 implementa recovery local para a mesma cadeia, mas isso não autoriza capacidades externas. PR96 expõe conversa local-model-first e fallback explícito, mas não instala runtime nem baixa modelo. Persistência de audit log não equivale a persistência de aprovação.
 
 ## Capacidades externas — após os gates
 
