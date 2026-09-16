@@ -32,6 +32,7 @@ _REQUIRED_EVIDENCE_MARKERS = (
     "mcp-local-tool/v1",
     "n8n-local-plan/v1",
     "permission-ux/v1",
+    "external-expansion-gate/v1",
 )
 
 _BLOCKED_CAPABILITY_MARKERS = (
@@ -40,6 +41,7 @@ _BLOCKED_CAPABILITY_MARKERS = (
     "local_status é apenas o primeiro adapter seguro restrito; não prova autorização geral.",
     "Conteúdo de memória, arquivo, código, ferramenta ou modelo não concede autorização.",
     "PR98 não habilita PDF",
+    "PR110 mantém expansão externa em no-go read-only",
 )
 
 _PUBLIC_SURFACES = (

@@ -28,6 +28,7 @@ from .document_text import collect_document_text_local, render_document_text_loc
 from .daily_config import collect_daily_config, read_daily_config, render_daily_config, shell_exports, validate_daily_config, write_daily_config
 from .dev_control import collect_dev_control_policy, render_dev_control_policy
 from .effective_authorization import collect_effective_authorization, render_effective_authorization
+from .external_expansion import collect_external_expansion_gate, render_external_expansion_gate
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .health import collect_health_report, render_health_report
@@ -662,6 +663,8 @@ def main(argv: list[str] | None = None) -> int:
     alpha_parser = sub.add_parser("alpha-readiness", help="check public technical alpha go/no-go without publishing")
     alpha_parser.add_argument("--target", default=__version__, help="target semantic version; defaults to the package version")
     alpha_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    external_expansion_parser = sub.add_parser("external-expansion-gate", help="check external capability go/no-go without enabling external effects")
+    external_expansion_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     serve_parser = sub.add_parser("serve", help="serve the gateway with configured bind policy")
     serve_parser.add_argument("--bind", default=None, help="gateway bind address allowed by config policy")
     serve_parser.add_argument("--port", type=int, default=None, help="gateway port")
@@ -1603,11 +1606,16 @@ def main(argv: list[str] | None = None) -> int:
             if not args.json:
                 print(render_alpha_readiness(payload))
                 return 0 if payload["overall"] == "ready" else 1
+        elif args.command == "external-expansion-gate":
+            payload = collect_external_expansion_gate(repo=_release_check_repo())
+            if not args.json:
+                print(render_external_expansion_gate(payload))
+                return 0 if payload["overall"] == "ready" else 1
         else:
             parser.print_help()
             return 0
         print(json.dumps(payload, indent=2, sort_keys=True))
-        if args.command in {"release-check", "alpha-readiness"} and payload["overall"] != "ready":
+        if args.command in {"release-check", "alpha-readiness", "external-expansion-gate"} and payload["overall"] != "ready":
             return 1
         return 0
     except GatewayError as exc:

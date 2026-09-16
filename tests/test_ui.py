@@ -83,6 +83,9 @@ class GatewayUITest(unittest.TestCase):
                 self.assertIn('id="alpha-output"', html)
                 self.assertIn('data-action="refresh-alpha-readiness"', html)
                 self.assertIn("Alpha técnico", html)
+                self.assertIn('id="external-expansion-output"', html)
+                self.assertIn('data-action="refresh-external-expansion-gate"', html)
+                self.assertIn("Expansão externa", html)
                 self.assertIn('id="memory-output"', html)
                 self.assertIn('data-action="refresh-memory-context"', html)
                 self.assertIn('data-action="remember-memory-context"', html)
@@ -305,6 +308,10 @@ class GatewayUITest(unittest.TestCase):
         self.assertIn("/v1/gateway/alpha-readiness", js)
         self.assertIn("refresh-alpha-readiness", js)
         self.assertIn("setAlphaReadiness", js)
+        self.assertIn("/v1/gateway/external-expansion-gate", js)
+        self.assertIn("refresh-external-expansion-gate", js)
+        self.assertIn("setExternalExpansionGate", js)
+        self.assertIn("external-expansion-output", js)
         self.assertIn("/v1/gateway/chat", js)
         self.assertIn("send-model-chat", js)
         self.assertIn("modelChatBody", js)
@@ -572,6 +579,57 @@ class GatewayUITest(unittest.TestCase):
         self.assertFalse(payload["security"]["dispatches_adapter"])
         self.assertNotIn(TOKEN, body)
         self.assertNotIn("Bearer", body)
+
+    def test_gateway_external_expansion_gate_endpoint_is_read_only_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with RunningGateway(config) as gateway:
+                status, headers, body = read_url(f"{gateway.url}/v1/gateway/external-expansion-gate")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        payload = json.loads(body)
+        self.assertEqual(payload["operation"], "external-expansion-gate")
+        self.assertEqual(payload["schema_version"], "external-expansion-gate/v1")
+        self.assertFalse(payload["external_expansion_allowed"])
+        self.assertFalse(payload["external_capabilities_enabled"])
+        self.assertFalse(payload["security"]["issues_grants"])
+        self.assertFalse(payload["security"]["dispatches_adapter"])
+        self.assertFalse(payload["security"]["executes_tools"])
+        self.assertFalse(payload["security"]["external_side_effects"])
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
+
+    def test_private_external_expansion_gate_requires_gateway_auth(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            access_file = Path(tmp) / "access-token"
+            access = "gateway-access-secret-value-1234567890"
+            access_file.write_text(access, encoding="utf-8")
+            access_file.chmod(0o600)
+            pair_file = Path(tmp) / "pair-token.json"
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                bind="127.0.0.1",
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            with RunningGateway(config) as gateway:
+                with self.assertRaises(__import__("urllib.error").error.HTTPError) as unauth:
+                    read_url(f"{gateway.url}/v1/gateway/external-expansion-gate")
+                status, _headers, body = read_url(
+                    f"{gateway.url}/v1/gateway/external-expansion-gate",
+                    headers={"Authorization": f"Bearer {access}"},
+                )
+        self.assertEqual(unauth.exception.code, 401)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["operation"], "external-expansion-gate")
+        self.assertNotIn(access, body)
+        self.assertNotIn(TOKEN, body)
 
     def test_private_permission_ux_requires_gateway_auth(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

@@ -178,7 +178,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pareie este celular primeiro e atualize este painel.";
-  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "public-browser-output", "mcp-output", "n8n-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "permission-ux-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output"]) {
+  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "public-browser-output", "mcp-output", "n8n-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "permission-ux-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output", "external-expansion-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -223,6 +223,38 @@ function setAlphaReadiness(payload) {
   setPill("readiness-pill", `alpha ${decision}`, state);
   clearPairRequiredOutput("alpha-output");
   show("alpha-output", payload);
+}
+
+function compactExternalExpansionGateText(payload) {
+  const lines = [
+    `lai-gateway external-expansion-gate: ${payload.overall || "desconhecido"}`,
+    `schema: ${payload.schema_version || "external-expansion-gate/v1"}`,
+    `decision: ${payload.decision || "desconhecido"}`,
+    `external_expansion_allowed: ${Boolean(payload.external_expansion_allowed)}`,
+    `external_capabilities_enabled: ${Boolean(payload.external_capabilities_enabled)}`,
+    "publication_allowed: false",
+    "read_only: true",
+    "issues_grants: false",
+    "consumes_grants: false",
+    "dispatches_adapter: false",
+    "executes_tools: false",
+  ];
+  const blocked = Array.isArray(payload.blocked_external_capabilities) ? payload.blocked_external_capabilities.slice(0, 8) : [];
+  if (blocked.length) lines.push("blocked_capabilities:");
+  for (const item of blocked) lines.push(`  ${item.capability}: ${item.reason}`);
+  const checks = Array.isArray(payload.checks) ? payload.checks : [];
+  if (checks.length) lines.push("checks:");
+  for (const check of checks) lines.push(`  ${check.name}: ${check.status}`);
+  return lines.join("\n");
+}
+
+function setExternalExpansionGate(payload) {
+  const ready = payload.overall === "ready";
+  const allowed = Boolean(payload.external_expansion_allowed || payload.external_capabilities_enabled);
+  const state = allowed ? "danger" : ready ? "ready" : "warn";
+  setPill("readiness-pill", allowed ? "external allowed" : `external ${payload.decision || "no-go"}`, state);
+  clearPairRequiredOutput("external-expansion-output");
+  show("external-expansion-output", compactExternalExpansionGateText(payload));
 }
 
 function setModelStatus(payload) {
@@ -1593,6 +1625,8 @@ async function runAction(action) {
       setModelStatus(payload);
     } else if (action === "refresh-alpha-readiness") {
       setAlphaReadiness(await requestJson("/v1/gateway/alpha-readiness"));
+    } else if (action === "refresh-external-expansion-gate") {
+      setExternalExpansionGate(await requestJson("/v1/gateway/external-expansion-gate"));
     } else if (action === "refresh-public-browser-plan") {
       setPublicBrowser(await requestJson(`/v1/gateway/public-browser?${publicBrowserParams("plan")}`));
     } else if (action === "fetch-public-browser") {
@@ -1870,6 +1904,8 @@ async function runAction(action) {
             ? "mcp-output"
           : action.includes("alpha")
             ? "alpha-output"
+          : action.includes("external-expansion")
+            ? "external-expansion-output"
           : action.includes("ops")
             ? "ops-output"
           : action.includes("memory")
@@ -1972,6 +2008,7 @@ document.addEventListener("DOMContentLoaded", () => {
     runAction("refresh-mcp-status");
     runAction("refresh-readiness");
     runAction("refresh-alpha-readiness");
+    runAction("refresh-external-expansion-gate");
     runAction("refresh-health-report");
     runAction("refresh-local-chat-contract");
     runAction("load-local-chat-workspaces");

@@ -36,6 +36,7 @@ class ProductDocsTest(unittest.TestCase):
             "pr_107_mcp_minimal_governed.md",
             "pr_108_n8n_minimal_governed.md",
             "pr_109_permission_ux.md",
+            "pr_110_external_expansion_gate.md",
         ):
             path = PRODUCT_DOCS / name
             self.assertTrue(path.exists(), name)
@@ -492,6 +493,41 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("refresh-permission-ux", html)
         self.assertNotIn("permission UX grants authorization", combined)
 
+    def test_pr110_external_expansion_gate_is_canonical_and_limited(self) -> None:
+        spec = (PRODUCT_DOCS / "pr_110_external_expansion_gate.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        post = (PRODUCT_DOCS / "post_pr100_roadmap.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        html = (ROOT / "lai_gateway" / "static" / "index.html").read_text(encoding="utf-8")
+        js = (ROOT / "lai_gateway" / "static" / "app.js").read_text(encoding="utf-8")
+        module = (ROOT / "lai_gateway" / "external_expansion.py").read_text(encoding="utf-8")
+        combined = "\n".join([spec, index, post, matrix, alpha, readme, html, js, module])
+        for marker in (
+            "external-expansion-gate/v1",
+            "PR110",
+            "go/no-go",
+            "no-go read-only",
+            "não habilita capacidades externas",
+            "browser autenticado",
+            "n8n real",
+            "MCP amplo",
+            "credenciais",
+            "publicação",
+            "não emite grant",
+            "não consome grant",
+            "não despacha adapter",
+        ):
+            self.assertIn(marker, combined)
+        self.assertIn("[PR110](pr_110_external_expansion_gate.md)", index)
+        self.assertIn("external expansion gate | experimental", matrix)
+        self.assertIn("/v1/gateway/external-expansion-gate", js)
+        self.assertIn("refresh-external-expansion-gate", html)
+        self.assertNotIn("external capabilities are enabled", combined)
+        self.assertNotIn("authenticated browser is ready", combined)
+        self.assertNotIn("n8n real workflows are ready", combined)
+
     def test_pr105_operational_local_model_is_canonical_and_limited(self) -> None:
         spec = (PRODUCT_DOCS / "pr_105_operational_local_model.md").read_text(encoding="utf-8")
         index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
@@ -657,6 +693,9 @@ class ProductDocsTest(unittest.TestCase):
             "are not ready-to-use features.",
             "PR109 adds a read-only permission UX that separates intent, decision, effective authorization, grant and execution; "
             "it does not issue grants, consume grants or dispatch adapters.",
+            "PR110 adds `external-expansion-gate/v1`, a read-only external expansion gate; "
+            "it keeps external effects in no-go and does not enable browser authenticated sessions, n8n real workflows, "
+            "broad MCP, credentials, publication, messaging, grants, dispatch or tool execution.",
             "It is not general agent messaging authority or durable per-message approval.",
             "New governed sends require explicit approval of content and destination plus the roadmap gates.",
             "PR100 adds a read-only `alpha-readiness` go/no-go check for a public technical alpha candidate; "
