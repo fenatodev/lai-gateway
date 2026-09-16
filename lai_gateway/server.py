@@ -48,6 +48,7 @@ from .harness_client import (
     is_control_session_id,
 )
 from .memory_context import collect_memory_context
+from .onboarding import collect_onboarding_status
 from .model import (
     collect_model_chat,
     collect_model_eval,
@@ -117,6 +118,15 @@ class GatewayHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/v1/gateway/mobile-access":
             self._send_json(HTTPStatus.OK, collect_mobile_access(port=self.server.server_address[1], bind=self.server.server_address[0]))
+            return
+        if parsed.path == "/v1/gateway/onboarding":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            self._send_json(HTTPStatus.OK, collect_onboarding_status(
+                config=self.server.config,
+                workspace_root=values.get("workspace_root", [""])[0] or None,
+            ))
             return
         if parsed.path == "/v1/gateway/model-status":
             if not self._authorize_gateway_api(parsed.path):
@@ -939,6 +949,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/health-report",
             "/v1/gateway/health-report/telegram",
             "/v1/gateway/ops-status",
+            "/v1/gateway/onboarding",
             "/v1/gateway/chat",
             "/v1/gateway/skills",
             "/v1/gateway/dev-control",

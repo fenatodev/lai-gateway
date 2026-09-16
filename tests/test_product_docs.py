@@ -30,6 +30,7 @@ class ProductDocsTest(unittest.TestCase):
             "pr_101_post_pr100_roadmap.md",
             "pr_102_release_alpha_technical.md",
             "pr_103_clean_local_dogfood.md",
+            "pr_104_onboarding_ux_next_steps.md",
         ):
             path = PRODUCT_DOCS / name
             self.assertTrue(path.exists(), name)
@@ -357,6 +358,33 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("alpha-readiness", readme)
         self.assertIn("refresh-alpha-readiness", app)
         self.assertIn("/v1/gateway/alpha-readiness", app)
+
+    def test_pr104_onboarding_ux_is_canonical_and_limited(self) -> None:
+        spec = (PRODUCT_DOCS / "pr_104_onboarding_ux_next_steps.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        post = (PRODUCT_DOCS / "post_pr100_roadmap.md").read_text(encoding="utf-8")
+        html = (ROOT / "lai_gateway" / "static" / "index.html").read_text(encoding="utf-8")
+        js = (ROOT / "lai_gateway" / "static" / "app.js").read_text(encoding="utf-8")
+        combined = "\n".join([spec, index, post, html, js])
+        for marker in (
+            "onboarding-next-steps/v1",
+            "Harness",
+            "token",
+            "modelo",
+            "documento",
+            "sem vazar segredo",
+            "read-only",
+            "sem shell",
+            "sem tools",
+            "não chama browser",
+            "não ativa n8n",
+            "não executa MCP tool",
+            "não concede autoridade",
+        ):
+            self.assertIn(marker, combined)
+        self.assertIn("[PR104](pr_104_onboarding_ux_next_steps.md)", index)
+        self.assertIn("refresh-onboarding", js)
+        self.assertIn("onboarding-output", html)
 
     def test_pr103_clean_local_dogfood_is_canonical_and_limited(self) -> None:
         spec = (PRODUCT_DOCS / "pr_103_clean_local_dogfood.md").read_text(encoding="utf-8")

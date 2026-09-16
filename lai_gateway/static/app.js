@@ -176,7 +176,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pareie este celular primeiro e atualize este painel.";
-  for (const id of ["health-output", "ops-output", "status-output", "model-output", "mcp-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output"]) {
+  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "mcp-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -353,6 +353,36 @@ function healthSummaryText(payload) {
     return `Saúde bloqueada. Revise ${nextSteps || "o"} próximo passo${nextSteps === 1 ? "" : "s"} antes de usar controles remotos.`;
   }
   return `Saúde ${overall}; ${nextSteps} próximo passo${nextSteps === 1 ? "" : "s"}. Mobile ${mobile}, Telegram ${telegram}, modelo ${model}, MCP ${mcp}.`;
+}
+
+function compactOnboardingText(payload) {
+  const lines = [
+    `lai-gateway onboarding: ${payload.overall || "desconhecido"}`,
+    `version: ${payload.version || "desconhecido"}`,
+    "schema: onboarding-next-steps/v1",
+    `summary: ${payload.summary || ""}`,
+    "read_only: true",
+    "prints_tokens: false",
+    "prints_paths: false",
+    "starts_server: false",
+    "modifies_files: false",
+    "executes_tools: false",
+  ];
+  const cards = Array.isArray(payload.cards) ? payload.cards : [];
+  for (const card of cards) {
+    lines.push(`${card.area || "área"}: ${card.status || "unknown"} - ${card.summary || ""}`);
+    const steps = Array.isArray(card.next_steps) ? card.next_steps.slice(0, 3) : [];
+    for (const step of steps) lines.push(`  next: ${step}`);
+  }
+  return lines.join("\n");
+}
+
+function setOnboardingStatus(payload) {
+  const overall = payload.overall || "desconhecido";
+  const state = overall === "ready" ? "ready" : overall === "blocked" ? "danger" : "warn";
+  setPill("onboarding-pill", `onboarding ${overall}`, state);
+  clearPairRequiredOutput("onboarding-output");
+  show("onboarding-output", compactOnboardingText(payload));
 }
 
 function setHealthReport(payload) {
@@ -1333,6 +1363,10 @@ async function runAction(action) {
       setMobileAccess(await requestJson("/v1/gateway/mobile-access"));
     } else if (action === "copy-mobile-url") {
       await copyMobileUrl();
+    } else if (action === "refresh-onboarding") {
+      const workspace = byId("document-workspace-root")?.value.trim() || "";
+      const params = workspace ? `?workspace_root=${encodeURIComponent(workspace)}` : "";
+      setOnboardingStatus(await requestJson(`/v1/gateway/onboarding${params}`));
     } else if (action === "refresh-health-report") {
       clearPairRequiredOutput("health-output");
       setHealthReport(await requestJson("/v1/gateway/health-report"));
@@ -1769,6 +1803,7 @@ document.addEventListener("DOMContentLoaded", () => {
   runAction("refresh-mobile-access");
   if (isLoopbackHost()) {
     setAuthBanner("Acesso local por loopback não precisa de pareamento do celular.", "ready");
+    runAction("refresh-onboarding");
     runAction("refresh-model-status");
     runAction("refresh-memory-context");
     runAction("refresh-document-workbench");

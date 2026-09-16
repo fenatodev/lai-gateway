@@ -87,6 +87,10 @@ class GatewayUITest(unittest.TestCase):
                 self.assertIn('data-action="remember-memory-context"', html)
                 self.assertIn("Memória local", html)
                 self.assertIn('id="ops-pill"', html)
+                self.assertIn('id="onboarding-pill"', html)
+                self.assertIn('id="onboarding-output"', html)
+                self.assertIn('data-action="refresh-onboarding"', html)
+                self.assertIn("Primeiros passos", html)
                 self.assertIn('id="health-summary"', html)
                 self.assertIn('Saúde ainda não carregada.', html)
                 self.assertIn('id="health-output"', html)
@@ -531,6 +535,28 @@ class GatewayUITest(unittest.TestCase):
         self.assertIsNone(health.call_args.kwargs["mobile_port"])
         self.assertIsNone(ops.call_args.kwargs["mobile_candidate_ip"])
         self.assertIsNone(ops.call_args.kwargs["mobile_port"])
+
+    def test_gateway_onboarding_endpoint_is_read_only_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with RunningGateway(config) as gateway:
+                status, headers, body = read_url(f"{gateway.url}/v1/gateway/onboarding")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        payload = json.loads(body)
+        self.assertEqual(payload["operation"], "onboarding")
+        self.assertEqual(payload["schema_version"], "onboarding-next-steps/v1")
+        self.assertFalse(payload["security"]["prints_tokens"])
+        self.assertFalse(payload["security"]["prints_paths"])
+        self.assertFalse(payload["security"]["starts_server"])
+        self.assertFalse(payload["security"]["modifies_files"])
+        self.assertFalse(payload["security"]["executes_tools"])
+        self.assertIn("next_steps", payload)
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn(str(token_file), body)
+        self.assertNotIn("Bearer", body)
 
     def test_gateway_health_report_endpoint_is_read_only_and_secret_free(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
@@ -1039,6 +1065,38 @@ class GatewayUITest(unittest.TestCase):
         self.assertNotIn(TOKEN, response_body)
         self.assertNotIn("mensagem privada", response_body)
 
+
+    def test_private_onboarding_requires_gateway_auth(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            access_file = Path(tmp) / "access-token"
+            access = "gateway-access-secret-value-1234567890"
+            access_file.write_text(access, encoding="utf-8")
+            access_file.chmod(0o600)
+            pair_file = Path(tmp) / "pair-token.json"
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                bind="127.0.0.1",
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            with RunningGateway(config) as gateway:
+                with self.assertRaises(__import__("urllib.error").error.HTTPError) as unauth:
+                    read_url(f"{gateway.url}/v1/gateway/onboarding")
+                with patch("lai_gateway.server.collect_onboarding_status") as collect:
+                    collect.return_value = {"operation": "onboarding", "overall": "ready", "security": {"prints_tokens": False}}
+                    status, _headers, body = read_url(
+                        f"{gateway.url}/v1/gateway/onboarding",
+                        headers={"Authorization": f"Bearer {access}"},
+                    )
+        self.assertEqual(unauth.exception.code, 401)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["operation"], "onboarding")
+        self.assertNotIn(access, body)
+        self.assertNotIn(TOKEN, body)
 
     def test_private_model_task_requires_gateway_auth(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
