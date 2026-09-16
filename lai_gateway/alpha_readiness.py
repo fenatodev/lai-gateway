@@ -31,6 +31,7 @@ _REQUIRED_EVIDENCE_MARKERS = (
     "document-workbench/v1",
     "mcp-local-tool/v1",
     "n8n-local-plan/v1",
+    "permission-ux/v1",
 )
 
 _BLOCKED_CAPABILITY_MARKERS = (

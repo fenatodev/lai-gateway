@@ -178,7 +178,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pareie este celular primeiro e atualize este painel.";
-  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "public-browser-output", "mcp-output", "n8n-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output"]) {
+  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "public-browser-output", "mcp-output", "n8n-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "permission-ux-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -586,6 +586,43 @@ function setGovernanceOutput(targetId, payload) {
   });
 }
 
+function permissionUxQuery() {
+  const options = isSafeLocalStatusSelection()
+    ? { approve: true, approvedBy: "workbench", operationScope: "local-status-read" }
+    : { approve: true, approvedBy: "workbench", operationScope: "adapter-dry-run" };
+  return governanceQuery(options);
+}
+
+function compactPermissionUxText(payload) {
+  const lines = [
+    `lai-gateway permission-ux: ${payload.overall || "desconhecido"}`,
+    `schema: ${payload.schema_version || "permission-ux/v1"}`,
+    payload.summary || "",
+    "fluxo:",
+  ];
+  for (const stage of payload.stages || []) {
+    lines.push(`${stage.order}. ${stage.label}: ${stage.status} | ${stage.authority} | ${stage.summary}`);
+  }
+  lines.push(`effective_authorization: ${Boolean(payload.effective && payload.effective.effective_authorization)}`);
+  lines.push(`grant_checked: ${Boolean(payload.grant && payload.grant.checked)}`);
+  lines.push(`grant_issued: ${Boolean(payload.grant && payload.grant.issued)}`);
+  lines.push(`grant_consumed: ${Boolean(payload.grant && payload.grant.consumed)}`);
+  lines.push(`adapter_executed: ${Boolean(payload.execution && payload.execution.adapter_executed)}`);
+  lines.push("issues_grants: false");
+  lines.push("consumes_grants: false");
+  lines.push("dispatches_adapter: false");
+  return lines.join("\n");
+}
+
+function setPermissionUx(payload) {
+  clearPairRequiredOutput("permission-ux-output");
+  const effective = Boolean(payload.effective && payload.effective.effective_authorization);
+  const executed = Boolean(payload.execution && payload.execution.adapter_executed);
+  const state = executed ? "danger" : effective ? "ready" : "warn";
+  setCallout("permission-ux-summary", executed ? "Permissão UX detectou execução. Verifique o executor antes de prosseguir." : payload.summary || "Fluxo de permissões carregado sem execução.", state);
+  show("permission-ux-output", compactPermissionUxText(payload));
+}
+
 async function refreshGovernanceChain() {
   const query = governanceQuery();
   const decision = await requestJson(`/v1/gateway/permission-decision?${query}`);
@@ -602,6 +639,7 @@ async function refreshGovernanceChain() {
   setGovernanceOutput("dry-run-output", dryRun);
   const dispatcher = await requestJson(`/v1/gateway/adapter-dispatcher?${query}`);
   setGovernanceOutput("dispatcher-output", dispatcher);
+  setPermissionUx(await requestJson(`/v1/gateway/permission-ux?${permissionUxQuery()}`));
   return dispatcher;
 }
 
@@ -1469,6 +1507,8 @@ async function runAction(action) {
       setOpsStatus(await requestJson("/v1/gateway/ops-status"));
     } else if (action === "refresh-governance-chain") {
       await refreshGovernanceChain();
+    } else if (action === "refresh-permission-ux") {
+      setPermissionUx(await requestJson(`/v1/gateway/permission-ux?${permissionUxQuery()}`));
     } else if (action === "refresh-governance-decision") {
       const payload = await requestJson(`/v1/gateway/permission-decision?${governanceQuery()}`);
       setGovernanceOutput("decision-output", payload);
@@ -1822,6 +1862,8 @@ async function runAction(action) {
         ? "governance-output"
         : action.includes("session")
           ? "sessions-output"
+        : action.includes("permission")
+          ? "permission-ux-output"
         : action.includes("run") || action === "copy-run-output"
           ? "runs-output"
           : action.includes("mcp")

@@ -214,6 +214,8 @@ class GatewayUITest(unittest.TestCase):
                 self.assertIn('id="governance-summary"', html)
                 self.assertIn('id="governance-pill"', html)
                 self.assertIn('id="governance-output"', html)
+                self.assertIn('id="permission-ux-summary"', html)
+                self.assertIn('id="permission-ux-output"', html)
                 self.assertIn('id="decision-output"', html)
                 self.assertIn('id="policy-output"', html)
                 self.assertIn('id="authorization-output"', html)
@@ -221,6 +223,7 @@ class GatewayUITest(unittest.TestCase):
                 self.assertIn('id="audit-events-output"', html)
                 self.assertIn('id="dry-run-output"', html)
                 self.assertIn('data-action="refresh-governance-chain"', html)
+                self.assertIn('data-action="refresh-permission-ux"', html)
                 self.assertIn('data-action="refresh-governance-decision"', html)
                 self.assertIn('data-action="refresh-governance-policy"', html)
                 self.assertIn('data-action="refresh-governance-authorization"', html)
@@ -367,6 +370,7 @@ class GatewayUITest(unittest.TestCase):
         self.assertIn("issue-n8n-local-plan", js)
         self.assertIn("inspect-n8n-local-plan", js)
         self.assertIn("/v1/gateway/permission-decision", js)
+        self.assertIn("/v1/gateway/permission-ux", js)
         self.assertIn("/v1/gateway/policy-eval", js)
         self.assertIn("/v1/gateway/authorization-record", js)
         self.assertIn("/v1/gateway/adapter-invocation-proposal", js)
@@ -379,6 +383,8 @@ class GatewayUITest(unittest.TestCase):
         self.assertIn("governanceQuery", js)
         self.assertIn("refreshGovernanceChain", js)
         self.assertIn("setGovernanceOutput", js)
+        self.assertIn("setPermissionUx", js)
+        self.assertIn("compactPermissionUxText", js)
         self.assertIn("refresh-governance-chain", js)
         self.assertIn("refresh-governance-dry-run", js)
         self.assertIn("refresh-governance-capture", js)
@@ -541,6 +547,60 @@ class GatewayUITest(unittest.TestCase):
         self.assertEqual(unauth.exception.code, 401)
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(body)["operation"], "n8n-local-plan")
+        self.assertNotIn(access, body)
+        self.assertNotIn(TOKEN, body)
+
+    def test_gateway_permission_ux_endpoint_is_read_only_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            query = "adapter_id=local_status&capability=local_status.status&approve=true&approved_by=workbench&operation_scope=local-status-read"
+            with RunningGateway(config) as gateway:
+                status, headers, body = read_url(f"{gateway.url}/v1/gateway/permission-ux?{query}")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        payload = json.loads(body)
+        self.assertEqual(payload["operation"], "permission-ux")
+        self.assertEqual(payload["schema_version"], "permission-ux/v1")
+        self.assertEqual(payload["stage_count"], 8)
+        self.assertTrue(payload["effective"]["effective_authorization"])
+        self.assertFalse(payload["grant"]["issued"])
+        self.assertFalse(payload["grant"]["consumed"])
+        self.assertFalse(payload["execution"]["adapter_executed"])
+        self.assertFalse(payload["security"]["issues_grants"])
+        self.assertFalse(payload["security"]["dispatches_adapter"])
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
+
+    def test_private_permission_ux_requires_gateway_auth(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            access_file = Path(tmp) / "access-token"
+            access = "gateway-access-secret-value-1234567890"
+            access_file.write_text(access, encoding="utf-8")
+            access_file.chmod(0o600)
+            pair_file = Path(tmp) / "pair-token.json"
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                bind="127.0.0.1",
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            query = "adapter_id=local_status&capability=local_status.status"
+            with RunningGateway(config) as gateway:
+                with self.assertRaises(__import__("urllib.error").error.HTTPError) as unauth:
+                    read_url(f"{gateway.url}/v1/gateway/permission-ux?{query}")
+                status, _headers, body = read_url(
+                    f"{gateway.url}/v1/gateway/permission-ux?{query}",
+                    headers={"Authorization": f"Bearer {access}"},
+                )
+        self.assertEqual(unauth.exception.code, 401)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["operation"], "permission-ux")
         self.assertNotIn(access, body)
         self.assertNotIn(TOKEN, body)
 

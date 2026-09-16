@@ -34,6 +34,8 @@ class ProductDocsTest(unittest.TestCase):
             "pr_105_operational_local_model.md",
             "pr_106_public_browser_readonly.md",
             "pr_107_mcp_minimal_governed.md",
+            "pr_108_n8n_minimal_governed.md",
+            "pr_109_permission_ux.md",
         ):
             path = PRODUCT_DOCS / name
             self.assertTrue(path.exists(), name)
@@ -128,6 +130,9 @@ class ProductDocsTest(unittest.TestCase):
         self.assertEqual(rows["identidade usuário/cliente/agente/serviço"][0], "experimental")
         self.assertEqual(rows["identidade usuário/cliente/agente/serviço"][1], "binding local testável")
         self.assertEqual(rows["effective authorization"][0], "experimental")
+        self.assertEqual(rows["permission_ux"][0], "experimental")
+        self.assertIn("permission-ux/v1", rows["permission_ux"][4])
+        self.assertIn("sem emitir grant", rows["permission_ux"][4])
         self.assertEqual(rows["adapter dry-run"][0], "implemented")
         self.assertEqual(rows["adapter dry-run"][1], "simulado/dry-run")
         self.assertEqual(
@@ -459,6 +464,34 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("inspect-n8n-local-plan", html)
         self.assertNotIn("n8n workflows are ready", combined)
 
+    def test_pr109_permission_ux_is_canonical_and_limited(self) -> None:
+        spec = (PRODUCT_DOCS / "pr_109_permission_ux.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        post = (PRODUCT_DOCS / "post_pr100_roadmap.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+        html = (ROOT / "lai_gateway" / "static" / "index.html").read_text(encoding="utf-8")
+        js = (ROOT / "lai_gateway" / "static" / "app.js").read_text(encoding="utf-8")
+        combined = "\n".join([spec, index, post, matrix, alpha, html, js])
+        for marker in (
+            "permission-ux/v1",
+            "intenção",
+            "decisão",
+            "autorização efetiva",
+            "grant",
+            "execução",
+            "não emite grant",
+            "não consome grant",
+            "não despacha adapter",
+            "não concede autoridade",
+        ):
+            self.assertIn(marker, combined)
+        self.assertIn("[PR109](pr_109_permission_ux.md)", index)
+        self.assertIn("permission_ux | experimental", matrix)
+        self.assertIn("/v1/gateway/permission-ux", js)
+        self.assertIn("refresh-permission-ux", html)
+        self.assertNotIn("permission UX grants authorization", combined)
+
     def test_pr105_operational_local_model_is_canonical_and_limited(self) -> None:
         spec = (PRODUCT_DOCS / "pr_105_operational_local_model.md").read_text(encoding="utf-8")
         index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
@@ -622,6 +655,8 @@ class ProductDocsTest(unittest.TestCase):
             "local non-dry-run path: `local-status-read` for `local_status.status`.",
             "Authenticated browser sessions, n8n activation/real workflow execution, voice, broad/external MCP execution and social/career automation "
             "are not ready-to-use features.",
+            "PR109 adds a read-only permission UX that separates intent, decision, effective authorization, grant and execution; "
+            "it does not issue grants, consume grants or dispatch adapters.",
             "It is not general agent messaging authority or durable per-message approval.",
             "New governed sends require explicit approval of content and destination plus the roadmap gates.",
             "PR100 adds a read-only `alpha-readiness` go/no-go check for a public technical alpha candidate; "

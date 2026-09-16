@@ -22,7 +22,7 @@ Roadmap normativo após o PR100. Ele substitui a sequência fechada PR90–PR100
 | PR106 | Browser público read-only | Implementado como GET público único com extração textual limitada | Sem login, sem cookies, sem formulário, sem download, sem JavaScript automation e com testes negativos próprios |
 | PR107 | MCP mínimo governado | Implementado como `mcp.local_echo_digest` local não sensível sob autorização | Capability exata, escopo mínimo, identidade, grant single-use e bloqueio de replay |
 | PR108 | n8n mínimo governado | Implementado como plano local por digest | Capability exata, escopo `n8n-local-plan`, identidade, grant single-use; sem instalação, credenciais, webhook, activation ou execução real de workflow |
-| PR109 | UX de permissões | Revisão humana mais clara | Diferença visível entre intenção, decisão, autorização efetiva, grant e execução |
+| PR109 | UX de permissões | Implementado como `permission-ux/v1` read-only | Diferença visível entre intenção, identidade, decisão, registro, aprovação/captura, autorização efetiva, grant e execução; sem emitir/consumir grant ou despachar adapter |
 | PR110 | Expansão externa controlada | Go/no-go para capacidades externas | Matriz atualizada, evidência runtime, testes negativos e publicação humana separada |
 
 ## Ordem recomendada
