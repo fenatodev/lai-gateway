@@ -16,7 +16,7 @@ PR61–73: contratos, conversation-first, mediação de ferramentas, skills, dev
 | --- | --- | --- |
 | PR90 | Consolidação das revisões externas e promessa pública | Índice, matriz, readiness, README e testes documentais coerentes; sem mudança funcional |
 | PR91 | Quickstart público mínimo e diagnóstico de instalação | `docs/quickstart.md`, instalação source-first reproduzível, empacotamento mínimo identificado, pré-requisitos e falhas de Harness/token/modelo documentados |
-| PR92 | Release checklist + guia visual mínimo do Workbench | Versão/artefato identificáveis, fluxo local_status explicado e evidência visual sanitizada |
+| PR92 | Release checklist + guia visual mínimo do Workbench | `docs/release_checklist.md`, `docs/workbench_visual_guide.md`, versão/artefato identificáveis, fluxo local_status explicado e evidência visual sanitizada |
 | PR93 | Identidade testável usuário/cliente/agente/serviço | Testes de vínculo ao principal, origem confiável e rejeição de identidade falsificada, troca de cliente ou serviço |
 | PR94 | Autorização efetiva para uma ação real local não-dry-run (authorization non-dry-run) | Ação/recurso/alvo/escopo exatos; revalidação no executor; casos positivos e negativos; nenhuma autoridade externa |
 | PR95 | Persistência, expiração, revogação, consumo único e restart recovery | Recuperação após reinício, concorrência/replay e bloqueio contra duplicação de efeito; resultado desconhecido sem retry automático |
