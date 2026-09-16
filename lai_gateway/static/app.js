@@ -176,7 +176,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pareie este celular primeiro e atualize este painel.";
-  for (const id of ["health-output", "ops-output", "status-output", "model-output", "mcp-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output"]) {
+  for (const id of ["health-output", "ops-output", "status-output", "model-output", "mcp-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -1374,6 +1374,24 @@ async function runAction(action) {
       const payload = await requestJson("/v1/gateway/model-runs?limit=20");
       setPill("model-pill", `runs do modelo ${payload.count || 0}`, payload.count ? "ready" : "warn");
       show("model-output", payload);
+    } else if (action === "refresh-memory-context") {
+      const body = memoryContextBody("show");
+      const params = new URLSearchParams({
+        context_kind: body.context_kind,
+        project_id: body.project_id,
+        limit: String(body.limit),
+      });
+      const payload = await requestJson(`/v1/gateway/memory-context?${params}`);
+      setPill("model-pill", `memória ${payload.overall || "desconhecido"}`, payload.overall === "blocked" ? "danger" : "ready");
+      show("memory-output", payload);
+    } else if (action === "remember-memory-context") {
+      const payload = await requestJson("/v1/gateway/memory-context", {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify(memoryContextBody("remember")),
+      });
+      setPill("model-pill", `memória ${payload.overall || "desconhecido"}`, payload.overall === "blocked" ? "danger" : "ready");
+      show("memory-output", payload);
     } else if (action === "refresh-local-chat-contract") {
       setLocalChatContract(await requestJson("/v1/local-chat/contract"));
     } else if (action === "load-local-chat-workspaces") {
@@ -1582,9 +1600,11 @@ async function runAction(action) {
             ? "mcp-output"
           : action.includes("ops")
             ? "ops-output"
-          : action.includes("model")
-            ? "model-output"
-            : "status-output";
+          : action.includes("memory")
+            ? "memory-output"
+            : action.includes("model")
+              ? "model-output"
+              : "status-output";
     show(target, String(err.message || err));
   }
 }
@@ -1664,6 +1684,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (isLoopbackHost()) {
     setAuthBanner("Acesso local por loopback não precisa de pareamento do celular.", "ready");
     runAction("refresh-model-status");
+    runAction("refresh-memory-context");
     runAction("refresh-mcp-status");
     runAction("refresh-readiness");
     runAction("refresh-health-report");

@@ -421,6 +421,28 @@
               </article>
 
               <article class="card compact-panel">
+                <h2>Memória local</h2>
+                <p class="muted">Contexto local por projeto ou pessoal. Memória não concede autoridade nem aprovação.</p>
+                <div class="form-row">
+                  <label>Tipo
+                    <select id="memory-context-kind">
+                      <option value="project">projeto</option>
+                      <option value="personal">pessoal</option>
+                    </select>
+                  </label>
+                  <label>Projeto
+                    <input id="memory-project-id" value="lai-gateway" autocomplete="off" autocapitalize="none" spellcheck="false">
+                  </label>
+                </div>
+                <textarea id="memory-note" rows="3" maxlength="1000" placeholder="Nota curta, sem tokens, senhas ou chaves"></textarea>
+                <div class="actions">
+                  <button data-action="refresh-memory-context">Mostrar memória</button>
+                  <button data-action="remember-memory-context">Salvar nota local</button>
+                </div>
+                <pre id="memory-output" aria-live="polite">Não carregado.</pre>
+              </article>
+
+              <article class="card compact-panel">
                 <h2>Broker MCP</h2>
                 <p class="muted">Visibilidade read-only. Execução de ferramentas continua negada.</p>
                 <div class="actions">

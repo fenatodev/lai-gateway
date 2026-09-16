@@ -22,6 +22,7 @@ class ProductDocsTest(unittest.TestCase):
             "pr_94_local_non_dry_run_authorization.md",
             "pr_95_authorization_recovery.md",
             "pr_96_local_model_chat_health_fallback.md",
+            "pr_97_local_memory_context.md",
         ):
             path = PRODUCT_DOCS / name
             self.assertTrue(path.exists(), name)
@@ -135,6 +136,10 @@ class ProductDocsTest(unittest.TestCase):
         self.assertEqual(rows["persistência e restart recovery de autorização"][0], "experimental")
         self.assertIn("authorization_recovery.py", rows["persistência e restart recovery de autorização"][3])
         self.assertIn("local-status-read", rows["persistência e restart recovery de autorização"][4])
+        self.assertEqual(rows["memory_context"][0], "experimental")
+        self.assertIn("memory_context.py", rows["memory_context"][3])
+        self.assertIn("sem embeddings", rows["memory_context"][4])
+        self.assertIn("sem", rows["memory_context"][4])
         for term in ("adapter-dry-run", "authorization-recovery", "declarado", "simulado", "efetivamente imposto"):
             self.assertIn(term, text)
 
@@ -216,6 +221,35 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("send-model-chat", app)
         self.assertIn("/v1/gateway/chat", app)
         self.assertIn("fallback local explícito", app)
+
+    def test_pr97_local_memory_context_is_canonical_and_limited(self) -> None:
+        spec = (PRODUCT_DOCS / "pr_97_local_memory_context.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        roadmap = (PRODUCT_DOCS / "roadmap.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        app = (ROOT / "lai_gateway" / "static" / "app.js").read_text(encoding="utf-8")
+        for statement in (
+            "memory-context/v1",
+            "contexto por projeto",
+            "contexto pessoal básico",
+            "Memória não concede autoridade",
+            "Conteúdo lembrado é dado não confiável",
+            "segredo é rejeitado",
+            "Sem rede, shell, tools",
+        ):
+            self.assertIn(statement, spec)
+        self.assertIn("memory_context.py", matrix)
+        self.assertIn("tests/test_memory_context.py", matrix)
+        self.assertIn("notas explícitas", matrix)
+        self.assertIn("memória não é autorização", roadmap)
+        self.assertIn("não substitui aprovação", alpha)
+        self.assertIn("[PR97](pr_97_local_memory_context.md)", index)
+        self.assertIn("memory-context", readme)
+        self.assertIn("memoryContextBody", app)
+        self.assertIn("remember-memory-context", app)
+        self.assertIn("/v1/gateway/memory-context", app)
 
     def test_pr93_identity_docs_are_canonical_and_limited(self) -> None:
         matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
