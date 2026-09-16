@@ -13,6 +13,9 @@ _DRY_RUN_SAFE_SCOPE = "adapter-dry-run"
 _LOCAL_STATUS_READ_SCOPE = "local-status-read"
 _LOCAL_STATUS_ADAPTER = "local_status"
 _LOCAL_STATUS_STATUS_CAPABILITY = "local_status.status"
+_LOCAL_MCP_SAFE_TOOL_SCOPE = "mcp-local-safe-tool"
+_LOCAL_MCP_ADAPTER = "mcp_local"
+_LOCAL_MCP_CAPABILITY = "mcp.local_echo_digest"
 
 
 @dataclass(frozen=True)
@@ -137,6 +140,28 @@ def _local_status_read_scope_status(
     return "effective_for_local_status_read", "local_status.status authorized for real local non-dry-run execution", True, True, True
 
 
+def _local_mcp_safe_tool_scope_status(
+    *,
+    permission: dict[str, Any],
+    validation: dict[str, Any],
+    dry_run: dict[str, Any],
+) -> tuple[str, str, bool, bool, bool]:
+    decision = permission["decision"]
+    if _unsafe_flags(validation, dry_run):
+        return "blocked", "local MCP safe-tool authorization blocked by unsafe invariant", False, False, False
+    if not permission.get("identity_verified"):
+        return "blocked", "local MCP safe-tool authorization requires verified principal identity", False, False, False
+    if decision.get("adapter_id") != _LOCAL_MCP_ADAPTER:
+        return "blocked", "local MCP safe-tool authorization only permits mcp_local adapter", False, False, False
+    if decision.get("requested_capability") != _LOCAL_MCP_CAPABILITY:
+        return "blocked", "local MCP safe-tool authorization only permits mcp.local_echo_digest", False, False, False
+    if decision.get("outcome") != "allow" or decision.get("granted_capability") != _LOCAL_MCP_CAPABILITY:
+        return "blocked", "local MCP safe-tool authorization requires an explicit allow decision", False, False, False
+    if bool(decision.get("external_side_effects")):
+        return "blocked", "local MCP safe-tool authorization refuses external side effects", False, False, False
+    return "effective_for_mcp_local_safe_tool", "mcp.local_echo_digest authorized for one governed local MCP-shaped tool", True, True, True
+
+
 def _scope_status(
     *,
     operation_scope: str,
@@ -148,6 +173,8 @@ def _scope_status(
         return _dry_run_scope_status(validation=validation, dry_run=dry_run)
     if operation_scope == _LOCAL_STATUS_READ_SCOPE:
         return _local_status_read_scope_status(permission=permission, validation=validation, dry_run=dry_run)
+    if operation_scope == _LOCAL_MCP_SAFE_TOOL_SCOPE:
+        return _local_mcp_safe_tool_scope_status(permission=permission, validation=validation, dry_run=dry_run)
     return "blocked", "effective authorization scope is not allowed", False, False, False
 
 
@@ -265,8 +292,8 @@ def build_effective_authorization(
         identity_binding_id=identity["identity_binding_id"],
         identity_verified=bool(identity["identity_verified"]),
         local_non_dry_run_authorized=local_authorized,
-        authorized_resource="adapter:local_status" if local_authorized else None,
-        authorized_target="local_status.status" if local_authorized else None,
+        authorized_resource=(f"adapter:{decision.get('adapter_id')}" if local_authorized else None),
+        authorized_target=(decision["requested_capability"] if local_authorized else None),
     )
     return result, gate_payload, permission_payload
 
@@ -324,6 +351,7 @@ def collect_effective_authorization(
         "effective_authorization_version": _EFFECTIVE_AUTHORIZATION_VERSION,
         "dry_run_safe_scope": _DRY_RUN_SAFE_SCOPE,
         "local_non_dry_run_scope": _LOCAL_STATUS_READ_SCOPE,
+        "local_mcp_safe_tool_scope": _LOCAL_MCP_SAFE_TOOL_SCOPE,
         "effective_authorization": effective.effective_authorization,
         "scope_authorized": effective.scope_authorized,
         "adapter_capability_authorized": effective.adapter_capability_authorized,

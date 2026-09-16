@@ -56,6 +56,26 @@ class AdapterRegistryTest(unittest.TestCase):
         self.assertFalse(payload["security"]["tool_execution_enabled"])
         self.assertFalse(payload["security"]["grants_permissions"])
 
+
+    def test_mcp_local_adapter_is_governed_single_tool_without_upstream_execution(self) -> None:
+        payload = collect_adapter_registry(adapter_id="mcp_local")
+        self.assertEqual(payload["overall"], "ready")
+        self.assertEqual(payload["count"], 1)
+        adapter = payload["adapters"][0]
+        self.assertEqual(adapter["id"], "mcp_local")
+        self.assertEqual(adapter["autonomy"], "governed_local_safe_tool")
+        self.assertEqual(adapter["entrypoints"], ["/v1/gateway/mcp-local-tool"])
+        self.assertEqual(adapter["granted_capabilities"], ["mcp.local_echo_digest"])
+        self.assertTrue(adapter["local_handler_registered"])
+        self.assertEqual(adapter["operation_scope"], "mcp-local-safe-tool")
+        self.assertFalse(adapter["executes_tools"])
+        self.assertFalse(adapter["executes_upstream_mcp_tools"])
+        self.assertFalse(adapter["network_access_enabled"])
+        self.assertFalse(adapter["credentialed_access_enabled"])
+        self.assertFalse(adapter["shell_execution_enabled"])
+        self.assertFalse(adapter["external_side_effects_enabled"])
+        self.assertFalse(payload["security"]["tool_execution_enabled"])
+
     def test_browser_adapter_contract_is_registered_without_execution(self) -> None:
         payload = collect_adapter_registry(adapter_id="browser")
         self.assertEqual(payload["overall"], "ready")

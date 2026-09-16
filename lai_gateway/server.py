@@ -49,6 +49,7 @@ from .harness_client import (
     is_control_session_id,
 )
 from .memory_context import collect_memory_context
+from .mcp_local_tool import collect_mcp_local_tool
 from .onboarding import collect_onboarding_status
 from .model import (
     collect_model_chat,
@@ -143,6 +144,19 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 browser_action=values.get("browser_action", ["plan"])[0] or "plan",
                 max_bytes=max_bytes,
                 timeout_seconds=timeout,
+            ))
+            return
+        if parsed.path == "/v1/gateway/mcp-local-tool":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            self._send_json(HTTPStatus.OK, collect_mcp_local_tool(
+                mcp_action=values.get("mcp_action", ["plan"])[0] or "plan",
+                authorization_grant_id=values.get("authorization_grant_id", [None])[0] or None,
+                authorization_dir=values.get("authorization_dir", [None])[0] or None,
+                payload_sha256=values.get("payload_sha256", [None])[0] or None,
+                channel="gateway",
+                **self._identity_kwargs(values),
             ))
             return
         if parsed.path == "/v1/gateway/model-status":
@@ -1011,6 +1025,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/adapter-dispatcher",
             "/v1/gateway/persisted-audit-log",
             "/v1/gateway/model-status",
+            "/v1/gateway/mcp-local-tool",
             "/v1/gateway/public-browser",
             "/v1/gateway/model-runtime",
             "/v1/gateway/alpha-readiness",

@@ -522,11 +522,13 @@
 
               <article class="card compact-panel">
                 <h2>Broker MCP</h2>
-                <p class="muted">Visibilidade read-only. Execução de ferramentas continua negada.</p>
+                <p class="muted">Visibilidade read-only do broker. Apenas uma tool MCP local não sensível pode rodar sob grant de uso único.</p>
                 <div class="actions">
                   <button data-action="refresh-mcp-status">Status MCP</button>
                   <button data-action="refresh-mcp-tools">Listar tools MCP</button>
                   <button data-action="check-mcp-call-tool">Checar negação de tool</button>
+                  <button data-action="issue-mcp-local-tool">Emitir grant MCP local</button>
+                  <button data-action="run-mcp-local-tool">Executar tool MCP local</button>
                 </div>
                 <div class="form-row">
                   <label>Servidor MCP

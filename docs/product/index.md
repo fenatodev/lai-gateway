@@ -28,7 +28,8 @@ Os documentos `pr_*.md` têm rótulo **spec de PR / histórico**: são registros
 - **revisão externa / histórico** — [Revisão Astra](astra_architecture_review.md) e [revisão Codex/Astra](codex_astra_architecture_review.md): insumos históricos, sem autoridade automática.
 - **descritivo / insumo de revisão externa** — [Prompt de revisão](roadmap_review_prompt.md): instrumento de coleta, não decisão.
 - **spec de PR / histórico** — [PR89](pr_89_roadmap_alpha_readiness.md): baseline histórico da consolidação.
-- **spec de PR / atual** — [PR106](pr_106_public_browser_readonly.md): browser público read-only, sem autenticação, cookies, formulários ou automação JS.
+- **spec de PR / atual** — [PR107](pr_107_mcp_minimal_governed.md): MCP mínimo governado com uma tool local não sensível, grant single-use e bloqueio de replay.
+- **spec de PR / histórico** — [PR106](pr_106_public_browser_readonly.md): browser público read-only, sem autenticação, cookies, formulários ou automação JS.
 - **spec de PR / histórico** — [PR105](pr_105_operational_local_model.md): modelo local operacional com configuração e diagnóstico sem gerenciar runtime.
 - **spec de PR / histórico** — [PR104](pr_104_onboarding_ux_next_steps.md): onboarding/UX com próximos passos sanitizados no Workbench.
 - **spec de PR / histórico** — [PR103](pr_103_clean_local_dogfood.md): dogfood local limpo com script/checklist reproduzível.

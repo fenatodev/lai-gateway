@@ -13,7 +13,7 @@ Não declarar browser agent completo, automação n8n real, voz operacional, MCP
 - Effective authorization está restrita a adapter-dry-run; não concede capability ampla e não persiste aprovação.
 - local_status.status tem autorização efetiva non-dry-run estreita após PR94; local_status.echo e outros adapters não entram nesse escopo.
 - Identidade usuário/cliente/agente/serviço tem vínculo local testável após PR93, mas isso não equivale a login completo, identidade remota ou autorização.
-- Persistência, expiração, revogação, consumo único, restart recovery e bloqueio contra duplicação de efeito existem após PR95 somente para `local-status-read`/`local_status.status`.
+- Persistência, expiração, revogação, consumo único, restart recovery e bloqueio contra duplicação de efeito existem para escopos locais explicitamente allowlisted: `local-status-read`/`local_status.status` e `mcp-local-safe-tool`/`mcp.local_echo_digest`.
 - Audit log sanitizado não equivale a execução autorizada, integridade inviolável ou recuperação transacional.
 - Read-only declarado ou simulado não é read-only efetivamente imposto; afirmar contenção apenas com evidência específica.
 - Dev/Workbench depende de Harness compatível; modelo local depende de runtime configurado. PR96 prova conversa local-model-first e fallback explícito, mas não prova instalação guiada nem disponibilidade universal de runtime.
@@ -51,7 +51,7 @@ PR100 permite `candidate_go` técnico somente quando `alpha-readiness/v1`, `make
 
 ## Restrições públicas
 
-Browser, n8n, voz, execução real de tools MCP, social e automações externas governadas não estão disponíveis como funcionalidades prontas. Contratos e simulações não autorizam execução real.
+Browser autenticado, n8n, voz, execução ampla/externa de tools MCP, social e automações externas governadas não estão disponíveis como funcionalidades prontas. Contratos e simulações não autorizam execução real.
 
 local_status é apenas o primeiro adapter seguro restrito; não prova autorização geral.
 
