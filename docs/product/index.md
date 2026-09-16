@@ -13,6 +13,7 @@
 - **normativo** — [Plano operacional pós-PR110](post_pr110_operating_plan.md): sequência PR111–PR120 para alpha operacional local antes de expansão externa real.
 - **normativo** — [Project workspace contract](project_workspace_contract.md): contrato de raiz explícita, escopo local, dados tocados e exclusões antes de contexto/execução.
 - **contrato funcional** — [Objective state](objective_state.md): estado read-only de objetivo, tarefas e checkpoints dentro de workspace explícito.
+- **contrato funcional** — [Action proposal](action_proposal.md): proposta unificada read-only antes de aprovação, grant ou execução.
 - **matriz de estado, descritivo** — [Implementation matrix](implementation_matrix.md): maturidade, evidência e disponibilidade ao usuário.
 - **prontidão alpha, critérios normativos** — [Alpha readiness](alpha_readiness.md): limitações conhecidas e decisão go/no-go.
 - **descritivo, consolidação de revisão externa** — [Consolidação das revisões](roadmap_review_consolidation.md): insumos externos, decisões aceitas e adiadas.
@@ -31,7 +32,8 @@ Os documentos `pr_*.md` têm rótulo **spec de PR / histórico**: são registros
 - **revisão externa / histórico** — [Revisão Astra](astra_architecture_review.md) e [revisão Codex/Astra](codex_astra_architecture_review.md): insumos históricos, sem autoridade automática.
 - **descritivo / insumo de revisão externa** — [Prompt de revisão](roadmap_review_prompt.md): instrumento de coleta, não decisão.
 - **spec de PR / histórico** — [PR89](pr_89_roadmap_alpha_readiness.md): baseline histórico da consolidação.
-- **spec de PR / atual** — [PR113](pr_113_objective_state.md): leitura read-only de objetivo, tarefas e checkpoints sem grants, execução ou ingestão implícita.
+- **spec de PR / atual** — [PR114](pr_114_action_proposal.md): proposta unificada read-only sem autorização efetiva, grants, dispatch ou execução.
+- **spec de PR / histórico** — [PR113](pr_113_objective_state.md): leitura read-only de objetivo, tarefas e checkpoints sem grants, execução ou ingestão implícita.
 - **spec de PR / histórico** — [PR112](pr_112_project_workspace_contract.md): contrato de workspace de projeto com raiz explícita e sem HOME scan ou ingestão implícita.
 - **spec de PR / histórico** — [PR111](pr_111_operating_objective_plan.md): plano operacional pós-PR110 para avançar o LAI sem liberar capacidades externas.
 - **spec de PR / histórico** — [PR110](pr_110_external_expansion_gate.md): gate read-only de expansão externa com go/no-go, matriz e evidência runtime sem habilitar capacidades externas.

@@ -34,6 +34,7 @@ _REQUIRED_EVIDENCE_MARKERS = (
     "permission-ux/v1",
     "external-expansion-gate/v1",
     "objective-state/v1",
+    "action-proposal/v1",
 )
 
 _BLOCKED_CAPABILITY_MARKERS = (

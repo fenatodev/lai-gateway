@@ -38,6 +38,8 @@ Após o PR112, `project_workspace_contract` define raiz explícita, escopo local
 
 Após o PR113, `objective-state/v1` lê estado local explícito de objetivo, tarefas e checkpoints. PR113 é read-only: não escreve estado, não faz HOME scan, não faz ingestão implícita, não emite grant, não consome grant, não despacha adapter, não chama Harness, não executa tools e não libera capacidade externa.
 
+Após o PR114, `action-proposal/v1` monta proposta unificada read-only com domínio, canal, autonomia, capacidade, alvo, dados, efeito e risco. PR114 não cria approval inbox, não autoriza execução, não emite grant, não consome grant, não despacha adapter, não chama Harness, não escreve estado e não realiza efeito externo.
+
 ## Go para alpha público técnico
 
 Todos os itens são obrigatórios; esta lista não afirma que já passaram:

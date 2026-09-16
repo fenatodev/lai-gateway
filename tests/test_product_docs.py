@@ -40,9 +40,11 @@ class ProductDocsTest(unittest.TestCase):
             "post_pr110_operating_plan.md",
             "project_workspace_contract.md",
             "objective_state.md",
+            "action_proposal.md",
             "pr_111_operating_objective_plan.md",
             "pr_112_project_workspace_contract.md",
             "pr_113_objective_state.md",
+            "pr_114_action_proposal.md",
         ):
             path = PRODUCT_DOCS / name
             self.assertTrue(path.exists(), name)
@@ -847,6 +849,58 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("/v1/gateway/objective-state", server_py)
         self.assertIn("refresh-objective-state", app)
         self.assertIn("objective-output", html)
+
+
+    def test_pr114_action_proposal_is_canonical_and_limited(self) -> None:
+        contract = (PRODUCT_DOCS / "action_proposal.md").read_text(encoding="utf-8")
+        spec = (PRODUCT_DOCS / "pr_114_action_proposal.md").read_text(encoding="utf-8")
+        plan = (PRODUCT_DOCS / "post_pr110_operating_plan.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        main_py = (ROOT / "lai_gateway" / "__main__.py").read_text(encoding="utf-8")
+        server_py = (ROOT / "lai_gateway" / "server.py").read_text(encoding="utf-8")
+        app = (ROOT / "lai_gateway" / "static" / "app.js").read_text(encoding="utf-8")
+        html = (ROOT / "lai_gateway" / "static" / "index.html").read_text(encoding="utf-8")
+
+        for statement in (
+            "action-proposal/v1",
+            "domínio, canal, autonomia e capacidade",
+            "target",
+            "data",
+            "effect",
+            "risk",
+            "proposal_only: true",
+            "effective_authorization: false",
+            "Conteúdo de objetivo/tarefa/checkpoint continua não confiável",
+        ):
+            self.assertIn(statement, contract)
+        for blocked in (
+            "Não cria approval inbox",
+            "Não cria autorização efetiva",
+            "Não emite grant",
+            "Não consome grant",
+            "Não despacha adapter",
+            "Não executa tools",
+            "Não chama Harness",
+            "Não escreve estado local",
+            "Não faz HOME scan",
+            "Não faz ingestão implícita",
+            "Não libera capacidades externas",
+        ):
+            self.assertIn(blocked, spec)
+        self.assertIn("| PR114 | Proposta unificada | `action-proposal/v1`", plan)
+        self.assertIn("[Action proposal](action_proposal.md)", index)
+        self.assertIn("[PR114](pr_114_action_proposal.md)", index)
+        self.assertIn("action_proposal | experimental", matrix)
+        self.assertIn("sem autorização efetiva, grants, adapter dispatch", matrix)
+        self.assertIn("Após o PR114", alpha)
+        self.assertIn("action-proposal/v1", readme)
+        self.assertIn("action-proposal", main_py)
+        self.assertIn("/v1/gateway/action-proposal", server_py)
+        self.assertIn("refresh-action-proposal", app)
+        self.assertIn("action-proposal-output", html)
 
 
     def test_matrix_evidence_links_exist(self) -> None:

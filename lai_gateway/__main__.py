@@ -10,6 +10,7 @@ from typing import Any
 
 from . import __version__
 from .adapter_invocation import collect_adapter_invocation_proposal, render_adapter_invocation_proposal
+from .action_proposal import collect_action_proposal, render_action_proposal
 from .alpha_readiness import collect_alpha_readiness, render_alpha_readiness
 from .adapter_dry_run import collect_adapter_dry_run, render_adapter_dry_run
 from .adapter_dispatcher import collect_adapter_dispatcher_interface, render_adapter_dispatcher_interface
@@ -380,6 +381,21 @@ def main(argv: list[str] | None = None) -> int:
     adapter_invocation_parser.add_argument("--action", default=None, help="human-readable action label")
     adapter_invocation_parser.add_argument("--param", action="append", default=None, help="bounded public parameter as key=value; repeatable")
     adapter_invocation_parser.add_argument("--json", action="store_true", help="print JSON")
+    action_proposal_parser = sub.add_parser("action-proposal", help="build a unified read-only action proposal without authorization or execution")
+    action_proposal_parser.add_argument("--workspace-root", default=".", help="explicit project workspace root used only for optional objective-state context")
+    action_proposal_parser.add_argument("--state-file", default=None, help="relative objective state file; defaults to .lai/objective-state.json")
+    action_proposal_parser.add_argument("--task-id", default=None, help="optional objective-state task id to select as untrusted context")
+    action_proposal_parser.add_argument("--actor", default=None, help="proposal actor label; defaults to user")
+    action_proposal_parser.add_argument("--domain", default=None, help="proposal domain label")
+    action_proposal_parser.add_argument("--channel", default=None, help="proposal channel label")
+    action_proposal_parser.add_argument("--autonomy", default=None, help="requested autonomy label")
+    action_proposal_parser.add_argument("--capability", default=None, help="requested capability label")
+    action_proposal_parser.add_argument("--action", default=None, help="human-readable proposed action")
+    action_proposal_parser.add_argument("--target", default=None, help="proposed target")
+    action_proposal_parser.add_argument("--data", default=None, help="data touched by the proposed action")
+    action_proposal_parser.add_argument("--effect", default=None, help="expected effect if later authorized")
+    action_proposal_parser.add_argument("--risk", default=None, help="risk label: low, medium, high, or unknown")
+    action_proposal_parser.add_argument("--json", action="store_true", help="print JSON")
     adapter_dry_run_parser = sub.add_parser("adapter-dry-run", help="run a simulated adapter path without dispatch")
     adapter_dry_run_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
     adapter_dry_run_parser.add_argument("--capability", required=True, help="requested capability to simulate")
@@ -1058,6 +1074,27 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
+        if args.command == "action-proposal":
+            payload = collect_action_proposal(
+                workspace_root=args.workspace_root,
+                state_file=args.state_file,
+                task_id=args.task_id,
+                actor=args.actor,
+                domain=args.domain,
+                channel=args.channel,
+                autonomy=args.autonomy,
+                capability=args.capability,
+                action=args.action,
+                target=args.target,
+                data=args.data,
+                effect=args.effect,
+                risk=args.risk,
+            )
+            if not args.json:
+                print(render_action_proposal(payload))
+                return 0 if payload["overall"] != "blocked" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] != "blocked" else 1
         if args.command == "adapter-dry-run":
             payload = collect_adapter_dry_run(
                 adapter_id=args.adapter,
