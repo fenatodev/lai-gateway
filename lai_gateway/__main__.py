@@ -37,6 +37,7 @@ from .persisted_audit_log import collect_persisted_audit_log, render_persisted_a
 from .public_browser import collect_public_browser, render_public_browser
 from .model import check_model_api_key_file, collect_model_chat, collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_runtime, collect_model_smoke, collect_model_status, collect_model_task, create_model_api_key_file, render_model_chat, render_model_eval, render_model_files, render_model_key, render_model_plan, render_model_runs, render_model_runtime, render_model_smoke, render_model_status, render_model_task
 from .memory_context import collect_memory_context, render_memory_context
+from .mcp_local_tool import collect_mcp_local_tool, render_mcp_local_tool
 from .mobile import (
     collect_mobile_repair,
     collect_mobile_start,
@@ -419,7 +420,7 @@ def main(argv: list[str] | None = None) -> int:
     authorization_recovery_parser.add_argument("--param", action="append", default=None, help="bounded public parameter as key=value; repeatable")
     authorization_recovery_parser.add_argument("--approve", action="store_true", help="mark approval intent before issuing or consuming")
     authorization_recovery_parser.add_argument("--approved-by", default=None, help="bounded approver label")
-    authorization_recovery_parser.add_argument("--operation-scope", default="local-status-read", help="fixed PR95 scope; only local-status-read is accepted")
+    authorization_recovery_parser.add_argument("--operation-scope", default="local-status-read", help="scoped local operation; local-status-read or mcp-local-safe-tool")
     authorization_recovery_parser.add_argument("--json", action="store_true", help="print JSON")
     persisted_audit_parser = sub.add_parser("persisted-audit-log", help="plan or append a scoped local audit log record")
     persisted_audit_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
@@ -607,6 +608,12 @@ def main(argv: list[str] | None = None) -> int:
     mcp_policy.add_argument("--operation", required=True, choices=["status", "list-tools", "call-tool"], help="MCP broker operation to classify")
     mcp_policy.add_argument("--server", default=None, help="declared MCP server name")
     mcp_policy.add_argument("--tool", default=None, help="MCP tool name for call-tool checks")
+    mcp_local_parser = sub.add_parser("mcp-local-tool", help="issue or run one governed local MCP safe tool")
+    mcp_local_parser.add_argument("mcp_action", nargs="?", choices=["plan", "issue", "run"], default="plan", help="local MCP tool action")
+    mcp_local_parser.add_argument("--authorization-grant-id", default=None, help="grant id returned by issue")
+    mcp_local_parser.add_argument("--authorization-dir", default=None, help="local authorization directory under the repo scope")
+    mcp_local_parser.add_argument("--payload-sha256", default=None, help="optional hex sha256 digest; raw payload is not accepted")
+    mcp_local_parser.add_argument("--json", action="store_true", help="print JSON")
     sessions_parser = sub.add_parser("sessions", help="manage harness sessions without creating runs")
     sessions_sub = sessions_parser.add_subparsers(dest="sessions_command")
     sessions_list = sessions_sub.add_parser("list", help="list harness sessions")
@@ -1056,6 +1063,19 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
+        if args.command == "mcp-local-tool":
+            payload = collect_mcp_local_tool(
+                mcp_action=args.mcp_action,
+                authorization_grant_id=args.authorization_grant_id,
+                authorization_dir=args.authorization_dir,
+                payload_sha256=args.payload_sha256,
+                channel="cli",
+            )
+            if not args.json:
+                print(render_mcp_local_tool(payload))
+                return 0 if payload["overall"] == "ready" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] == "ready" else 1
         if args.command == "authorization-recovery":
             payload = collect_authorization_recovery(
                 recovery_action=args.recovery_action,
@@ -1071,6 +1091,7 @@ def main(argv: list[str] | None = None) -> int:
                 parameters=_params_from_pairs(args.param),
                 approval_intent=bool(args.approve),
                 approved_by=args.approved_by,
+                operation_scope=args.operation_scope,
             )
             if not args.json:
                 print(render_authorization_recovery(payload))

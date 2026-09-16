@@ -11,6 +11,7 @@ let gatewayTokenKind = "none";
 let sessionExpiresAt = null;
 let sessionCountdownTimer = null;
 let lastMobileUrl = "";
+let lastMcpLocalGrantId = "";
 let localChatPollTimer = null;
 let lastLocalChatCursor = 0;
 let activeLocalRunId = "";
@@ -1523,6 +1524,14 @@ async function runAction(action) {
         body: JSON.stringify(mcpPolicyBody()),
       });
       setMcpStatus(payload);
+    } else if (action === "issue-mcp-local-tool") {
+      const payload = await requestJson("/v1/gateway/mcp-local-tool?mcp_action=issue");
+      lastMcpLocalGrantId = payload.authorization_grant_id || "";
+      show("mcp-output", payload);
+    } else if (action === "run-mcp-local-tool") {
+      if (!lastMcpLocalGrantId) throw new Error("emita um grant MCP local antes de executar");
+      const payload = await requestJson(`/v1/gateway/mcp-local-tool?mcp_action=run&authorization_grant_id=${encodeURIComponent(lastMcpLocalGrantId)}`);
+      show("mcp-output", payload);
     } else if (action === "send-model-chat") {
       const payload = await requestJson("/v1/gateway/chat", {
         method: "POST",

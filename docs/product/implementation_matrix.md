@@ -44,6 +44,7 @@ Read-only declarado representa intenção; read-only simulado não prova conten�
 | n8n | contract | metadados/contrato | Inspeção de contrato | [registry](../../lai_gateway/adapters.py), [testes](../../tests/test_adapters.py) | Sem workflow/activation real pelo adapter | Depois dos gates PR93–95 |
 | voice | contract | metadados/contrato | Metadados | [registry](../../lai_gateway/adapters.py), [testes](../../tests/test_adapters.py) | Sem captura/voz operacional | Canal futuro |
 | MCP execution | contract | metadados/contrato | Metadata/policy-check | [registry](../../lai_gateway/adapters.py), [testes](../../tests/test_adapters.py) | Sem execução de tools por esse adapter; apenas metadata/policy-check; executes_tools=false. | Depois dos gates PR93–95 |
+| mcp_local | experimental | tool MCP local não sensível | CLI/API/Workbench | [módulo](../../lai_gateway/mcp_local_tool.py), [handler](../../lai_gateway/local_mcp_adapter.py), [testes](../../tests/test_mcp_local_tool.py), [spec](pr_107_mcp_minimal_governed.md) | `mcp-local-tool/v1`; somente `mcp.local_echo_digest` sob `mcp-local-safe-tool`; sem broker externo, sem credenciais, sem shell, sem rede e com grant single-use | PR108 n8n governado |
 | Telegram outbound | experimental | envio real opt-in | CLI operacional opt-in | [módulo](../../lai_gateway/telegram.py), [testes](../../tests/test_telegram.py) | Envio real com destino configurado e enable-send; fora da cadeia geral de aprovação | Consentimento explícito por conteúdo/destino em novo fluxo |
 | Telegram inbound | planned | não disponível como agente | Não como agente de conversa | [roadmap](roadmap.md) | Descoberta operacional não é agente inbound autorizado | Spec de canal restrito |
 | social/career | contract | metadados/contrato | Metadados | [registry](../../lai_gateway/adapters.py), [testes](../../tests/test_adapters.py) | Sem publicação, envio ou candidatura pelos adapters | Drafts futuros; efeitos bloqueados |
@@ -54,11 +55,11 @@ Read-only declarado representa intenção; read-only simulado não prova conten�
 
 ## Restrições públicas
 
-Browser, n8n, voz, execução real de tools MCP, social e automações externas governadas não estão disponíveis como funcionalidades prontas. Contratos e simulações não autorizam execução real.
+Browser autenticado, n8n, voz, execução ampla/externa de tools MCP, social e automações externas governadas não estão disponíveis como funcionalidades prontas. Contratos e simulações não autorizam execução real.
 
 ## Limites de autorização
 
-Em `effective_authorization.py`, os escopos efetivos continuam estreitos: `adapter-dry-run` para simulação e `local-status-read` somente para `local_status.status`. Em `authorization_recovery.py`, grants locais são persistidos, expiram, podem ser revogados e são consumidos uma vez antes do dispatch. Em `adapter_dispatcher.py`, dispatch real de `local_status.status` exige decisão allow, capability allowlisted, identidade verificada, escopo `local-status-read` e dispatch explícito. A confirmação da UI não comprova aprovação durável no backend. Não promover esse caminho a prova de autorização real ampla.
+Em `effective_authorization.py`, os escopos efetivos continuam estreitos: `adapter-dry-run` para simulação, `local-status-read` somente para `local_status.status` e `mcp-local-safe-tool` somente para `mcp.local_echo_digest`. Em `authorization_recovery.py`, grants locais são persistidos, expiram, podem ser revogados, vinculam action/parâmetros por hash e são consumidos uma vez antes do dispatch. Em `adapter_dispatcher.py`, dispatch real de `local_status.status` exige decisão allow, capability allowlisted, identidade verificada, escopo `local-status-read` e dispatch explícito. A confirmação da UI não comprova aprovação durável no backend. Não promover esse caminho a prova de autorização real ampla.
 
 local_status é apenas o primeiro adapter seguro restrito; não prova autorização geral.
 

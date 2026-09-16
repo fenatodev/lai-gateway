@@ -50,7 +50,7 @@ GPT-6/Astra, Claude e Codex são revisores, não são autoridade automática. Os
 
 ## Restrições públicas
 
-Browser, n8n, voz, execução real de tools MCP, social e automações externas governadas não estão disponíveis como funcionalidades prontas. Contratos e simulações não autorizam execução real.
+Browser autenticado, n8n, voz, execução ampla/externa de tools MCP, social e automações externas governadas não estão disponíveis como funcionalidades prontas. Contratos e simulações não autorizam execução real.
 
 local_status é apenas o primeiro adapter seguro restrito; não prova autorização geral.
 

@@ -19,6 +19,13 @@ _LOCK_FILENAME = "authorization-events.lock"
 _LOCAL_STATUS_SCOPE = "local-status-read"
 _LOCAL_STATUS_ADAPTER = "local_status"
 _LOCAL_STATUS_CAPABILITY = "local_status.status"
+_LOCAL_MCP_SCOPE = "mcp-local-safe-tool"
+_LOCAL_MCP_ADAPTER = "mcp_local"
+_LOCAL_MCP_CAPABILITY = "mcp.local_echo_digest"
+_ALLOWED_TARGETS = {
+    _LOCAL_STATUS_SCOPE: (_LOCAL_STATUS_ADAPTER, _LOCAL_STATUS_CAPABILITY),
+    _LOCAL_MCP_SCOPE: (_LOCAL_MCP_ADAPTER, _LOCAL_MCP_CAPABILITY),
+}
 _MAX_TTL_SECONDS = 3600
 _DEFAULT_TTL_SECONDS = 300
 
@@ -42,6 +49,7 @@ class AuthorizationRecoveryEvent:
     channel: str
     domain: str
     status: str
+    parameters_sha256: str = ""
     dispatch_allowed: bool = False
     grants_permission: bool = False
     executes_tools: bool = False
@@ -72,6 +80,12 @@ def _parse_iso(value: str | None) -> datetime | None:
 
 def _action_sha256(action: str | None) -> str:
     return hashlib.sha256((action or "").encode("utf-8")).hexdigest()
+
+
+def _parameters_sha256(parameters: dict[str, str] | None) -> str:
+    public = {str(key): str(value) for key, value in sorted((parameters or {}).items())}
+    data = json.dumps(public, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
 
 def _event_id(payload: dict[str, Any]) -> str:
@@ -210,13 +224,21 @@ def _state_for(events: list[dict[str, Any]], grant_id: str | None, *, now: datet
     }
 
 
-def _exact_match(issued: dict[str, Any], effective: dict[str, Any]) -> tuple[bool, str]:
+def _allowed_target(effective: dict[str, Any]) -> bool:
+    scope = str(effective.get("operation_scope") or "")
+    return _ALLOWED_TARGETS.get(scope) == (effective.get("adapter_id"), effective.get("requested_capability"))
+
+
+def _exact_match(issued: dict[str, Any], effective: dict[str, Any], parameters: dict[str, str] | None) -> tuple[bool, str]:
+    if not _allowed_target(effective):
+        return False, "authorization grant target is not allowlisted"
     expected = {
-        "operation_scope": _LOCAL_STATUS_SCOPE,
-        "adapter_id": _LOCAL_STATUS_ADAPTER,
-        "requested_capability": _LOCAL_STATUS_CAPABILITY,
+        "operation_scope": effective.get("operation_scope"),
+        "adapter_id": effective.get("adapter_id"),
+        "requested_capability": effective.get("requested_capability"),
         "identity_binding_id": effective.get("identity_binding_id"),
         "action_sha256": _action_sha256(effective.get("action")),
+        "parameters_sha256": _parameters_sha256(parameters),
         "effective_authorization_id": effective.get("effective_authorization_id"),
     }
     for key, value in expected.items():
@@ -235,6 +257,7 @@ def _build_event(
     expires_at: datetime | None = None,
     status: str,
     dispatch_allowed: bool = False,
+    parameters_sha256: str = "",
 ) -> AuthorizationRecoveryEvent:
     source = effective or issued or {}
     issued_at = issued.get("issued_at_utc") if issued else (_iso(now) if event_type == "issued" else None)
@@ -249,6 +272,7 @@ def _build_event(
         "identity_binding_id": source.get("identity_binding_id"),
         "effective_authorization_id": source.get("effective_authorization_id"),
         "action_sha256": source.get("action_sha256") or _action_sha256(source.get("action")),
+        "parameters_sha256": source.get("parameters_sha256") or parameters_sha256,
         "issued_at_utc": issued_at,
         "expires_at_utc": expiry,
         "event_at_utc": _iso(now),
@@ -267,9 +291,12 @@ def _build_event(
 
 
 def _effective_for_request(
+    *,
+    operation_scope: str | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    return collect_effective_authorization(operation_scope=_LOCAL_STATUS_SCOPE, **kwargs)
+    scope = (operation_scope or _LOCAL_STATUS_SCOPE).strip() or _LOCAL_STATUS_SCOPE
+    return collect_effective_authorization(operation_scope=scope, **kwargs)
 
 
 def collect_authorization_recovery(
@@ -289,6 +316,7 @@ def collect_authorization_recovery(
     parameters: dict[str, str] | None = None,
     approval_intent: bool = False,
     approved_by: str | None = None,
+    operation_scope: str | None = None,
     user_id: str | None = None,
     client_id: str | None = None,
     agent_id: str | None = None,
@@ -303,7 +331,10 @@ def collect_authorization_recovery(
     now = _now(now_utc)
     action_name = (recovery_action or "check").strip().lower()
     log_path, lock_path = _prepare_paths(authorization_dir, scope_root=scope_root)
+    scope = (operation_scope or _LOCAL_STATUS_SCOPE).strip() or _LOCAL_STATUS_SCOPE
+    parameter_digest = _parameters_sha256(parameters)
     effective_payload = _effective_for_request(
+        operation_scope=scope,
         requested_capability=requested_capability,
         adapter_id=adapter_id,
         actor=actor,
@@ -338,7 +369,10 @@ def collect_authorization_recovery(
     if action_name == "issue":
         if not effective.get("effective_authorization") or not effective.get("local_non_dry_run_authorized"):
             status = "blocked"
-            reason = "only effective local-status-read authorization can be persisted"
+            reason = "only effective scoped local authorization can be persisted"
+        elif not _allowed_target(effective):
+            status = "blocked"
+            reason = "authorization target is not allowlisted for persistence"
         else:
             ttl = _bounded_ttl_seconds(ttl_seconds)
             issued_at = now
@@ -352,6 +386,7 @@ def collect_authorization_recovery(
                 now=issued_at,
                 expires_at=expires_at,
                 status="issued",
+                parameters_sha256=parameter_digest,
             )
             bytes_appended, record_digest = _append_event(log_path, event)
             persisted = True
@@ -394,9 +429,9 @@ def collect_authorization_recovery(
             if not state["active"]:
                 status, reason = "blocked", state["reason"]
             elif not effective.get("effective_authorization") or not effective.get("local_non_dry_run_authorized"):
-                status, reason = "blocked", "current request is not effectively authorized for local-status-read"
+                status, reason = "blocked", "current request is not effectively authorized for the scoped local operation"
             else:
-                ok, match_reason = _exact_match(state["issued"], effective)
+                ok, match_reason = _exact_match(state["issued"], effective, parameters)
                 if not ok:
                     status, reason = "blocked", match_reason
                 else:
@@ -459,6 +494,7 @@ def collect_authorization_recovery(
             "prints_tokens": False,
             "stores_raw_parameters": False,
             "stores_raw_action": False,
+            "stores_parameters_digest": True,
             "confines_to_scope_root": True,
             "append_only": True,
             "single_use": True,

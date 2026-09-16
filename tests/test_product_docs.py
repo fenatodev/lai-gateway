@@ -33,6 +33,7 @@ class ProductDocsTest(unittest.TestCase):
             "pr_104_onboarding_ux_next_steps.md",
             "pr_105_operational_local_model.md",
             "pr_106_public_browser_readonly.md",
+            "pr_107_mcp_minimal_governed.md",
         ):
             path = PRODUCT_DOCS / name
             self.assertTrue(path.exists(), name)
@@ -202,7 +203,8 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("tests/test_authorization_recovery.py", matrix)
         self.assertIn("grants locais expiram", roadmap)
         self.assertIn("bloqueio contra duplicação de efeito", roadmap)
-        self.assertIn("somente para `local-status-read`/`local_status.status`", alpha)
+        self.assertIn("`local-status-read`/`local_status.status`", alpha)
+        self.assertIn("`mcp-local-safe-tool`/`mcp.local_echo_digest`", alpha)
         self.assertIn("[PR95](pr_95_authorization_recovery.md)", index)
         self.assertIn("authorization-recovery", readme)
         self.assertIn("authorization-recovery", app)
@@ -392,6 +394,37 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("public-browser-output", html)
         self.assertNotIn("browser automation is ready", combined)
 
+
+    def test_pr107_mcp_minimal_governed_is_canonical_and_limited(self) -> None:
+        spec = (PRODUCT_DOCS / "pr_107_mcp_minimal_governed.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        post = (PRODUCT_DOCS / "post_pr100_roadmap.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        html = (ROOT / "lai_gateway" / "static" / "index.html").read_text(encoding="utf-8")
+        js = (ROOT / "lai_gateway" / "static" / "app.js").read_text(encoding="utf-8")
+        combined = "\n".join([spec, index, post, matrix, html, js])
+        for marker in (
+            "mcp-local-tool/v1",
+            "mcp.local_echo_digest",
+            "mcp-local-safe-tool",
+            "grant single-use",
+            "bloqueio de replay",
+            "identidade verificada",
+            "Sem `mcp.call_tool` amplo",
+            "Sem broker MCP externo",
+            "Sem credenciais",
+            "Sem shell",
+            "Sem rede",
+            "não concede autorização",
+        ):
+            self.assertIn(marker, combined)
+        self.assertIn("[PR107](pr_107_mcp_minimal_governed.md)", index)
+        self.assertIn("mcp_local | experimental", matrix)
+        self.assertIn("mcp_local", matrix)
+        self.assertIn("/v1/gateway/mcp-local-tool", js)
+        self.assertIn("issue-mcp-local-tool", html)
+        self.assertIn("run-mcp-local-tool", html)
+
     def test_pr105_operational_local_model_is_canonical_and_limited(self) -> None:
         spec = (PRODUCT_DOCS / "pr_105_operational_local_model.md").read_text(encoding="utf-8")
         index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
@@ -535,7 +568,7 @@ class ProductDocsTest(unittest.TestCase):
 
     def test_public_restrictions_are_complete_in_canonical_documents(self) -> None:
         restrictions = (
-            "Browser, n8n, voz, execução real de tools MCP, social e automações externas "
+            "Browser autenticado, n8n, voz, execução ampla/externa de tools MCP, social e automações externas "
             "governadas não estão disponíveis como funcionalidades prontas. "
             "Contratos e simulações não autorizam execução real.",
             "local_status é apenas o primeiro adapter seguro restrito; não prova autorização geral.",
@@ -553,7 +586,7 @@ class ProductDocsTest(unittest.TestCase):
         for statement in (
             "Effective authorization currently covers `adapter-dry-run` and one real "
             "local non-dry-run path: `local-status-read` for `local_status.status`.",
-            "Browser, n8n, voice, broad MCP execution and social/career automation "
+            "Authenticated browser sessions, n8n, voice, broad/external MCP execution and social/career automation "
             "are not ready-to-use features.",
             "It is not general agent messaging authority or durable per-message approval.",
             "New governed sends require explicit approval of content and destination plus the roadmap gates.",
