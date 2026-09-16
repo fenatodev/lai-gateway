@@ -40,14 +40,14 @@ assert __version__ == project, (__version__, project)
 print(__version__)
 PY
 PYTHON=python3 make check
-python3 -m lai_gateway release-check --target 0.1.35 --json
-python3 -m lai_gateway alpha-readiness --target 0.1.35 --json
+python3 -m lai_gateway release-check --target 0.1.36 --json
+python3 -m lai_gateway alpha-readiness --target 0.1.36 --json
 ```
 
 Para compatibilidade Gateway/Harness local:
 
 ```bash
-make milestone-gate   HARNESS_REPO=/path/to/workspace/lai-harness-checkout   TARGET_GATEWAY=0.1.35   MIN_HARNESS=0.4.6
+make milestone-gate   HARNESS_REPO=/path/to/workspace/lai-harness-checkout   TARGET_GATEWAY=0.1.36   MIN_HARNESS=0.4.6
 ```
 
 O `milestone-gate` é uma verificação local. Ele não substitui CI, revisão humana
@@ -58,7 +58,7 @@ ou decisão explícita de publicação.
 Registre no PR ou na nota de release interna:
 
 - commit SHA de `main`;
-- versão `0.1.35` ou versão alvo declarada;
+- versão `0.1.36` ou versão alvo declarada;
 - CI do PR e, quando aplicável, CI em tag;
 - resultado de `PYTHON=python3 make check`;
 - resultado de `release-check --json`, sem copiar segredos;

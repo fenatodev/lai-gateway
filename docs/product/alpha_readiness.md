@@ -37,7 +37,7 @@ Todos os itens são obrigatórios; esta lista não afirma que já passaram:
 - Empacotamento mínimo identificado, versionamento inequívoco, artefato correspondente ao commit e release checklist com guia visual sanitizado (PR92).
 - Identidade testável (PR93), uma ação local autorizada non-dry-run (PR94) e persistência/restart/recovery com expiração, revogação, consumo único e antirreplay para o escopo estreito PR95.
 - Contexto local por projeto/pessoal fica coberto por PR97; `document_text_local` restrito para `.txt/.md/.json` em workspace explícito fica coberto por PR98; PR99 adiciona seleção/inspeção restrita no Workbench com estado e limites visíveis, sem envio externo. Primeira conversa local e health/fallback explícitos ficam cobertos por PR96.
-- `python3 -m unittest tests.test_product_docs -v`, `PYTHON=python3 make check`, `git diff --check` e `python3 -m lai_gateway alpha-readiness --target 0.1.35 --json` verdes; CI e publication scan conferidos para o commit candidato, sem inferir verde histórico.
+- `python3 -m unittest tests.test_product_docs -v`, `PYTHON=python3 make check`, `git diff --check` e `python3 -m lai_gateway alpha-readiness --target 0.1.36 --json` verdes; CI e publication scan conferidos para o commit candidato, sem inferir verde histórico.
 - README, matriz e UI com ausência de overclaiming; limitações conhecidas visíveis, sem segredos ou dados privados nas evidências.
 - Capacidades externas bloqueadas conforme roadmap; aprovação humana separada para publicação do alpha.
 
