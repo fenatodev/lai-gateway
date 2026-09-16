@@ -735,6 +735,21 @@ function compactPublicBrowserText(payload) {
     lines.push("text_preview:");
     lines.push(payload.text_preview);
   }
+  if (payload.source_inspection_enabled) {
+    lines.push("source_inspection: true");
+    lines.push(`link_count_total: ${Number(payload.link_count_total || 0)}`);
+    lines.push(`public_link_count_retained: ${Number(payload.public_link_count_retained || 0)}`);
+    const headings = Array.isArray(payload.headings) ? payload.headings.slice(0, 6) : [];
+    if (headings.length) {
+      lines.push("headings:");
+      for (const heading of headings) lines.push(`  ${heading.level || ""}: ${heading.text || ""}`);
+    }
+    const links = Array.isArray(payload.public_links) ? payload.public_links.slice(0, 10) : [];
+    if (links.length) {
+      lines.push("public_links:");
+      for (const link of links) lines.push(`  ${link.url || ""}`);
+    }
+  }
   const steps = Array.isArray(payload.next_steps) ? payload.next_steps.slice(0, 6) : [];
   if (steps.length) {
     lines.push("next_steps:");
@@ -1903,6 +1918,8 @@ async function runAction(action) {
       setPublicBrowser(await requestJson(`/v1/gateway/public-browser?${publicBrowserParams("plan")}`));
     } else if (action === "fetch-public-browser") {
       setPublicBrowser(await requestJson(`/v1/gateway/public-browser?${publicBrowserParams("fetch")}`));
+    } else if (action === "inspect-public-browser") {
+      setPublicBrowser(await requestJson(`/v1/gateway/public-browser?${publicBrowserParams("inspect")}`));
     } else if (action === "refresh-model-runtime-profile") {
       setModelRuntimeProfile(await requestJson("/v1/gateway/model-runtime-profile"));
     } else if (action === "refresh-model-runtime") {

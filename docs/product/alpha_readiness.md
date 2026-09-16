@@ -48,6 +48,8 @@ Após o PR117, `context-pack/v1` monta contexto local explícito por tarefa a pa
 
 Após o PR118, `model-runtime-profile/v1` adiciona um perfil UX read-only para modelo local. PR118 não baixa modelo, não inicia runtime, não inicia servidor, não chama endpoint público, não roda probe local automaticamente, não usa cloud fallback, não imprime token ou chave, não escreve arquivo, não executa tool, não chama Harness, não emite grant, não consome grant, não despacha adapter, não habilita browser autenticado, não ativa n8n real, não chama MCP amplo, não envia mensagem, não publica e não realiza efeito externo.
 
+Após o PR119, `public-browser-inspector/v1` adiciona inspeção restrita de fonte pública sobre uma URL explícita. PR119 não habilita browser autenticado, não usa cookies, não executa JavaScript, não submete formulários, não faz download, não segue links, não usa credenciais, não envia mensagem, não publica, não cria autorização efetiva, não emite grant, não consome grant, não despacha adapter, não chama Harness, não executa tools e não realiza efeito externo além do GET público explícito da URL-alvo.
+
 ## Go para alpha público técnico
 
 Todos os itens são obrigatórios; esta lista não afirma que já passaram:

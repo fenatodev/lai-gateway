@@ -30,7 +30,7 @@ O foco não é adicionar mais adapters sensíveis. O foco é tornar o fluxo loca
 | PR116 | Loop dev local controlado | `dev-loop-fixture/v1` | Observe/Work/Review/Apply testado em fixture local, com evidência; sem browser autenticado, n8n real, MCP amplo, credenciais, mensagens, publicação, grants, adapter dispatch, Harness, tools, merge automático ou escrita no source checkout |
 | PR117 | Context pack local | `context-pack/v1` | Memória/documentos/projeto selecionados explicitamente, sem confiança implícita, embeddings obrigatórios ou varredura ampla |
 | PR118 | Modelo local operacional UX | `model-runtime-profile/v1` | Perfil de modelo local visível, fallback e diagnóstico; sem baixar/iniciar runtime automaticamente |
-| PR119 | Browser público v2 | Source inspector público restrito | GET público read-only ampliado por spec estreita; sem login, cookies, JS automation, formulários ou downloads |
+| PR119 | Browser público v2 | `public-browser-inspector/v1` | Source inspector público restrito; GET público read-only ampliado por spec estreita; sem login, cookies, JS automation, formulários, downloads ou link-following |
 | PR120 | Gate de primeira capacidade externa | Go/no-go por capacidade candidata | Escolha explícita de uma capacidade externa candidata; permanecer bloqueada se faltar executor, política, aprovação e testes negativos |
 
 ## Ordem e dependências

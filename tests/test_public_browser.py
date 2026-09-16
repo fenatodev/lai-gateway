@@ -107,6 +107,55 @@ class PublicBrowserTest(unittest.TestCase):
         self.assertEqual(payload["blocked_reason"], "http_error_or_redirect")
         self.assertFalse(payload["redirect_followed"])
 
+
+    def test_inspect_public_source_extracts_links_without_following(self) -> None:
+        calls = []
+
+        def opener(request, timeout):
+            calls.append((request.full_url, request.get_method(), timeout))
+            body = b"""
+            <html>
+              <head>
+                <title>LAI source</title>
+                <meta name="description" content="safe description token=abc12345678901234567890">
+              </head>
+              <body>
+                <h1>Primary heading</h1>
+                <h2>Second heading</h2>
+                <a href="/about">About</a>
+                <a href="https://other.example/path?q=1">Other</a>
+                <a href="http://127.0.0.1/admin">Local</a>
+                <a href="javascript:alert(1)">Script</a>
+                <a href="https://example.com/?api_key=abc12345678901234567890">Secret</a>
+              </body>
+            </html>
+            """
+            return FakeResponse(body)
+
+        payload = collect_public_browser(
+            url="https://example.com/docs/page",
+            browser_action="inspect",
+            opener=opener,
+            resolver=lambda host, port: ["93.184.216.34"],
+        )
+        self.assertEqual(payload["overall"], "ready")
+        self.assertEqual(payload["schema_version"], "public-browser-inspector/v1")
+        self.assertEqual(calls, [("https://example.com/docs/page", "GET", 8.0)])
+        self.assertTrue(payload["source_inspection_enabled"])
+        self.assertTrue(payload["links_extracted"])
+        self.assertFalse(payload["links_followed"])
+        self.assertEqual(payload["link_count_total"], 5)
+        self.assertEqual(payload["public_link_count_retained"], 2)
+        self.assertEqual(payload["blocked_link_count"], 3)
+        self.assertTrue(payload["security"]["links_validated_without_dns"])
+        headings = [item["text"] for item in payload["headings"]]
+        self.assertIn("Primary heading", headings)
+        urls = [item["url"] for item in payload["public_links"]]
+        self.assertIn("https://example.com/about", urls)
+        self.assertIn("https://other.example/path?q=1", urls)
+        self.assertNotIn("abc12345678901234567890", json.dumps(payload))
+        self.assertFalse(payload["grants_authority"])
+
     def test_cli_public_browser_plan_is_secret_free(self) -> None:
         result = subprocess.run(
             [sys.executable, "-m", "lai_gateway", "public-browser", "--url", "https://example.com/path", "--json"],

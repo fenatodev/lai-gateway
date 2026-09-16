@@ -1771,6 +1771,37 @@ class GatewayUITest(unittest.TestCase):
         self.assertNotIn(TOKEN, body)
         self.assertNotIn("Bearer", body)
 
+
+    def test_gateway_public_browser_inspector_endpoint_is_read_only_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with RunningGateway(config) as gateway:
+                with patch("lai_gateway.server.collect_public_browser") as collect:
+                    collect.return_value = {
+                        "operation": "public-browser",
+                        "schema_version": "public-browser-inspector/v1",
+                        "overall": "ready",
+                        "source_inspection_enabled": True,
+                        "links_extracted": True,
+                        "links_followed": False,
+                        "public_links": [{"url": "https://example.com/about"}],
+                        "network_calls": True,
+                        "security": {"uses_cookies": False, "executes_javascript": False, "links_followed": False},
+                    }
+                    url = quote("https://example.com/docs", safe="")
+                    status, headers, body = read_url(f"{gateway.url}/v1/gateway/public-browser?url={url}&browser_action=inspect")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        payload = json.loads(body)
+        self.assertEqual(payload["schema_version"], "public-browser-inspector/v1")
+        self.assertTrue(payload["source_inspection_enabled"])
+        self.assertFalse(payload["links_followed"])
+        self.assertEqual(collect.call_args.kwargs["browser_action"], "inspect")
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
+
     def test_private_public_browser_requires_gateway_auth(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
             token_file = Path(tmp) / "token"

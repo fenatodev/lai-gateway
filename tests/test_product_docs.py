@@ -1158,6 +1158,60 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn('id="model-runtime-profile-output"', html)
         self.assertIn('data-action="refresh-model-runtime-profile"', html)
 
+
+    def test_pr119_public_browser_v2_is_canonical_and_limited(self) -> None:
+        contract = (PRODUCT_DOCS / "public_browser_inspector.md").read_text(encoding="utf-8")
+        spec = (PRODUCT_DOCS / "pr_119_public_browser_v2.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        plan = (PRODUCT_DOCS / "post_pr110_operating_plan.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        main_py = (ROOT / "lai_gateway" / "__main__.py").read_text(encoding="utf-8")
+        server_py = (ROOT / "lai_gateway" / "server.py").read_text(encoding="utf-8")
+        app = (ROOT / "lai_gateway" / "static" / "app.js").read_text(encoding="utf-8")
+        html = (ROOT / "lai_gateway" / "static" / "index.html").read_text(encoding="utf-8")
+
+        for statement in (
+            "public-browser-inspector/v1",
+            "source inspector público restrito",
+            "domínio, canal, autonomia, capacidade",
+            "links públicos como strings inertes",
+        ):
+            self.assertIn(statement, spec + contract)
+        for blocked in (
+            "Não habilita browser autenticado",
+            "Não usa cookies",
+            "Não executa JavaScript",
+            "Não submete formulários",
+            "Não faz download",
+            "Não segue links",
+            "Não usa credenciais",
+            "Não envia mensagem",
+            "Não publica",
+            "Não ativa n8n real",
+            "Não chama MCP amplo",
+            "Não cria autorização efetiva",
+            "Não emite grant",
+            "Não consome grant",
+            "Não despacha adapter",
+            "Não chama Harness",
+            "Não executa tools",
+            "Não realiza efeito externo",
+        ):
+            self.assertIn(blocked, spec)
+        self.assertIn("| PR119 | Browser público v2 | `public-browser-inspector/v1`", plan)
+        self.assertIn("[Public browser inspector](public_browser_inspector.md)", index)
+        self.assertIn("[PR119](pr_119_public_browser_v2.md)", index)
+        self.assertIn("public-browser-inspector/v1", matrix)
+        self.assertIn("sem browser autenticado, cookies, JS automation", matrix)
+        self.assertIn("Após o PR119", alpha)
+        self.assertIn("public-browser-inspector/v1", readme)
+        self.assertIn("inspect", main_py)
+        self.assertIn("/v1/gateway/public-browser", server_py + app)
+        self.assertIn("inspect-public-browser", app)
+        self.assertIn('data-action="inspect-public-browser"', html)
+
     def test_pr91_is_linked_from_canonical_public_docs(self) -> None:
         self.assertTrue((PRODUCT_DOCS / "pr_91_public_quickstart.md").is_file())
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
