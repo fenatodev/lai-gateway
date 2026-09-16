@@ -355,8 +355,8 @@ function governanceState(payload) {
       || proposal.requires_human_approval
       || events.some((event) => event.requires_human_approval)
   );
-  if (payload.operation === "adapter-dispatcher" && payload.result === "local_status" && payload.handler_result?.local_only && !payload.handler_result?.external_side_effects && !payload.handler_result?.shell_execution && !payload.handler_result?.filesystem_write) {
-    return ["ready", "local_status executado por handler interno allowlisted, sem rede, shell, arquivo ou efeito externo."];
+  if (payload.operation === "adapter-dispatcher" && payload.result === "local_status" && payload.handler_result?.local_only && payload.dispatcher?.authorization_consumed && !payload.handler_result?.external_side_effects && !payload.handler_result?.shell_execution && !payload.handler_result?.filesystem_write) {
+    return ["ready", "local_status executado após autorização persistida de uso único; handler sem rede, shell ou efeito externo."];
   }
   if (payload.operation === "adapter-dispatcher" && payload.dispatch_permitted === false) {
     return ["warn", "Dispatcher carregado sem execução. Só local_status pode ser despachado pela UI."];
@@ -1316,12 +1316,16 @@ async function runAction(action) {
       if (!isSafeLocalStatusSelection()) throw new Error("dispatch seguro permitido somente para local_status.status");
       const confirmation = [
         "Executar adapter local_status agora?",
-        "Escopo: handler interno allowlisted.",
-        "Sem rede, shell, credenciais, leitura/escrita de arquivo ou efeito externo.",
+        "Escopo: local-status-read com autorização persistida de uso único.",
+        "A autorização será gravada/consumida localmente; o handler não usa rede, shell, credenciais ou arquivo.",
       ].join("\n");
       if (!window.confirm(confirmation)) return;
+      const baseQuery = governanceQuery({ approve: true, approvedBy: "workbench", operationScope: "local-status-read" });
+      const issued = await requestJson(`/v1/gateway/authorization-recovery?${baseQuery}&recovery_action=issue`);
+      if (!issued.authorization_grant_id) throw new Error("falha ao emitir autorização local de uso único");
       const query = governanceQuery({ approve: true, approvedBy: "workbench", operationScope: "local-status-read", dispatch: true });
-      const payload = await requestJson(`/v1/gateway/adapter-dispatcher?${query}`);
+      const dispatchQuery = `${query}&authorization_grant_id=${encodeURIComponent(issued.authorization_grant_id)}`;
+      const payload = await requestJson(`/v1/gateway/adapter-dispatcher?${dispatchQuery}`);
       setGovernanceOutput("dispatcher-output", payload);
     } else if (action === "refresh-mcp-status") {
       setMcpStatus(await requestJson("/v1/harness/mcp/status"));

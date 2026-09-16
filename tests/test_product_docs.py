@@ -19,6 +19,8 @@ class ProductDocsTest(unittest.TestCase):
             "roadmap_review_prompt.md",
             "pr_89_roadmap_alpha_readiness.md",
             "pr_93_testable_identity.md",
+            "pr_94_local_non_dry_run_authorization.md",
+            "pr_95_authorization_recovery.md",
         ):
             path = PRODUCT_DOCS / name
             self.assertTrue(path.exists(), name)
@@ -124,12 +126,15 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("skills.py", rows["Scout"][3])
         self.assertEqual(rows["Scout"][1], "metadados de skill")
         self.assertIn(
-            "adapter-dry-run continua sem adapter capability; local-status-read só autoriza local_status.status; authorization_persisted=false",
+            "persistência fica em authorization-recovery",
             rows["effective authorization"][4],
         )
-        self.assertIn("local-status-read efetivo", rows["adapter dispatcher"][4])
+        self.assertIn("grant persistido de uso único", rows["adapter dispatcher"][4])
         self.assertIn("autorização non-dry-run só cobre status, não echo", rows["local_status adapter"][4])
-        for term in ("adapter-dry-run", "authorization_persisted=false", "declarado", "simulado", "efetivamente imposto"):
+        self.assertEqual(rows["persistência e restart recovery de autorização"][0], "experimental")
+        self.assertIn("authorization_recovery.py", rows["persistência e restart recovery de autorização"][3])
+        self.assertIn("local-status-read", rows["persistência e restart recovery de autorização"][4])
+        for term in ("adapter-dry-run", "authorization-recovery", "declarado", "simulado", "efetivamente imposto"):
             self.assertIn(term, text)
 
 
@@ -153,6 +158,34 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("one real local non-dry-run path", readme)
         self.assertIn('operationScope: "local-status-read"', app)
         self.assertNotIn('"local_status.echo"].includes', app)
+
+    def test_pr95_authorization_recovery_is_canonical_and_limited(self) -> None:
+        spec = (PRODUCT_DOCS / "pr_95_authorization_recovery.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        roadmap = (PRODUCT_DOCS / "roadmap.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        app = (ROOT / "lai_gateway" / "static" / "app.js").read_text(encoding="utf-8")
+        for statement in (
+            "authorization-recovery/v1",
+            "expiração",
+            "revogação",
+            "consumo único",
+            "recovery",
+            "resultado desconhecido e não há retry automático",
+            "não escrita pelo handler do adapter",
+        ):
+            self.assertIn(statement, spec)
+        self.assertIn("authorization_recovery.py", matrix)
+        self.assertIn("tests/test_authorization_recovery.py", matrix)
+        self.assertIn("grants locais expiram", roadmap)
+        self.assertIn("bloqueio contra duplicação de efeito", roadmap)
+        self.assertIn("somente para `local-status-read`/`local_status.status`", alpha)
+        self.assertIn("[PR95](pr_95_authorization_recovery.md)", index)
+        self.assertIn("authorization-recovery", readme)
+        self.assertIn("authorization-recovery", app)
+        self.assertIn("authorization_grant_id", app)
 
     def test_pr93_identity_docs_are_canonical_and_limited(self) -> None:
         matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
