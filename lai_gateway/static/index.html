@@ -440,6 +440,27 @@
               </article>
 
               <article class="card compact-panel">
+                <h2>Modelo operacional</h2>
+                <p class="muted">Configura e diagnostica runtime local OpenAI-compatible. Não baixa modelo, não inicia servidor e não usa nuvem.</p>
+                <div class="form-row">
+                  <label>Base URL local
+                    <input id="model-runtime-base-url" placeholder="http://127.0.0.1:18082" autocomplete="off" autocapitalize="none" spellcheck="false">
+                  </label>
+                  <label>Modelo
+                    <input id="model-runtime-name" placeholder="local-code-model" autocomplete="off" autocapitalize="none" spellcheck="false">
+                  </label>
+                  <label>Arquivo de chave
+                    <input id="model-runtime-api-key-file" placeholder="~/.config/lai-gateway/model-api-key" autocomplete="off" autocapitalize="none" spellcheck="false">
+                  </label>
+                </div>
+                <div class="actions">
+                  <button data-action="refresh-model-runtime">Diagnosticar runtime</button>
+                  <button data-action="configure-model-runtime">Salvar configuração local</button>
+                </div>
+                <pre id="model-runtime-output" aria-live="polite">Não carregado.</pre>
+              </article>
+
+              <article class="card compact-panel">
                 <h2>Memória local</h2>
                 <p class="muted">Contexto local por projeto ou pessoal. Memória não concede autoridade nem aprovação.</p>
                 <div class="form-row">

@@ -53,6 +53,7 @@ from .model import (
     collect_model_chat,
     collect_model_eval,
     collect_model_files,
+    collect_model_runtime,
     collect_model_plan,
     collect_model_runs,
     collect_model_status,
@@ -158,6 +159,17 @@ class GatewayHandler(BaseHTTPRequestHandler):
             if timeout is None:
                 return
             self._send_json(HTTPStatus.OK, collect_model_eval(timeout_seconds=timeout))
+            return
+        if parsed.path == "/v1/gateway/model-runtime":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            probe = values.get("probe_openai", ["0"])[0] in {"1", "true", "yes", "on"}
+            self._send_json(HTTPStatus.OK, collect_model_runtime(
+                runtime_action=values.get("runtime_action", ["show"])[0] or "show",
+                config_path=values.get("config_path", [None])[0] or None,
+                probe_openai=probe,
+            ))
             return
         if parsed.path == "/v1/gateway/model-files":
             if not self._authorize_gateway_api(parsed.path):
@@ -747,6 +759,21 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 },
             })
             return
+        if parsed.path == "/v1/gateway/model-runtime":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            body = self._read_model_runtime_body()
+            if body is None:
+                return
+            self._send_json(HTTPStatus.OK, collect_model_runtime(
+                runtime_action="configure",
+                base_url=body["base_url"],
+                model_name=body["model_name"],
+                api_key_file=body["api_key_file"],
+                config_path=body.get("config_path") or None,
+                probe_openai=bool(body.get("probe_openai", False)),
+            ))
+            return
         if parsed.path == "/v1/gateway/chat":
             if not self._authorize_gateway_api(parsed.path):
                 return
@@ -968,6 +995,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/adapter-dispatcher",
             "/v1/gateway/persisted-audit-log",
             "/v1/gateway/model-status",
+            "/v1/gateway/model-runtime",
             "/v1/gateway/alpha-readiness",
             "/v1/gateway/model-plan",
             "/v1/gateway/model-files",

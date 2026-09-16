@@ -28,7 +28,8 @@ Os documentos `pr_*.md` têm rótulo **spec de PR / histórico**: são registros
 - **revisão externa / histórico** — [Revisão Astra](astra_architecture_review.md) e [revisão Codex/Astra](codex_astra_architecture_review.md): insumos históricos, sem autoridade automática.
 - **descritivo / insumo de revisão externa** — [Prompt de revisão](roadmap_review_prompt.md): instrumento de coleta, não decisão.
 - **spec de PR / histórico** — [PR89](pr_89_roadmap_alpha_readiness.md): baseline histórico da consolidação.
-- **spec de PR / atual** — [PR104](pr_104_onboarding_ux_next_steps.md): onboarding/UX com próximos passos sanitizados no Workbench.
+- **spec de PR / atual** — [PR105](pr_105_operational_local_model.md): modelo local operacional com configuração e diagnóstico sem gerenciar runtime.
+- **spec de PR / histórico** — [PR104](pr_104_onboarding_ux_next_steps.md): onboarding/UX com próximos passos sanitizados no Workbench.
 - **spec de PR / histórico** — [PR103](pr_103_clean_local_dogfood.md): dogfood local limpo com script/checklist reproduzível.
 - **release notes / atual** — [v0.1.35](../releases/v0.1.35.md): nota source-first do alpha técnico, com limites públicos.
 - **spec de PR / histórico** — [PR102](pr_102_release_alpha_technical.md): preparação source-first de tag/release alpha técnico, sem mudança funcional.

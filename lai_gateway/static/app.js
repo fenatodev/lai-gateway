@@ -176,7 +176,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pareie este celular primeiro e atualize este painel.";
-  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "mcp-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output"]) {
+  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "mcp-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -383,6 +383,43 @@ function setOnboardingStatus(payload) {
   setPill("onboarding-pill", `onboarding ${overall}`, state);
   clearPairRequiredOutput("onboarding-output");
   show("onboarding-output", compactOnboardingText(payload));
+}
+
+function compactModelRuntimeText(payload) {
+  const lines = [
+    `lai-gateway model-runtime: ${payload.overall || "desconhecido"}`,
+    `schema: ${payload.schema_version || "model-runtime/v1"}`,
+    `configured: ${Boolean(payload.configured)}`,
+    `ready_for_chat: ${Boolean(payload.ready_for_chat)}`,
+    "starts_server: false",
+    `modifies_files: ${Boolean(payload.security && payload.security.modifies_files)}`,
+    "downloads_models: false",
+    "executes_tools: false",
+    "cloud_fallback: false",
+  ];
+  const steps = Array.isArray(payload.next_steps) ? payload.next_steps.slice(0, 6) : [];
+  if (steps.length) {
+    lines.push("next_steps:");
+    for (const step of steps) lines.push(`  ${step}`);
+  }
+  return lines.join("\n");
+}
+
+function modelRuntimeBody() {
+  return {
+    base_url: byId("model-runtime-base-url")?.value.trim() || "",
+    model_name: byId("model-runtime-name")?.value.trim() || "",
+    api_key_file: byId("model-runtime-api-key-file")?.value.trim() || "",
+    probe_openai: true,
+  };
+}
+
+function setModelRuntime(payload) {
+  const overall = payload.overall || "desconhecido";
+  const state = overall === "ready" ? "ready" : overall === "needs_config" ? "danger" : "warn";
+  setPill("model-pill", `runtime ${overall}`, state);
+  clearPairRequiredOutput("model-runtime-output");
+  show("model-runtime-output", compactModelRuntimeText(payload));
 }
 
 function setHealthReport(payload) {
@@ -1447,6 +1484,15 @@ async function runAction(action) {
       setModelStatus(payload);
     } else if (action === "refresh-alpha-readiness") {
       setAlphaReadiness(await requestJson("/v1/gateway/alpha-readiness"));
+    } else if (action === "refresh-model-runtime") {
+      setModelRuntime(await requestJson("/v1/gateway/model-runtime?runtime_action=diagnose&probe_openai=1"));
+    } else if (action === "configure-model-runtime") {
+      const payload = await requestJson("/v1/gateway/model-runtime", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(modelRuntimeBody()),
+      });
+      setModelRuntime(payload);
     } else if (action === "refresh-model-status") {
       setModelStatus(await requestJson("/v1/gateway/model-status"));
     } else if (action === "refresh-model-plan") {
@@ -1805,6 +1851,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setAuthBanner("Acesso local por loopback não precisa de pareamento do celular.", "ready");
     runAction("refresh-onboarding");
     runAction("refresh-model-status");
+    runAction("refresh-model-runtime");
     runAction("refresh-memory-context");
     runAction("refresh-document-workbench");
     runAction("refresh-mcp-status");

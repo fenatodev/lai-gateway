@@ -34,7 +34,7 @@ from .health import collect_health_report, render_health_report
 from .identity import collect_identity_binding, render_identity_binding
 from .lan import collect_lan_info, render_lan_info
 from .persisted_audit_log import collect_persisted_audit_log, render_persisted_audit_log
-from .model import check_model_api_key_file, collect_model_chat, collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_smoke, collect_model_status, collect_model_task, create_model_api_key_file, render_model_chat, render_model_eval, render_model_files, render_model_key, render_model_plan, render_model_runs, render_model_smoke, render_model_status, render_model_task
+from .model import check_model_api_key_file, collect_model_chat, collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_runtime, collect_model_smoke, collect_model_status, collect_model_task, create_model_api_key_file, render_model_chat, render_model_eval, render_model_files, render_model_key, render_model_plan, render_model_runs, render_model_runtime, render_model_smoke, render_model_status, render_model_task
 from .memory_context import collect_memory_context, render_memory_context
 from .mobile import (
     collect_mobile_repair,
@@ -185,6 +185,14 @@ def main(argv: list[str] | None = None) -> int:
     model_plan_parser.add_argument("--model-name", default=None, help="local model name to place in exported configuration")
     model_plan_parser.add_argument("--base-url", default=None, help="local OpenAI-compatible base URL to place in exported configuration")
     model_plan_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    model_runtime_parser = sub.add_parser("model-runtime", help="show, configure, or diagnose the local model runtime without starting it")
+    model_runtime_parser.add_argument("runtime_action", nargs="?", choices=["show", "configure", "diagnose"], default="show", help="runtime configuration action")
+    model_runtime_parser.add_argument("--base-url", default=None, help="local/private OpenAI-compatible base URL")
+    model_runtime_parser.add_argument("--model-name", default=None, help="model name exposed by the local runtime")
+    model_runtime_parser.add_argument("--api-key-file", default=None, help="path to local model API key file; key value is never printed")
+    model_runtime_parser.add_argument("--config-path", default=None, help="model runtime config path")
+    model_runtime_parser.add_argument("--probe-openai", action="store_true", help="probe the configured local /v1/models endpoint")
+    model_runtime_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     model_files_parser = sub.add_parser("model-files", help="find local GGUF model files without downloads or server startup")
     model_files_parser.add_argument("--path", action="append", default=None, help="directory to scan for GGUF files; repeatable")
     model_files_parser.add_argument("--max-results", type=int, default=20, help="maximum grouped models to print")
@@ -744,6 +752,20 @@ def main(argv: list[str] | None = None) -> int:
                 return 0 if payload["overall"] != "blocked" else 1
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0 if payload["overall"] != "blocked" else 1
+        if args.command == "model-runtime":
+            payload = collect_model_runtime(
+                runtime_action=args.runtime_action,
+                base_url=args.base_url,
+                model_name=args.model_name,
+                api_key_file=args.api_key_file,
+                config_path=args.config_path,
+                probe_openai=args.probe_openai,
+            )
+            if not args.json:
+                print(render_model_runtime(payload))
+                return 0 if payload["overall"] != "needs_config" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] != "needs_config" else 1
         if args.command == "model-files":
             payload = collect_model_files(paths=args.path, max_results=args.max_results, max_seconds=args.max_seconds)
             if not args.json:

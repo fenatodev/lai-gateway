@@ -18,6 +18,7 @@ from lai_gateway.model import (
     collect_model_files,
     collect_model_plan,
     collect_model_runs,
+    collect_model_runtime,
     collect_model_smoke,
     collect_model_status,
     collect_model_task,
@@ -26,6 +27,7 @@ from lai_gateway.model import (
     render_model_files,
     render_model_plan,
     render_model_runs,
+    render_model_runtime,
     render_model_smoke,
     render_model_status,
     render_model_task,
@@ -483,6 +485,56 @@ class ModelStatusTest(unittest.TestCase):
             payload = collect_model_status(env={})
         self.assertEqual(payload["overall"], "needs_runtime")
         self.assertIn("Docker is available", payload["recommendation"])
+
+
+    def test_model_runtime_configures_and_diagnoses_loopback_without_secret_leak(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, FakeOpenAIModelsServer() as server:
+            key_file = Path(tmp) / "model-key"
+            key_file.write_text(MODEL_API_KEY + "\n", encoding="utf-8")
+            key_file.chmod(0o600)
+            config_file = Path(tmp) / "model.json"
+            payload = collect_model_runtime(
+                runtime_action="configure",
+                base_url=server.url,
+                model_name="local-code-model",
+                api_key_file=key_file,
+                config_path=config_file,
+                probe_openai=True,
+            )
+        stdout = json.dumps(payload, sort_keys=True) + render_model_runtime(payload)
+        self.assertEqual(payload["operation"], "model-runtime")
+        self.assertEqual(payload["schema_version"], "model-runtime/v1")
+        self.assertEqual(payload["overall"], "ready")
+        self.assertTrue(payload["ready_for_chat"])
+        self.assertTrue(payload["configured"])
+        self.assertTrue(payload["security"]["modifies_files"])
+        self.assertFalse(payload["security"]["starts_server"])
+        self.assertFalse(payload["security"]["downloads_models"])
+        self.assertFalse(payload["security"]["executes_tools"])
+        self.assertFalse(payload["security"]["cloud_fallback"])
+        self.assertNotIn(MODEL_API_KEY, stdout)
+        self.assertNotIn("Bearer", stdout)
+
+    def test_model_runtime_rejects_public_urls_and_reports_actionable_steps(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            payload = collect_model_runtime(
+                runtime_action="configure",
+                base_url="https://api.example.com",
+                model_name="remote",
+                api_key_file=Path(tmp) / "missing-key",
+                config_path=Path(tmp) / "model.json",
+                probe_openai=False,
+            )
+        stdout = json.dumps(payload, sort_keys=True) + render_model_runtime(payload)
+        self.assertEqual(payload["operation"], "model-runtime")
+        self.assertIn(payload["overall"], {"warn", "needs_config"})
+        self.assertFalse(payload["security"]["starts_server"])
+        self.assertFalse(payload["security"]["downloads_models"])
+        self.assertFalse(payload["security"]["executes_tools"])
+        self.assertFalse(payload["security"]["cloud_fallback"])
+        self.assertIn("endpoint local", " ".join(payload["next_steps"]).lower())
+        self.assertNotIn("api.example.com", stdout)
+        self.assertNotIn("Bearer", stdout)
 
     def test_cli_model_status_json_is_secret_free(self) -> None:
         env = dict(os.environ)
