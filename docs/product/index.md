@@ -15,6 +15,7 @@
 - **contrato funcional** — [Objective state](objective_state.md): estado read-only de objetivo, tarefas e checkpoints dentro de workspace explícito.
 - **contrato funcional** — [Action proposal](action_proposal.md): proposta unificada read-only antes de aprovação, grant ou execução.
 - **contrato funcional** — [Approval inbox](approval_inbox.md): caixa local de aprovações pendentes sanitizadas, sem autorização efetiva.
+- **contrato funcional** — [Dev loop fixture](dev_loop_fixture.md): fixture local Observe/Work/Review/Apply sem execução operacional.
 - **matriz de estado, descritivo** — [Implementation matrix](implementation_matrix.md): maturidade, evidência e disponibilidade ao usuário.
 - **prontidão alpha, critérios normativos** — [Alpha readiness](alpha_readiness.md): limitações conhecidas e decisão go/no-go.
 - **descritivo, consolidação de revisão externa** — [Consolidação das revisões](roadmap_review_consolidation.md): insumos externos, decisões aceitas e adiadas.
@@ -33,7 +34,8 @@ Os documentos `pr_*.md` têm rótulo **spec de PR / histórico**: são registros
 - **revisão externa / histórico** — [Revisão Astra](astra_architecture_review.md) e [revisão Codex/Astra](codex_astra_architecture_review.md): insumos históricos, sem autoridade automática.
 - **descritivo / insumo de revisão externa** — [Prompt de revisão](roadmap_review_prompt.md): instrumento de coleta, não decisão.
 - **spec de PR / histórico** — [PR89](pr_89_roadmap_alpha_readiness.md): baseline histórico da consolidação.
-- **spec de PR / atual** — [PR115](pr_115_approval_inbox.md): caixa local de aprovação pendente sem grants, dispatch, credenciais, mensagens, publicação ou execução.
+- **spec de PR / atual** — [PR116](pr_116_dev_loop_fixture.md): fixture local de dev loop sem grants, dispatch, credenciais, mensagens, publicação, merge ou execução.
+- **spec de PR / histórico** — [PR115](pr_115_approval_inbox.md): caixa local de aprovação pendente sem grants, dispatch, credenciais, mensagens, publicação ou execução.
 - **spec de PR / histórico** — [PR114](pr_114_action_proposal.md): proposta unificada read-only sem autorização efetiva, grants, dispatch ou execução.
 - **spec de PR / histórico** — [PR113](pr_113_objective_state.md): leitura read-only de objetivo, tarefas e checkpoints sem grants, execução ou ingestão implícita.
 - **spec de PR / histórico** — [PR112](pr_112_project_workspace_contract.md): contrato de workspace de projeto com raiz explícita e sem HOME scan ou ingestão implícita.

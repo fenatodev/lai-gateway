@@ -515,6 +515,19 @@
               </article>
 
               <article class="card compact-panel">
+                <h2>Dev loop fixture</h2>
+                <p class="muted">Fixture local Observe/Work/Review/Apply a partir da caixa de aprovação. Não escreve source checkout, não despacha adapter, não chama Harness, não executa tools, não publica e não faz merge.</p>
+                <label>Approval ID opcional
+                  <input id="dev-loop-approval-id" placeholder="ai-..." autocomplete="off" autocapitalize="none" spellcheck="false">
+                </label>
+                <div class="actions">
+                  <button data-action="refresh-dev-loop-fixture">Rodar fixture completo</button>
+                  <button data-action="review-dev-loop-fixture">Gerar evidência de review</button>
+                </div>
+                <pre id="dev-loop-fixture-output" aria-live="polite">Não carregado.</pre>
+              </article>
+
+              <article class="card compact-panel">
                 <h2>Modelo</h2>
                 <p class="muted">Conversa direta usa somente modelo local/privado configurado. Sem nuvem, Harness run, tools ou elevação automática.</p>
                 <label>Primeira conversa local

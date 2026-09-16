@@ -29,6 +29,7 @@ from .doctor import collect_doctor, render_doctor
 from .document_text import collect_document_text_local, render_document_text_local
 from .daily_config import collect_daily_config, read_daily_config, render_daily_config, shell_exports, validate_daily_config, write_daily_config
 from .dev_control import collect_dev_control_policy, render_dev_control_policy
+from .dev_loop_fixture import collect_dev_loop_fixture, render_dev_loop_fixture
 from .effective_authorization import collect_effective_authorization, render_effective_authorization
 from .external_expansion import collect_external_expansion_gate, render_external_expansion_gate
 from .errors import GatewayError
@@ -414,6 +415,12 @@ def main(argv: list[str] | None = None) -> int:
     approval_inbox_parser.add_argument("--effect", default=None, help="expected effect if later authorized")
     approval_inbox_parser.add_argument("--risk", default=None, help="risk label: low, medium, high, or unknown")
     approval_inbox_parser.add_argument("--json", action="store_true", help="print JSON")
+    dev_loop_fixture_parser = sub.add_parser("dev-loop-fixture", help="run the local Observe/Work/Review/Apply fixture without operational execution")
+    dev_loop_fixture_parser.add_argument("--workspace-root", default=".", help="explicit project workspace root")
+    dev_loop_fixture_parser.add_argument("--inbox-file", default=None, help="relative approval inbox JSONL file; defaults to .lai/approval-inbox.jsonl")
+    dev_loop_fixture_parser.add_argument("--approval-id", default=None, help="optional pending approval id to select")
+    dev_loop_fixture_parser.add_argument("--phase", choices=("observe", "work", "review", "apply", "full"), default="full", help="fixture phase to render")
+    dev_loop_fixture_parser.add_argument("--json", action="store_true", help="print JSON")
     adapter_dry_run_parser = sub.add_parser("adapter-dry-run", help="run a simulated adapter path without dispatch")
     adapter_dry_run_parser.add_argument("--adapter", default=None, help="adapter id used as the contract source")
     adapter_dry_run_parser.add_argument("--capability", required=True, help="requested capability to simulate")
@@ -1133,6 +1140,18 @@ def main(argv: list[str] | None = None) -> int:
             )
             if not args.json:
                 print(render_approval_inbox(payload))
+                return 0 if payload["overall"] != "blocked" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] != "blocked" else 1
+        if args.command == "dev-loop-fixture":
+            payload = collect_dev_loop_fixture(
+                workspace_root=args.workspace_root,
+                inbox_file=args.inbox_file,
+                approval_id=args.approval_id,
+                phase=args.phase,
+            )
+            if not args.json:
+                print(render_dev_loop_fixture(payload))
                 return 0 if payload["overall"] != "blocked" else 1
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0 if payload["overall"] != "blocked" else 1

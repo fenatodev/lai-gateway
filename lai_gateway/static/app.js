@@ -178,7 +178,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pareie este celular primeiro e atualize este painel.";
-  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "public-browser-output", "mcp-output", "n8n-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "permission-ux-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output", "external-expansion-output", "objective-output", "action-proposal-output", "approval-inbox-output"]) {
+  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "public-browser-output", "mcp-output", "n8n-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "permission-ux-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output", "external-expansion-output", "objective-output", "action-proposal-output", "approval-inbox-output", "dev-loop-fixture-output", "dev-loop-fixture-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -380,6 +380,47 @@ function setApprovalInbox(payload) {
   setPill("workbench-pill", `aprovação ${payload.overall || "desconhecido"}`, state);
   clearPairRequiredOutput("approval-inbox-output");
   show("approval-inbox-output", compactApprovalInboxText(payload));
+}
+
+function devLoopFixtureParams(phase = "full") {
+  const params = new URLSearchParams({
+    workspace_root: byId("objective-workspace-root")?.value || ".",
+    inbox_file: byId("approval-inbox-file")?.value || ".lai/approval-inbox.jsonl",
+    approval_id: byId("dev-loop-approval-id")?.value || "",
+    phase,
+  });
+  return params;
+}
+
+function compactDevLoopFixtureText(payload) {
+  const fixture = payload.fixture || {};
+  const lines = [
+    `lai-gateway dev-loop-fixture: ${payload.overall || "desconhecido"}`,
+    `schema: ${payload.schema_version || "dev-loop-fixture/v1"}`,
+    `phase: ${payload.phase || "full"}`,
+    `selected_approval_id: ${payload.selected_approval_id || "none"}`,
+    `evidence_id: ${payload.evidence_id || "none"}`,
+    "fixture_only: true",
+    "source_checkout_modified: false",
+    "merge_allowed: false",
+    "publication_allowed: false",
+    "effective_authorization: false",
+    "issues_grants: false",
+    "consumes_grants: false",
+    "dispatches_adapter: false",
+    "executes_tools: false",
+    "external_side_effects: false",
+  ];
+  for (const step of (fixture.steps || []).slice(0, 4)) lines.push(`step: ${step.phase} ${step.status} ${step.evidence}`);
+  if (payload.reason) lines.push(`reason: ${payload.reason}`);
+  return lines.join("\n");
+}
+
+function setDevLoopFixture(payload) {
+  const state = payload.overall === "blocked" ? "danger" : payload.overall === "ready" ? "ready" : "warn";
+  setPill("workbench-pill", `dev loop ${payload.overall || "desconhecido"}`, state);
+  clearPairRequiredOutput("dev-loop-fixture-output");
+  show("dev-loop-fixture-output", compactDevLoopFixtureText(payload));
 }
 
 function setModelStatus(payload) {
@@ -1760,6 +1801,10 @@ async function runAction(action) {
       setApprovalInbox(await requestJson(`/v1/gateway/approval-inbox?${approvalInboxParams("show")}`));
     } else if (action === "enqueue-approval-inbox") {
       setApprovalInbox(await requestJson(`/v1/gateway/approval-inbox?${approvalInboxParams("enqueue")}`));
+    } else if (action === "refresh-dev-loop-fixture") {
+      setDevLoopFixture(await requestJson(`/v1/gateway/dev-loop-fixture?${devLoopFixtureParams("full")}`));
+    } else if (action === "review-dev-loop-fixture") {
+      setDevLoopFixture(await requestJson(`/v1/gateway/dev-loop-fixture?${devLoopFixtureParams("review")}`));
     } else if (action === "refresh-public-browser-plan") {
       setPublicBrowser(await requestJson(`/v1/gateway/public-browser?${publicBrowserParams("plan")}`));
     } else if (action === "fetch-public-browser") {
@@ -2145,6 +2190,7 @@ document.addEventListener("DOMContentLoaded", () => {
     runAction("refresh-objective-state");
     runAction("refresh-action-proposal");
     runAction("refresh-approval-inbox");
+    runAction("refresh-dev-loop-fixture");
     runAction("refresh-health-report");
     runAction("refresh-local-chat-contract");
     runAction("load-local-chat-workspaces");

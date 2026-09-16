@@ -41,6 +41,7 @@ from .public_browser import collect_public_browser
 from .skills import collect_skills_registry
 from .config import GatewayConfig, read_gateway_access_token, validate_gateway_bind
 from .dev_control import collect_dev_control_policy
+from .dev_loop_fixture import collect_dev_loop_fixture
 from .document_text import collect_document_text_local
 from .document_workbench import collect_document_workbench
 from .tokens import read_valid_gateway_pairing_token
@@ -508,6 +509,20 @@ class GatewayHandler(BaseHTTPRequestHandler):
                     data=values.get("data", [None])[0] or None,
                     effect=values.get("effect", [None])[0] or None,
                     risk=values.get("risk", [None])[0] or None,
+                ),
+            )
+            return
+        if parsed.path == "/v1/gateway/dev-loop-fixture":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            self._send_json(
+                HTTPStatus.OK,
+                collect_dev_loop_fixture(
+                    workspace_root=values.get("workspace_root", ["."])[0] or ".",
+                    inbox_file=values.get("inbox_file", [None])[0] or None,
+                    approval_id=values.get("approval_id", [None])[0] or values.get("approval-id", [None])[0] or None,
+                    phase=values.get("phase", ["full"])[0] or "full",
                 ),
             )
             return
@@ -1130,6 +1145,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/adapter-invocation-proposal",
             "/v1/gateway/action-proposal",
             "/v1/gateway/approval-inbox",
+            "/v1/gateway/dev-loop-fixture",
             "/v1/gateway/audit-events",
             "/v1/gateway/adapter-dry-run",
             "/v1/gateway/authorization-capture-stub",
