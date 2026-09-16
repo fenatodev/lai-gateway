@@ -52,7 +52,7 @@ class ProductDocsTest(unittest.TestCase):
         for state in ("implemented", "experimental", "contract", "simulado/dry-run", "planned", "Disponível ao usuário"):
             self.assertIn(state, text)
         self.assertIn("browser | experimental", text)
-        self.assertIn("n8n | contract", text)
+        self.assertIn("n8n | experimental", text)
         self.assertIn("voice | contract", text)
         self.assertIn("local_status adapter | experimental", text)
         self.assertIn("instalação pública | planned", text)
@@ -102,11 +102,11 @@ class ProductDocsTest(unittest.TestCase):
             external,
         )
         self.assertIn(
-            "Continuam bloqueados na expansão governada: browser autenticado, n8n activation, "
+            "Continuam bloqueados na expansão governada: browser autenticado, n8n activation/execução real de workflow, "
             "MCP tool execution amplo, publicação, envio de mensagens, candidaturas, formulários, "
             "automações externas e uso de credenciais.", external,
         )
-        for capability in ("browser autenticado", "n8n activation", "MCP tool execution amplo", "publicação", "envio de mensagens", "candidaturas", "formulários", "automações externas", "uso de credenciais"):
+        for capability in ("browser autenticado", "n8n activation/execução real de workflow", "MCP tool execution amplo", "publicação", "envio de mensagens", "candidaturas", "formulários", "automações externas", "uso de credenciais"):
             self.assertIn(capability, external)
 
     def test_matrix_does_not_promote_contracts_or_dry_run_to_execution(self) -> None:
@@ -116,8 +116,12 @@ class ProductDocsTest(unittest.TestCase):
             if line.startswith("| ") and not line.startswith("| ---"):
                 cells = [cell.strip() for cell in line.strip("|").split("|")]
                 rows[cells[0]] = cells[1:]
-        for area in ("n8n", "voice", "MCP execution", "social/career", "document/media"):
+        for area in ("voice", "MCP execution", "social/career", "document/media"):
             self.assertEqual(rows[area][0], "contract", area)
+        self.assertEqual(rows["n8n"][0], "experimental")
+        self.assertIn("sem instalar/iniciar n8n", rows["n8n"][4])
+        self.assertIn("activation", rows["n8n"][4])
+        self.assertIn("execução real de workflow", rows["n8n"][4])
         self.assertEqual(rows["browser"][0], "experimental")
         self.assertIn("public-browser-read/v1", rows["browser"][4])
         self.assertIn("sem browser autenticado", rows["browser"][4])
@@ -425,6 +429,36 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("issue-mcp-local-tool", html)
         self.assertIn("run-mcp-local-tool", html)
 
+    def test_pr108_n8n_minimal_governed_is_canonical_and_limited(self) -> None:
+        spec = (PRODUCT_DOCS / "pr_108_n8n_minimal_governed.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        post = (PRODUCT_DOCS / "post_pr100_roadmap.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        html = (ROOT / "lai_gateway" / "static" / "index.html").read_text(encoding="utf-8")
+        js = (ROOT / "lai_gateway" / "static" / "app.js").read_text(encoding="utf-8")
+        combined = "\n".join([spec, index, post, matrix, html, js])
+        for marker in (
+            "n8n-local-plan/v1",
+            "n8n.local_plan_digest",
+            "n8n-local-plan",
+            "workflow_sha256",
+            "grant single-use",
+            "sem execução real de workflow",
+            "sem instalar/iniciar n8n",
+            "sem credenciais",
+            "sem rede",
+            "sem shell",
+            "sem webhook",
+            "não concede autorização",
+        ):
+            self.assertIn(marker, combined)
+        self.assertIn("[PR108](pr_108_n8n_minimal_governed.md)", index)
+        self.assertIn("n8n | experimental", matrix)
+        self.assertIn("/v1/gateway/n8n-local-plan", js)
+        self.assertIn("issue-n8n-local-plan", html)
+        self.assertIn("inspect-n8n-local-plan", html)
+        self.assertNotIn("n8n workflows are ready", combined)
+
     def test_pr105_operational_local_model_is_canonical_and_limited(self) -> None:
         spec = (PRODUCT_DOCS / "pr_105_operational_local_model.md").read_text(encoding="utf-8")
         index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
@@ -568,7 +602,7 @@ class ProductDocsTest(unittest.TestCase):
 
     def test_public_restrictions_are_complete_in_canonical_documents(self) -> None:
         restrictions = (
-            "Browser autenticado, n8n, voz, execução ampla/externa de tools MCP, social e automações externas "
+            "Browser autenticado, n8n activation/execução real de workflow, voz, execução ampla/externa de tools MCP, social e automações externas "
             "governadas não estão disponíveis como funcionalidades prontas. "
             "Contratos e simulações não autorizam execução real.",
             "local_status é apenas o primeiro adapter seguro restrito; não prova autorização geral.",
@@ -586,7 +620,7 @@ class ProductDocsTest(unittest.TestCase):
         for statement in (
             "Effective authorization currently covers `adapter-dry-run` and one real "
             "local non-dry-run path: `local-status-read` for `local_status.status`.",
-            "Authenticated browser sessions, n8n, voice, broad/external MCP execution and social/career automation "
+            "Authenticated browser sessions, n8n activation/real workflow execution, voice, broad/external MCP execution and social/career automation "
             "are not ready-to-use features.",
             "It is not general agent messaging authority or durable per-message approval.",
             "New governed sends require explicit approval of content and destination plus the roadmap gates.",

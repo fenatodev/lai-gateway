@@ -21,7 +21,7 @@ Roadmap normativo após o PR100. Ele substitui a sequência fechada PR90–PR100
 | PR105 | Modelo local operacional | Runtime local configurável com diagnóstico melhor | Sem download automático, sem nuvem, sem execução de tools e com health/fallback explícito |
 | PR106 | Browser público read-only | Implementado como GET público único com extração textual limitada | Sem login, sem cookies, sem formulário, sem download, sem JavaScript automation e com testes negativos próprios |
 | PR107 | MCP mínimo governado | Implementado como `mcp.local_echo_digest` local não sensível sob autorização | Capability exata, escopo mínimo, identidade, grant single-use e bloqueio de replay |
-| PR108 | n8n governado | Adapter n8n inativo por padrão | Sem activation automática, sem credenciais no Gateway, sem execução real até aprovação de workflow específico |
+| PR108 | n8n mínimo governado | Implementado como plano local por digest | Capability exata, escopo `n8n-local-plan`, identidade, grant single-use; sem instalação, credenciais, webhook, activation ou execução real de workflow |
 | PR109 | UX de permissões | Revisão humana mais clara | Diferença visível entre intenção, decisão, autorização efetiva, grant e execução |
 | PR110 | Expansão externa controlada | Go/no-go para capacidades externas | Matriz atualizada, evidência runtime, testes negativos e publicação humana separada |
 
@@ -32,7 +32,7 @@ Executar PR101 antes de qualquer release ou expansão. Depois, preferir PR102–
 ## Fora de escopo até spec própria
 
 - Browser autenticado.
-- n8n activation.
+- n8n activation e execução real de workflow.
 - MCP tool execution amplo.
 - Voz operacional.
 - Social/carreira com envio real.

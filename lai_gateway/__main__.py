@@ -38,6 +38,7 @@ from .public_browser import collect_public_browser, render_public_browser
 from .model import check_model_api_key_file, collect_model_chat, collect_model_eval, collect_model_files, collect_model_plan, collect_model_runs, collect_model_runtime, collect_model_smoke, collect_model_status, collect_model_task, create_model_api_key_file, render_model_chat, render_model_eval, render_model_files, render_model_key, render_model_plan, render_model_runs, render_model_runtime, render_model_smoke, render_model_status, render_model_task
 from .memory_context import collect_memory_context, render_memory_context
 from .mcp_local_tool import collect_mcp_local_tool, render_mcp_local_tool
+from .n8n_local_plan import collect_n8n_local_plan, render_n8n_local_plan
 from .mobile import (
     collect_mobile_repair,
     collect_mobile_start,
@@ -614,6 +615,12 @@ def main(argv: list[str] | None = None) -> int:
     mcp_local_parser.add_argument("--authorization-dir", default=None, help="local authorization directory under the repo scope")
     mcp_local_parser.add_argument("--payload-sha256", default=None, help="optional hex sha256 digest; raw payload is not accepted")
     mcp_local_parser.add_argument("--json", action="store_true", help="print JSON")
+    n8n_local_parser = sub.add_parser("n8n-local-plan", help="issue or inspect one governed local n8n plan digest")
+    n8n_local_parser.add_argument("n8n_action", nargs="?", choices=["plan", "issue", "inspect"], default="plan", help="local n8n plan action")
+    n8n_local_parser.add_argument("--authorization-grant-id", default=None, help="grant id returned by issue")
+    n8n_local_parser.add_argument("--authorization-dir", default=None, help="local authorization directory under the repo scope")
+    n8n_local_parser.add_argument("--workflow-sha256", default=None, help="optional hex sha256 digest; raw workflow JSON is not accepted")
+    n8n_local_parser.add_argument("--json", action="store_true", help="print JSON")
     sessions_parser = sub.add_parser("sessions", help="manage harness sessions without creating runs")
     sessions_sub = sessions_parser.add_subparsers(dest="sessions_command")
     sessions_list = sessions_sub.add_parser("list", help="list harness sessions")
@@ -1073,6 +1080,19 @@ def main(argv: list[str] | None = None) -> int:
             )
             if not args.json:
                 print(render_mcp_local_tool(payload))
+                return 0 if payload["overall"] == "ready" else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] == "ready" else 1
+        if args.command == "n8n-local-plan":
+            payload = collect_n8n_local_plan(
+                n8n_action=args.n8n_action,
+                authorization_grant_id=args.authorization_grant_id,
+                authorization_dir=args.authorization_dir,
+                workflow_sha256=args.workflow_sha256,
+                channel="cli",
+            )
+            if not args.json:
+                print(render_n8n_local_plan(payload))
                 return 0 if payload["overall"] == "ready" else 1
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0 if payload["overall"] == "ready" else 1

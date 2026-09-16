@@ -183,7 +183,12 @@ class GatewayUITest(unittest.TestCase):
                 self.assertIn('data-action="check-mcp-call-tool"', html)
                 self.assertIn('data-action="issue-mcp-local-tool"', html)
                 self.assertIn('data-action="run-mcp-local-tool"', html)
+                self.assertIn('id="n8n-output"', html)
+                self.assertIn('data-action="plan-n8n-local"', html)
+                self.assertIn('data-action="issue-n8n-local-plan"', html)
+                self.assertIn('data-action="inspect-n8n-local-plan"', html)
                 self.assertIn('Broker MCP', html)
+                self.assertIn('n8n local', html)
                 self.assertIn('id="auth-banner"', html)
                 self.assertIn('id="gateway-auth-result"', html)
                 self.assertIn('Parear este celular', html)
@@ -358,6 +363,9 @@ class GatewayUITest(unittest.TestCase):
         self.assertIn("/v1/harness/mcp/tools", js)
         self.assertIn("/v1/harness/mcp/policy-check", js)
         self.assertIn("/v1/gateway/mcp-local-tool", js)
+        self.assertIn("/v1/gateway/n8n-local-plan", js)
+        self.assertIn("issue-n8n-local-plan", js)
+        self.assertIn("inspect-n8n-local-plan", js)
         self.assertIn("/v1/gateway/permission-decision", js)
         self.assertIn("/v1/gateway/policy-eval", js)
         self.assertIn("/v1/gateway/authorization-record", js)
@@ -484,6 +492,57 @@ class GatewayUITest(unittest.TestCase):
         self.assertFalse(payload["security"]["broad_mcp_tool_execution"])
         self.assertNotIn(TOKEN, body)
         self.assertNotIn("Bearer", body)
+
+    def test_gateway_n8n_local_plan_endpoint_is_governed_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with RunningGateway(config) as gateway:
+                status, headers, body = read_url(f"{gateway.url}/v1/gateway/n8n-local-plan?n8n_action=plan")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        payload = json.loads(body)
+        self.assertEqual(payload["operation"], "n8n-local-plan")
+        self.assertEqual(payload["schema_version"], "n8n-local-plan/v1")
+        self.assertEqual(payload["requested_capability"], "n8n.local_plan_digest")
+        self.assertFalse(payload["local_plan_inspected"])
+        self.assertFalse(payload["workflow_executed"])
+        self.assertFalse(payload["workflow_activated"])
+        self.assertFalse(payload["webhook_called"])
+        self.assertFalse(payload["calls_n8n_instance"])
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
+
+    def test_private_n8n_local_plan_requires_gateway_auth(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            access_file = Path(tmp) / "access-token"
+            access = "gateway-access-secret-value-1234567890"
+            access_file.write_text(access, encoding="utf-8")
+            access_file.chmod(0o600)
+            pair_file = Path(tmp) / "pair-token.json"
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                bind="127.0.0.1",
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            with RunningGateway(config) as gateway:
+                with self.assertRaises(__import__("urllib.error").error.HTTPError) as unauth:
+                    read_url(f"{gateway.url}/v1/gateway/n8n-local-plan?n8n_action=plan")
+                status, _headers, body = read_url(
+                    f"{gateway.url}/v1/gateway/n8n-local-plan?n8n_action=plan",
+                    headers={"Authorization": f"Bearer {access}"},
+                )
+        self.assertEqual(unauth.exception.code, 401)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["operation"], "n8n-local-plan")
+        self.assertNotIn(access, body)
+        self.assertNotIn(TOKEN, body)
 
     def test_private_mcp_local_tool_requires_gateway_auth(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:

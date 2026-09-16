@@ -28,13 +28,13 @@ PR61–73: contratos, conversation-first, mediação de ferramentas, skills, dev
 
 A sequência PR90–PR100 termina no alpha técnico. PR101 inicia apenas o planejamento pós-PR100; não cria capacidade externa, tag, release ou publicação.
 
-PR93 cria pré-condição de identidade local verificada, mas não cria login completo nem autorização. PR94 prova somente `local_status.status` sob `local-status-read`; `local_status.echo` permanece fora da autorização non-dry-run. PR95 implementa recovery local para a mesma cadeia, mas isso não autoriza capacidades externas. PR96 expõe conversa local-model-first e fallback explícito, mas não instala runtime nem baixa modelo. PR97 cria memória local explícita e escopada, mas memória não é autorização, não é approval e não é fonte confiável de instruções sensíveis. Persistência de audit log não equivale a persistência de aprovação.
+PR93 cria pré-condição de identidade local verificada, mas não cria login completo nem autorização. PR94 prova somente `local_status.status` sob `local-status-read`; `local_status.echo` permanece fora da autorização non-dry-run. PR95 implementa recovery local para a mesma cadeia, depois reaproveitado por PR107 e PR108 para escopos locais estreitos; isso não autoriza capacidades externas. PR96 expõe conversa local-model-first e fallback explícito, mas não instala runtime nem baixa modelo. PR97 cria memória local explícita e escopada, mas memória não é autorização, não é approval e não é fonte confiável de instruções sensíveis. Persistência de audit log não equivale a persistência de aprovação.
 
 ## Capacidades externas — após os gates
 
 Browser/n8n/MCP/social reais ficam depois de PR93, PR94 e PR95, fora da sequência até PR100. Também exigem specs e evidência específicas; concluir esses PRs não habilita integrações automaticamente.
 
-Continuam bloqueados na expansão governada: browser autenticado, n8n activation, MCP tool execution amplo, publicação, envio de mensagens, candidaturas, formulários, automações externas e uso de credenciais. Browser público de leitura também exige contenção demonstrada; o rótulo read-only não basta. Voz, mídia, Model Lab e Scout continuam direção futura, sem promessa operacional ampla.
+Continuam bloqueados na expansão governada: browser autenticado, n8n activation/execução real de workflow, MCP tool execution amplo, publicação, envio de mensagens, candidaturas, formulários, automações externas e uso de credenciais. Browser público de leitura também exige contenção demonstrada; o rótulo read-only não basta. Voz, mídia, Model Lab e Scout continuam direção futura, sem promessa operacional ampla.
 
 Telegram outbound operacional já existe fora da nova cadeia geral: somente acionamento explícito do operador, destino configurado e envio habilitado. Não é autorização para agentes enviarem mensagens. Exigir aprovação explícita de conteúdo e destino para qualquer novo fluxo; não afirmar que o CLI atual possui aprovação durável por mensagem.
 
@@ -50,7 +50,7 @@ GPT-6/Astra, Claude e Codex são revisores, não são autoridade automática. Os
 
 ## Restrições públicas
 
-Browser autenticado, n8n, voz, execução ampla/externa de tools MCP, social e automações externas governadas não estão disponíveis como funcionalidades prontas. Contratos e simulações não autorizam execução real.
+Browser autenticado, n8n activation/execução real de workflow, voz, execução ampla/externa de tools MCP, social e automações externas governadas não estão disponíveis como funcionalidades prontas. Contratos e simulações não autorizam execução real.
 
 local_status é apenas o primeiro adapter seguro restrito; não prova autorização geral.
 

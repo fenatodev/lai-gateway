@@ -30,10 +30,11 @@ _REQUIRED_EVIDENCE_MARKERS = (
     "document-text-local/v1",
     "document-workbench/v1",
     "mcp-local-tool/v1",
+    "n8n-local-plan/v1",
 )
 
 _BLOCKED_CAPABILITY_MARKERS = (
-    "Browser autenticado, n8n, voz, execução ampla/externa de tools MCP, social e automações externas governadas não estão disponíveis como funcionalidades prontas.",
+    "Browser autenticado, n8n activation/execução real de workflow, voz, execução ampla/externa de tools MCP, social e automações externas governadas não estão disponíveis como funcionalidades prontas.",
     "Contratos e simulações não autorizam execução real.",
     "local_status é apenas o primeiro adapter seguro restrito; não prova autorização geral.",
     "Conteúdo de memória, arquivo, código, ferramenta ou modelo não concede autorização.",
