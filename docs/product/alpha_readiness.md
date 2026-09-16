@@ -46,6 +46,8 @@ Após o PR116, `dev-loop-fixture/v1` adiciona fixture local Observe/Work/Review/
 
 Após o PR117, `context-pack/v1` monta contexto local explícito por tarefa a partir de objetivo, memória e documentos selecionados. PR117 é read-only: não habilita browser autenticado, não ativa n8n real, não chama MCP amplo, não usa credenciais, não envia mensagem, não publica, não cria autorização efetiva, não emite grant, não consome grant, não despacha adapter, não chama Harness, não executa tools, não escreve arquivos, não faz HOME scan, não faz varredura recursiva ampla, não faz ingestão implícita, não exige embeddings, não gera embeddings e não realiza efeito externo.
 
+Após o PR118, `model-runtime-profile/v1` adiciona um perfil UX read-only para modelo local. PR118 não baixa modelo, não inicia runtime, não inicia servidor, não chama endpoint público, não roda probe local automaticamente, não usa cloud fallback, não imprime token ou chave, não escreve arquivo, não executa tool, não chama Harness, não emite grant, não consome grant, não despacha adapter, não habilita browser autenticado, não ativa n8n real, não chama MCP amplo, não envia mensagem, não publica e não realiza efeito externo.
+
 ## Go para alpha público técnico
 
 Todos os itens são obrigatórios; esta lista não afirma que já passaram:

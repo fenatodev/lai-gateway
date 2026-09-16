@@ -178,7 +178,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pareie este celular primeiro e atualize este painel.";
-  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "public-browser-output", "mcp-output", "n8n-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "permission-ux-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output", "external-expansion-output", "objective-output", "action-proposal-output", "approval-inbox-output", "dev-loop-fixture-output", "context-pack-output"]) {
+  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "model-runtime-profile-output", "public-browser-output", "mcp-output", "n8n-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "permission-ux-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output", "external-expansion-output", "objective-output", "action-proposal-output", "approval-inbox-output", "dev-loop-fixture-output", "context-pack-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -636,6 +636,45 @@ function setOnboardingStatus(payload) {
   setPill("onboarding-pill", `onboarding ${overall}`, state);
   clearPairRequiredOutput("onboarding-output");
   show("onboarding-output", compactOnboardingText(payload));
+}
+
+function compactModelRuntimeProfileText(payload) {
+  const profile = payload.profile || {};
+  const lines = [
+    `lai-gateway model-runtime-profile: ${payload.overall || "desconhecido"}`,
+    `schema: ${payload.schema_version || "model-runtime-profile/v1"}`,
+    `profile_id: ${profile.profile_id || "none"}`,
+    `model_configured: ${Boolean(profile.model_configured)}`,
+    `ready_for_chat: ${Boolean(profile.ready_for_chat)}`,
+    `fallback_mode: ${profile.fallback_mode || "unknown"}`,
+    "read_only: true",
+    "starts_runtime: false",
+    "downloads_models: false",
+    "cloud_fallback: false",
+    "network_access: false",
+    "local_openai_probe: false",
+    "filesystem_write: false",
+    "executes_tools: false",
+    "calls_harness: false",
+    "issues_grants: false",
+    "consumes_grants: false",
+    "dispatches_adapter: false",
+  ];
+  const steps = Array.isArray(payload.next_steps) ? payload.next_steps.slice(0, 6) : [];
+  if (steps.length) {
+    lines.push("next_steps:");
+    for (const step of steps) lines.push(`  ${step}`);
+  }
+  if (payload.reason) lines.push(`reason: ${payload.reason}`);
+  return lines.join("\n");
+}
+
+function setModelRuntimeProfile(payload) {
+  const overall = payload.overall || "desconhecido";
+  const state = overall === "ready" ? "ready" : overall === "needs_config" ? "danger" : "warn";
+  setPill("model-pill", `perfil ${overall}`, state);
+  clearPairRequiredOutput("model-runtime-profile-output");
+  show("model-runtime-profile-output", compactModelRuntimeProfileText(payload));
 }
 
 function compactModelRuntimeText(payload) {
@@ -1864,6 +1903,8 @@ async function runAction(action) {
       setPublicBrowser(await requestJson(`/v1/gateway/public-browser?${publicBrowserParams("plan")}`));
     } else if (action === "fetch-public-browser") {
       setPublicBrowser(await requestJson(`/v1/gateway/public-browser?${publicBrowserParams("fetch")}`));
+    } else if (action === "refresh-model-runtime-profile") {
+      setModelRuntimeProfile(await requestJson("/v1/gateway/model-runtime-profile"));
     } else if (action === "refresh-model-runtime") {
       setModelRuntime(await requestJson("/v1/gateway/model-runtime?runtime_action=diagnose&probe_openai=1"));
     } else if (action === "configure-model-runtime") {
@@ -2141,6 +2182,8 @@ async function runAction(action) {
             ? "external-expansion-output"
           : action.includes("ops")
             ? "ops-output"
+          : action.includes("model-runtime-profile")
+            ? "model-runtime-profile-output"
           : action.includes("context-pack")
             ? "context-pack-output"
           : action.includes("memory")
@@ -2237,6 +2280,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setAuthBanner("Acesso local por loopback não precisa de pareamento do celular.", "ready");
     runAction("refresh-onboarding");
     runAction("refresh-model-status");
+    runAction("refresh-model-runtime-profile");
     runAction("refresh-model-runtime");
     runAction("refresh-memory-context");
     runAction("refresh-document-workbench");

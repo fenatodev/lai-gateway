@@ -59,6 +59,7 @@ from .memory_context import collect_memory_context
 from .mcp_local_tool import collect_mcp_local_tool
 from .n8n_local_plan import collect_n8n_local_plan
 from .onboarding import collect_onboarding_status
+from .model_runtime_profile import collect_model_runtime_profile
 from .model import (
     collect_model_chat,
     collect_model_eval,
@@ -210,6 +211,16 @@ class GatewayHandler(BaseHTTPRequestHandler):
             if timeout is None:
                 return
             self._send_json(HTTPStatus.OK, collect_model_eval(timeout_seconds=timeout))
+            return
+        if parsed.path == "/v1/gateway/model-runtime-profile":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            include_plan = values.get("include_plan", ["1"])[0] not in {"0", "false", "no", "off"}
+            self._send_json(HTTPStatus.OK, collect_model_runtime_profile(
+                config_path=values.get("config_path", [None])[0] or None,
+                include_plan=include_plan,
+            ))
             return
         if parsed.path == "/v1/gateway/model-runtime":
             if not self._authorize_gateway_api(parsed.path):
@@ -1182,6 +1193,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/n8n-local-plan",
             "/v1/gateway/public-browser",
             "/v1/gateway/model-runtime",
+            "/v1/gateway/model-runtime-profile",
             "/v1/gateway/alpha-readiness",
             "/v1/gateway/external-expansion-gate",
             "/v1/gateway/objective-state",
