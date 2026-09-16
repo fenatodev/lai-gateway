@@ -12,6 +12,7 @@ let sessionExpiresAt = null;
 let sessionCountdownTimer = null;
 let lastMobileUrl = "";
 let lastMcpLocalGrantId = "";
+let lastN8nLocalGrantId = "";
 let localChatPollTimer = null;
 let lastLocalChatCursor = 0;
 let activeLocalRunId = "";
@@ -177,7 +178,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pareie este celular primeiro e atualize este painel.";
-  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "public-browser-output", "mcp-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output"]) {
+  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "public-browser-output", "mcp-output", "n8n-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -1532,6 +1533,17 @@ async function runAction(action) {
       if (!lastMcpLocalGrantId) throw new Error("emita um grant MCP local antes de executar");
       const payload = await requestJson(`/v1/gateway/mcp-local-tool?mcp_action=run&authorization_grant_id=${encodeURIComponent(lastMcpLocalGrantId)}`);
       show("mcp-output", payload);
+    } else if (action === "plan-n8n-local") {
+      const payload = await requestJson("/v1/gateway/n8n-local-plan?n8n_action=plan");
+      show("n8n-output", payload);
+    } else if (action === "issue-n8n-local-plan") {
+      const payload = await requestJson("/v1/gateway/n8n-local-plan?n8n_action=issue");
+      lastN8nLocalGrantId = payload.authorization_grant_id || "";
+      show("n8n-output", payload);
+    } else if (action === "inspect-n8n-local-plan") {
+      if (!lastN8nLocalGrantId) throw new Error("emita um grant n8n local antes de inspecionar");
+      const payload = await requestJson(`/v1/gateway/n8n-local-plan?n8n_action=inspect&authorization_grant_id=${encodeURIComponent(lastN8nLocalGrantId)}`);
+      show("n8n-output", payload);
     } else if (action === "send-model-chat") {
       const payload = await requestJson("/v1/gateway/chat", {
         method: "POST",

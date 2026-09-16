@@ -16,6 +16,9 @@ _LOCAL_STATUS_STATUS_CAPABILITY = "local_status.status"
 _LOCAL_MCP_SAFE_TOOL_SCOPE = "mcp-local-safe-tool"
 _LOCAL_MCP_ADAPTER = "mcp_local"
 _LOCAL_MCP_CAPABILITY = "mcp.local_echo_digest"
+_N8N_LOCAL_PLAN_SCOPE = "n8n-local-plan"
+_N8N_ADAPTER = "n8n"
+_N8N_LOCAL_PLAN_CAPABILITY = "n8n.local_plan_digest"
 
 
 @dataclass(frozen=True)
@@ -162,6 +165,28 @@ def _local_mcp_safe_tool_scope_status(
     return "effective_for_mcp_local_safe_tool", "mcp.local_echo_digest authorized for one governed local MCP-shaped tool", True, True, True
 
 
+def _n8n_local_plan_scope_status(
+    *,
+    permission: dict[str, Any],
+    validation: dict[str, Any],
+    dry_run: dict[str, Any],
+) -> tuple[str, str, bool, bool, bool]:
+    decision = permission["decision"]
+    if _unsafe_flags(validation, dry_run):
+        return "blocked", "n8n local plan authorization blocked by unsafe invariant", False, False, False
+    if not permission.get("identity_verified"):
+        return "blocked", "n8n local plan authorization requires verified principal identity", False, False, False
+    if decision.get("adapter_id") != _N8N_ADAPTER:
+        return "blocked", "n8n local plan authorization only permits n8n adapter", False, False, False
+    if decision.get("requested_capability") != _N8N_LOCAL_PLAN_CAPABILITY:
+        return "blocked", "n8n local plan authorization only permits n8n.local_plan_digest", False, False, False
+    if decision.get("outcome") != "allow" or decision.get("granted_capability") != _N8N_LOCAL_PLAN_CAPABILITY:
+        return "blocked", "n8n local plan authorization requires an explicit allow decision", False, False, False
+    if bool(decision.get("external_side_effects")):
+        return "blocked", "n8n local plan authorization refuses external side effects", False, False, False
+    return "effective_for_n8n_local_plan", "n8n.local_plan_digest authorized for one governed local plan inspection", True, True, True
+
+
 def _scope_status(
     *,
     operation_scope: str,
@@ -175,6 +200,8 @@ def _scope_status(
         return _local_status_read_scope_status(permission=permission, validation=validation, dry_run=dry_run)
     if operation_scope == _LOCAL_MCP_SAFE_TOOL_SCOPE:
         return _local_mcp_safe_tool_scope_status(permission=permission, validation=validation, dry_run=dry_run)
+    if operation_scope == _N8N_LOCAL_PLAN_SCOPE:
+        return _n8n_local_plan_scope_status(permission=permission, validation=validation, dry_run=dry_run)
     return "blocked", "effective authorization scope is not allowed", False, False, False
 
 
@@ -352,6 +379,7 @@ def collect_effective_authorization(
         "dry_run_safe_scope": _DRY_RUN_SAFE_SCOPE,
         "local_non_dry_run_scope": _LOCAL_STATUS_READ_SCOPE,
         "local_mcp_safe_tool_scope": _LOCAL_MCP_SAFE_TOOL_SCOPE,
+        "n8n_local_plan_scope": _N8N_LOCAL_PLAN_SCOPE,
         "effective_authorization": effective.effective_authorization,
         "scope_authorized": effective.scope_authorized,
         "adapter_capability_authorized": effective.adapter_capability_authorized,
