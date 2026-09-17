@@ -73,6 +73,11 @@ The digest contract does not grant authorization, change autonomy zone, expand
 the executor allowlist or enable Harness, adapters, tools, credentials,
 messages, publication, merge automation or external effects.
 
+The v1 digest is not a digital signature, MAC, provenance proof or
+tamper-evident log. It detects stale or mismatched task content only when
+trusted pipeline components independently recompute and compare the canonical
+digest.
+
 ## Go para alpha público técnico
 
 Todos os itens são obrigatórios; esta lista não afirma que já passaram:

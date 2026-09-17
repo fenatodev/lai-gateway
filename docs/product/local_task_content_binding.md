@@ -24,14 +24,29 @@ A task content digest is computed from the parsed `local-task/v1` JSON object.
 
 The digest contract is `sha256-canonical-json-v1`.
 
-Canonical serialization requirements:
+For v1, canonical bytes are produced by the Python standard-library JSON
+encoder with:
 
-- JSON encoded as UTF-8;
-- object keys sorted recursively;
-- insignificant whitespace removed;
-- non-ASCII characters preserved;
-- NaN and Infinity rejected;
-- digest represented as `sha256:<lowercase hexadecimal digest>`.
+- `ensure_ascii=False`
+- `sort_keys=True`
+- `separators=(",", ":")`
+- `allow_nan=False`
+- UTF-8 encoding of the resulting string
+
+Duplicate JSON object keys must be rejected during parsing. A parser that
+silently applies last-key-wins behavior does not satisfy this contract.
+
+Unicode strings are not normalized before hashing.
+
+JSON numbers keep the representation produced by the Python parser and encoder.
+Therefore `1` and `1.0` are distinct in v1, as are `0.0` and `-0.0`.
+
+The digest is SHA-256 over the canonical UTF-8 bytes and is represented as
+`sha256:<lowercase hexadecimal digest>`.
+
+`sha256-canonical-json-v1` is intentionally bound to the current Python
+implementation. Another language must reproduce the same canonical bytes or use
+a new versioned digest contract.
 
 Equivalent parsed JSON objects that differ only in key order or insignificant
 formatting must produce the same digest.
@@ -89,6 +104,19 @@ A valid `task_digest` must not:
 
 Content recovered from files, memory, models or tools remains untrusted data
 and does not become authorization because it has a digest.
+
+## Integrity boundary
+
+The digest provides deterministic content binding when the task is independently
+recomputed and compared with the digest propagated through the local task
+chain.
+
+It is not a digital signature, MAC, provenance proof or tamper-evident log.
+
+This contract does not claim protection against an actor that can modify the
+task, review artifact, approval artifact and trusted runtime together. Its
+purpose is to detect stale or mismatched task content across the governed
+pipeline without treating the digest as authorization.
 
 ## Initial scope
 
