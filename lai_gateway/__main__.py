@@ -38,6 +38,7 @@ from .local_task_dry_run import collect_local_task_dry_run, render_local_task_dr
 from .local_task_file_pack import collect_local_task_file_pack, render_local_task_file_pack
 from .local_task_review_gate import collect_local_task_review_gate, render_local_task_review_gate
 from .local_task_approval_gate import collect_local_task_approval_gate, render_local_task_approval_gate
+from .local_task_green_executor import collect_local_task_green_executor, render_local_task_green_executor
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .health import collect_health_report, render_health_report
@@ -768,6 +769,14 @@ def main(argv: list[str] | None = None) -> int:
     local_task_approval_gate_parser.add_argument("--review-file", required=True, help="repository-relative local-task-review-gate JSON output")
     local_task_approval_gate_parser.add_argument("--repo-root", default=None, help="repository root; defaults to the current project root")
     local_task_approval_gate_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    green_executor_parser = sub.add_parser("local-task-green-executor", help="execute exact allowlisted commands for green local tasks")
+    green_executor_parser.add_argument("--approval-file", required=True, help="repository-relative local-task-approval-gate JSON output")
+    green_executor_parser.add_argument("--task-file", required=True, help="repository-relative local-task/v1 JSON task file")
+    green_executor_parser.add_argument("--repo-root", default=None, help="repository root; defaults to the current project root")
+    green_executor_parser.add_argument("--command", dest="green_command", action="append", default=None, help="exact task-declared command to run; repeatable")
+    green_executor_parser.add_argument("--execute", action="store_true", help="actually run accepted local commands")
+    green_executor_parser.add_argument("--timeout-seconds", type=float, default=30.0, help="per-command timeout")
+    green_executor_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     objective_state_parser = sub.add_parser("objective-state", help="show read-only local objective/task/checkpoint state")
     objective_state_parser.add_argument("--workspace-root", default=".", help="explicit project workspace root")
     objective_state_parser.add_argument("--state-file", default=None, help="relative objective state file; defaults to .lai/objective-state.json")
@@ -895,6 +904,22 @@ def main(argv: list[str] | None = None) -> int:
                 return 0 if payload["overall"] != "blocked" else 1
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0 if payload["overall"] != "blocked" else 1
+        if args.command == "local-task-green-executor":
+            repo_root = Path(args.repo_root).resolve() if args.repo_root else _release_check_repo()
+            payload = collect_local_task_green_executor(
+                repo=repo_root,
+                approval_file=args.approval_file,
+                task_file=args.task_file,
+                commands=args.green_command,
+                execute=args.execute,
+                timeout_seconds=args.timeout_seconds,
+            )
+            if not args.json:
+                print(render_local_task_green_executor(payload))
+                return 0 if payload.get("overall") in {"ready", "executed"} else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload.get("overall") in {"ready", "executed"} else 1
+
         if args.command == "local-task-approval-gate":
             repo_root = Path(args.repo_root).resolve() if args.repo_root else _release_check_repo()
             payload = collect_local_task_approval_gate(

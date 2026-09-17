@@ -93,3 +93,9 @@ PR98 não habilita PDF, OCR, Office, mídia, HOME scan, upload externo, rede, es
 ## PR126 local task approval gate
 
 PR126 adiciona `local-task-approval-gate/v1` como gate read-only e advisory. Ele não executa tarefa, não concede permissão, não emite/consome grant, não chama Harness/tools/adapters, não envia mensagens, não publica e não faz merge. `ready_without_approval` só é permitido com review válido e evidência explícita de zona verde; ausência dessa evidência cai em `needs_approval`.
+
+## PR127 local task green executor
+
+PR127 introduces the first bounded local executor. It is limited to green-zone tasks that passed the approval gate as `ready_without_approval`.
+
+This is not general shell access. It only runs exact task-declared commands from a fixed allowlist and continues to block Harness calls, tool execution, adapter dispatch, credentials, messages, publication, merge and permission grants.
