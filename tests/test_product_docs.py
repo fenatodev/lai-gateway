@@ -1533,6 +1533,67 @@ class LocalTaskDryRunProductDocsTest(unittest.TestCase):
         self.assertIn("não consome grant", alpha)
         self.assertIn("não produz efeito externo", alpha)
 
+class LocalTaskFilePackProductDocsTest(unittest.TestCase):
+    def _read(self, relative: str) -> str:
+        return (ROOT / relative).read_text(encoding="utf-8")
+
+    def test_pr124_local_task_file_pack_is_documented_as_bounded_file_pack(self):
+        spec = self._read("docs/product/local_task_file_pack.md")
+        pr_note = self._read("docs/product/pr_124_local_task_file_pack.md")
+        combined = f"{spec}\n{pr_note}".lower()
+
+        required_markers = [
+            "local-task-file-pack/v1",
+            "local-task/v1",
+            "local-task-outbox/v1",
+            ".lai-ai/tasks",
+            ".lai-ai/outbox",
+            "--write",
+            "default mode is plan-only",
+            "repository-relative",
+            "must not contain parent traversal",
+            "never authorization",
+            "command execution",
+            "harness calls",
+            "tool calls",
+            "adapter dispatch",
+            "grant issuance",
+            "grant consumption",
+            "credential access",
+            "external side effects",
+        ]
+
+        for marker in required_markers:
+            with self.subTest(marker=marker):
+                self.assertIn(marker, combined)
+
+    def test_pr124_local_task_file_pack_is_indexed_as_implemented(self):
+        index = self._read("docs/product/index.md")
+        matrix = self._read("docs/product/implementation_matrix.md")
+        plan = self._read("docs/product/post_pr110_operating_plan.md")
+        alpha = self._read("docs/product/alpha_readiness.md")
+
+        self.assertIn("local_task_file_pack.md", index)
+        self.assertIn("`local-task-file-pack/v1`", index)
+
+        self.assertIn("| local_task_file_pack | implemented |", matrix)
+        self.assertIn("[spec](local_task_file_pack.md)", matrix)
+        self.assertIn("[PR124](pr_124_local_task_file_pack.md)", matrix)
+        self.assertIn("`.lai-ai/tasks`", matrix)
+        self.assertIn("`.lai-ai/outbox`", matrix)
+        self.assertIn("sem executor, shell", matrix)
+
+        self.assertIn("PR124 implementa `local-task-file-pack/v1`", plan)
+        self.assertIn("sem executor, shell, Harness", plan)
+
+        self.assertIn("Após o PR124", alpha)
+        self.assertIn("não executa comandos", alpha)
+        self.assertIn("não chama Harness", alpha)
+        self.assertIn("não chama tools", alpha)
+        self.assertIn("não despacha adapters", alpha)
+        self.assertIn("não emite grant", alpha)
+        self.assertIn("não consome grant", alpha)
+        self.assertIn("não produz efeito externo", alpha)
 
 if __name__ == "__main__":
     unittest.main()
