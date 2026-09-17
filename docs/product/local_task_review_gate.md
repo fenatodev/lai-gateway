@@ -64,3 +64,12 @@ It must not execute commands, modify task files, call Harness, call tools, dispa
 ## Follow-up
 
 A future PR may connect this gate to a governed runner, but only after an explicit execution contract and approval path exist.
+
+## Non-authorizing approval metadata
+
+PR126 extends the review output with non-authorizing metadata copied from the reviewed task record:
+
+- `autonomy_zone`
+- `approval_required`
+
+These fields are evidence for a later approval gate only. They do not grant permission, do not authorize execution, and do not weaken any block/invalid decision.

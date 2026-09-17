@@ -12,6 +12,33 @@ from lai_gateway.local_task_review_gate import collect_local_task_review_gate, r
 
 
 class LocalTaskReviewGateTest(unittest.TestCase):
+
+    def test_review_output_propagates_non_authorizing_approval_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            task = self._task()
+            task["autonomy_zone"] = "yellow"
+            task["approval_required"] = True
+
+            try:
+                outbox = self._outbox(task_id=task["task_id"])
+            except TypeError:
+                outbox = self._outbox()
+                outbox["task_id"] = task["task_id"]
+
+            task_file, outbox_file = self._write_pack(repo, task, outbox)
+
+            payload = collect_local_task_review_gate(
+                repo=repo,
+                task_file=task_file,
+                outbox_file=outbox_file,
+            )
+
+            self.assertEqual(payload["autonomy_zone"], "yellow")
+            self.assertTrue(payload["approval_required"])
+            self.assertFalse(payload["effective_authorization"])
+            self.assertFalse(payload["executes_commands"])
+
     def _write_pack(self, repo: Path, task_id: str = "task-review-ok", zone: str = "green") -> tuple[str, str]:
         payload = collect_local_task_file_pack(
             repo=repo,
@@ -67,6 +94,31 @@ class LocalTaskReviewGateTest(unittest.TestCase):
 
             self.assertEqual(payload["overall"], "invalid")
             self.assertEqual(payload["decision"], "invalid")
+
+    def test_review_output_propagates_non_authorizing_approval_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            task_file, outbox_file = self._write_pack(
+                repo,
+                task_id="task-review-approval",
+                zone="yellow",
+            )
+
+            task_path = repo / task_file
+            task_record = json.loads(task_path.read_text(encoding="utf-8"))
+            task_record["approval_required"] = True
+            task_path.write_text(json.dumps(task_record), encoding="utf-8")
+
+            payload = collect_local_task_review_gate(
+                repo=repo,
+                task_file=task_file,
+                outbox_file=outbox_file,
+            )
+
+            self.assertEqual(payload["autonomy_zone"], "yellow")
+            self.assertTrue(payload["approval_required"])
+            self.assertFalse(payload["effective_authorization"])
+            self.assertFalse(payload["executes_commands"])
 
     def test_red_zone_task_record_is_blocked(self):
         with tempfile.TemporaryDirectory() as tmp:

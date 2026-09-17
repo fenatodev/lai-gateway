@@ -65,3 +65,6 @@ Para ações locais controladas, a autorização deve ser ligada a ação, alvo,
 ## Risco principal
 
 O risco atual não é falta de adapters; é confundir maturidade documental com capacidade operacional. A sequência prioriza estado, proposta, aprovação e contexto para evitar que o Gateway ou o Harness virem um monólito implícito de automação.
+## PR126 — local task approval gate
+
+PR126 coloca um gate read-only entre review de tarefa local e qualquer executor futuro. O estado de aprovação é advisory: não executa, não autoriza, não concede grant e não produz efeito externo. A próxima etapa segura é executor mínimo de zona verde, separado deste gate.

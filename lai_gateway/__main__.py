@@ -37,6 +37,7 @@ from .external_capability_gate import collect_external_capability_gate, render_e
 from .local_task_dry_run import collect_local_task_dry_run, render_local_task_dry_run
 from .local_task_file_pack import collect_local_task_file_pack, render_local_task_file_pack
 from .local_task_review_gate import collect_local_task_review_gate, render_local_task_review_gate
+from .local_task_approval_gate import collect_local_task_approval_gate, render_local_task_approval_gate
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .health import collect_health_report, render_health_report
@@ -763,6 +764,10 @@ def main(argv: list[str] | None = None) -> int:
     local_task_review_gate_parser.add_argument("--outbox-file", required=True, help="repository-relative outbox JSON file")
     local_task_review_gate_parser.add_argument("--repo-root", default=None, help="repository root; defaults to the current project root")
     local_task_review_gate_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    local_task_approval_gate_parser = sub.add_parser("local-task-approval-gate", help="classify a reviewed local task without granting execution")
+    local_task_approval_gate_parser.add_argument("--review-file", required=True, help="repository-relative local-task-review-gate JSON output")
+    local_task_approval_gate_parser.add_argument("--repo-root", default=None, help="repository root; defaults to the current project root")
+    local_task_approval_gate_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     objective_state_parser = sub.add_parser("objective-state", help="show read-only local objective/task/checkpoint state")
     objective_state_parser.add_argument("--workspace-root", default=".", help="explicit project workspace root")
     objective_state_parser.add_argument("--state-file", default=None, help="relative objective state file; defaults to .lai/objective-state.json")
@@ -890,6 +895,17 @@ def main(argv: list[str] | None = None) -> int:
                 return 0 if payload["overall"] != "blocked" else 1
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0 if payload["overall"] != "blocked" else 1
+        if args.command == "local-task-approval-gate":
+            repo_root = Path(args.repo_root).resolve() if args.repo_root else _release_check_repo()
+            payload = collect_local_task_approval_gate(
+                repo=repo_root,
+                review_file=args.review_file,
+            )
+            if not args.json:
+                print(render_local_task_approval_gate(payload))
+                return 0 if payload["overall"] in {"ready_without_approval", "needs_approval"} else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] in {"ready_without_approval", "needs_approval"} else 1
         if args.command == "model-status":
             payload = collect_model_status(probe_openai=args.probe_openai)
             if not args.json:
