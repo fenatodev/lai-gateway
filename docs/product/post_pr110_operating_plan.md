@@ -68,3 +68,7 @@ O risco atual não é falta de adapters; é confundir maturidade documental com 
 ## PR126 — local task approval gate
 
 PR126 coloca um gate read-only entre review de tarefa local e qualquer executor futuro. O estado de aprovação é advisory: não executa, não autoriza, não concede grant e não produz efeito externo. A próxima etapa segura é executor mínimo de zona verde, separado deste gate.
+
+## PR127 — local task green executor
+
+Add a minimal executor after PR126. It may run only green-zone, approval-gate-ready, task-declared, exact allowlisted local commands. It must not become a shell bridge or permission grant mechanism.

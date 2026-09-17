@@ -75,3 +75,4 @@ Os documentos `pr_*.md` têm rótulo **spec de PR / histórico**: são registros
 - **spec de PR / histórico** — [PR93](pr_93_testable_identity.md): vínculo local testável de identidade usuário/cliente/agente/serviço.
 
 GPT-6/Astra, Claude e Codex são revisores. Recomendações precisam de confronto com código, testes e decisão humana versionada. Documentos antigos fora desta lista devem ser lidos no contexto da versão e do escopo em que foram escritos.
+- [Local task green executor](local_task_green_executor.md) — implemented PR127 bounded executor for green-zone local task commands.

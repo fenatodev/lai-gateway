@@ -1656,6 +1656,38 @@ class LocalTaskReviewGateProductDocsTest(unittest.TestCase):
         self.assertIn("não consome grant", alpha)
         self.assertIn("não produz efeito externo", alpha)
 
+
+class LocalTaskGreenExecutorProductDocsTest(unittest.TestCase):
+    def test_pr127_local_task_green_executor_is_documented_as_bounded_executor(self) -> None:
+        spec = (PRODUCT_DOCS / "local_task_green_executor.md").read_text(encoding="utf-8")
+        pr = (PRODUCT_DOCS / "pr_127_local_task_green_executor.md").read_text(encoding="utf-8")
+
+        for needle in (
+            "local-task-green-executor/v1",
+            "green-zone",
+            "exactly allowlisted",
+            "shell=False",
+            "does not issue or consume permission grants",
+        ):
+            self.assertIn(needle, spec)
+
+        for needle in (
+            "PR127 adds `local-task-green-executor/v1`",
+            "require `ready_without_approval`",
+            "non-allowlisted commands are blocked",
+            "full repo checks remain green",
+        ):
+            self.assertIn(needle, pr)
+
+    def test_pr127_local_task_green_executor_is_indexed_as_implemented(self) -> None:
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        readiness = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+
+        self.assertIn("local_task_green_executor.md", index)
+        self.assertIn("local_task_green_executor | implemented | local restrito allowlistado", matrix)
+        self.assertIn("PR127 local task green executor", readiness)
+
 if __name__ == "__main__":
     unittest.main()
 
