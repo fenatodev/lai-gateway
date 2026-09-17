@@ -58,6 +58,21 @@ Após o PR124, `local-task-file-pack/v1` permite persistir artefatos locais de t
 Após o PR125, `local-task-review-gate/v1` valida artefatos locais de tarefa/outbox antes de qualquer runner futuro. O PR125 não executa comandos, não modifica arquivos de tarefa, não chama Harness, não chama tools, não despacha adapters, não emite grant, não consome grant, não usa credenciais, não envia mensagens, não publica, não faz merge em `main` e não produz efeito externo.
 
 
+
+## PR128 local task content binding
+
+PR128 specifies `local-task-content-binding/v1` as a documentation-only
+contract before further expansion of the local executor.
+
+The current runtime still correlates task review, approval and execution by
+`task_id`; PR128 does not yet make that chain content-bound. Do not claim
+review-to-execution digest binding until a later functional PR implements the
+shared canonical digest, propagation and executor-side recomputation.
+
+The digest contract does not grant authorization, change autonomy zone, expand
+the executor allowlist or enable Harness, adapters, tools, credentials,
+messages, publication, merge automation or external effects.
+
 ## Go para alpha público técnico
 
 Todos os itens são obrigatórios; esta lista não afirma que já passaram:
