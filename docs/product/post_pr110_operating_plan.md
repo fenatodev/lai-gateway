@@ -72,3 +72,14 @@ PR126 coloca um gate read-only entre review de tarefa local e qualquer executor 
 ## PR127 — local task green executor
 
 Add a minimal executor after PR126. It may run only green-zone, approval-gate-ready, task-declared, exact allowlisted local commands. It must not become a shell bridge or permission grant mechanism.
+
+## PR128 — local task content binding
+
+PR128 specifies `local-task-content-binding/v1` before any further expansion of
+the local executor. `task_id` remains correlation only; reviewed task content
+must be bound by a deterministic canonical digest propagated through review and
+approval and recomputed before execution.
+
+PR128 is documentation only. It does not add hashing runtime code, commands,
+allowlist entries, grants, Harness calls, adapters, tools, credentials,
+messages, publication, merge automation or external effects.
