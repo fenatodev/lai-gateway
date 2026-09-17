@@ -178,7 +178,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pareie este celular primeiro e atualize este painel.";
-  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "model-runtime-profile-output", "public-browser-output", "mcp-output", "n8n-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "permission-ux-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output", "external-expansion-output", "external-capability-output", "objective-output", "action-proposal-output", "approval-inbox-output", "dev-loop-fixture-output", "context-pack-output"]) {
+  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "model-runtime-profile-output", "public-browser-output", "mcp-output", "n8n-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "permission-ux-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output", "external-expansion-output", "external-capability-output", "objective-output", "action-proposal-output", "approval-inbox-output", "dev-loop-fixture-output", "context-pack-output", "local-operator-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -597,6 +597,75 @@ function setMcpStatus(payload) {
   );
   clearPairRequiredOutput("mcp-output");
   show("mcp-output", payload);
+}
+
+const LOCAL_OPERATOR_PROFILE_DESCRIPTIONS = {
+  "status": "Inspeciona branch e working tree do repositório.",
+  "diff-check": "Valida whitespace e integridade do diff atual.",
+  "diff-stat": "Mostra o resumo do diff atual.",
+  "compile": "Compila o pacote lai_gateway e a suíte de testes.",
+  "gate-tests": "Executa os testes dos gates de review, approval e green executor.",
+  "full-check": "Executa a suíte completa make check. Pode levar alguns minutos.",
+};
+
+function setLocalOperatorProfileDescription() {
+  const profile = selectValue("local-operator-profile");
+  const description = LOCAL_OPERATOR_PROFILE_DESCRIPTIONS[profile]
+    || "Perfil local desconhecido.";
+  setText("local-operator-description", description);
+}
+
+function setLocalOperatorResult(payload) {
+  const runtime = payload.runtime || {};
+  const overall = payload.overall || runtime.overall || "desconhecido";
+  const state = overall === "executed" || overall === "ready"
+    ? "ready"
+    : overall === "invalid" || overall === "blocked" || overall === "failed"
+      ? "danger"
+      : "warn";
+
+  const stages = runtime.stage_status || {};
+  const results = Array.isArray(runtime.command_results)
+    ? runtime.command_results
+    : [];
+
+  const lines = [
+    `workbench-local-operator: ${overall}`,
+    `profile: ${payload.profile || "unknown"}`,
+    `task_id: ${runtime.task_id || "none"}`,
+    `task_digest: ${runtime.task_digest || "none"}`,
+    `file_pack: ${stages.file_pack || "not-run"}`,
+    `review: ${stages.review || "not-run"}`,
+    `approval: ${stages.approval || "not-run"}`,
+    `executor: ${stages.executor || "not-run"}`,
+    `executes_commands: ${Boolean(runtime.executes_commands)}`,
+  ];
+
+  const planned = Array.isArray(runtime.planned_commands)
+    ? runtime.planned_commands
+    : [];
+  for (const command of planned) lines.push(`planned: ${command}`);
+
+  for (const result of results) {
+    lines.push(
+      `result: ${result.command || "unknown"} -> `
+      + `${result.status || "unknown"} (${result.returncode ?? "none"})`
+    );
+    if (result.stdout) lines.push(`stdout: ${result.stdout}`);
+    if (result.stderr) lines.push(`stderr: ${result.stderr}`);
+  }
+
+  setPill("local-operator-pill", `operador ${overall}`, state);
+  setCallout(
+    "local-operator-summary",
+    overall === "executed"
+      ? "Operação green executada pelo runtime governado."
+      : overall === "ready"
+        ? "Operação validada e pronta."
+        : `Operação terminou como ${overall}.`,
+    state,
+  );
+  show("local-operator-output", lines.join("\n"));
 }
 
 function mcpPolicyBody() {
@@ -2029,6 +2098,25 @@ async function runAction(action) {
       });
       setPill("model-pill", `documento ${payload.overall || "desconhecido"}`, payload.overall === "blocked" ? "danger" : "ready");
       show("document-output", payload);
+    } else if (action === "run-local-operator") {
+      const profile = selectValue("local-operator-profile");
+      if (!LOCAL_OPERATOR_PROFILE_DESCRIPTIONS[profile]) {
+        throw new Error("perfil do operador local não suportado");
+      }
+
+      setPill("local-operator-pill", "operador executando", "running");
+      setCallout(
+        "local-operator-summary",
+        "Executando operação green pelo Gateway...",
+        "warn",
+      );
+
+      const payload = await requestJson("/v1/gateway/local-operator", {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ profile }),
+      });
+      setLocalOperatorResult(payload);
     } else if (action === "refresh-local-chat-contract") {
       setLocalChatContract(await requestJson("/v1/local-chat/contract"));
     } else if (action === "load-local-chat-workspaces") {
@@ -2218,6 +2306,14 @@ async function runAction(action) {
     }
   } catch (err) {
     stopRunPolling();
+    if (action === "run-local-operator") {
+      setPill("local-operator-pill", "operador falhou", "danger");
+      setCallout(
+        "local-operator-summary",
+        "A operação local falhou. Nenhuma ampliação automática de autoridade foi tentada.",
+        "danger",
+      );
+    }
     if (action === "use-gateway-token") {
       gatewayAccessToken = "";
       gatewayTokenKind = "none";
@@ -2225,8 +2321,10 @@ async function runAction(action) {
       stopSessionCountdown();
       renderSessionCountdown();
     }
-    const target = action.includes("local-chat")
-      ? "local-chat-output"
+    const target = action.includes("local-operator")
+      ? "local-operator-output"
+      : action.includes("local-chat")
+        ? "local-chat-output"
       : action.includes("governance")
         ? "governance-output"
         : action.includes("session")
@@ -2325,6 +2423,15 @@ document.addEventListener("DOMContentLoaded", () => {
       runAction("load-local-chat-models");
     });
   }
+  const localOperatorProfile = byId("local-operator-profile");
+  if (localOperatorProfile) {
+    localOperatorProfile.addEventListener(
+      "change",
+      setLocalOperatorProfileDescription,
+    );
+    setLocalOperatorProfileDescription();
+  }
+
   const documentSelect = byId("document-relative-select");
   if (documentSelect) {
     documentSelect.addEventListener("change", () => {

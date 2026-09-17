@@ -4,6 +4,7 @@ import json
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 from http import HTTPStatus
 from pathlib import Path
 from urllib.error import HTTPError
@@ -624,6 +625,193 @@ class GatewayServerTest(unittest.TestCase):
                 with self.assertRaises(HTTPError) as caught:
                     urlopen(request, timeout=5)
                 self.assertEqual(caught.exception.code, HTTPStatus.METHOD_NOT_ALLOWED)
+
+
+class WorkbenchLocalOperatorGatewayTest(unittest.TestCase):
+    def _config(self, tmp: str, harness_url: str) -> GatewayConfig:
+        token_file = Path(tmp) / "token"
+        token_file.write_text(TOKEN, encoding="utf-8")
+        return GatewayConfig(
+            harness_url=harness_url,
+            token_file=token_file,
+        )
+
+    def _fake_operator_result(self, profile: str) -> dict[str, object]:
+        return {
+            "product": "lai-gateway",
+            "operation": "workbench-local-operator",
+            "schema_version": "workbench-local-operator/v1",
+            "overall": "executed",
+            "profile": profile,
+            "commands": [],
+            "runtime": {
+                "schema_version": "local-operator-runtime/v1",
+                "overall": "executed",
+                "executes_commands": True,
+            },
+            "executes_commands": True,
+            "security": {
+                "arbitrary_command_input": False,
+                "arbitrary_repo_root": False,
+                "expands_executor_allowlist": False,
+                "calls_harness": False,
+            },
+        }
+
+    def test_gateway_accepts_only_fixed_local_operator_profiles(self) -> None:
+        profiles = (
+            "status",
+            "diff-check",
+            "diff-stat",
+            "compile",
+            "gate-tests",
+            "full-check",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            with RunningGateway(self._config(tmp, harness.url)) as gateway:
+                with patch(
+                    "lai_gateway.server.collect_workbench_local_operator"
+                ) as collect:
+                    collect.side_effect = lambda **kwargs: (
+                        self._fake_operator_result(kwargs["profile"])
+                    )
+
+                    for profile in profiles:
+                        with self.subTest(profile=profile):
+                            status, payload = post_json(
+                                f"{gateway.url}/v1/gateway/local-operator",
+                                {"profile": profile},
+                            )
+
+                            self.assertEqual(status, HTTPStatus.OK)
+                            self.assertEqual(payload["profile"], profile)
+                            self.assertEqual(
+                                payload["schema_version"],
+                                "workbench-local-operator/v1",
+                            )
+
+                    self.assertEqual(collect.call_count, len(profiles))
+
+                    for call in collect.call_args_list:
+                        kwargs = call.kwargs
+
+                        self.assertEqual(
+                            kwargs["repo"],
+                            Path(__file__).resolve().parents[1],
+                        )
+                        self.assertTrue(kwargs["execute"])
+
+                        self.assertNotIn("command", kwargs)
+                        self.assertNotIn("repo_root", kwargs)
+
+    def test_gateway_rejects_unknown_local_operator_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            with RunningGateway(self._config(tmp, harness.url)) as gateway:
+                with patch(
+                    "lai_gateway.server.collect_workbench_local_operator"
+                ) as collect:
+                    status, payload = post_json_error(
+                        f"{gateway.url}/v1/gateway/local-operator",
+                        {"profile": "shell"},
+                    )
+
+                    self.assertEqual(status, HTTPStatus.BAD_REQUEST)
+                    self.assertEqual(
+                        payload["error"],
+                        "invalid_local_operator_profile",
+                    )
+                    collect.assert_not_called()
+
+    def test_gateway_rejects_browser_supplied_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            with RunningGateway(self._config(tmp, harness.url)) as gateway:
+                with patch(
+                    "lai_gateway.server.collect_workbench_local_operator"
+                ) as collect:
+                    status, payload = post_json_error(
+                        f"{gateway.url}/v1/gateway/local-operator",
+                        {
+                            "profile": "status",
+                            "command": "rm -rf .",
+                        },
+                    )
+
+                    self.assertEqual(status, HTTPStatus.BAD_REQUEST)
+                    self.assertEqual(
+                        payload["error"],
+                        "unsupported_local_operator_fields",
+                    )
+                    collect.assert_not_called()
+
+    def test_gateway_rejects_browser_supplied_repo_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            with RunningGateway(self._config(tmp, harness.url)) as gateway:
+                with patch(
+                    "lai_gateway.server.collect_workbench_local_operator"
+                ) as collect:
+                    status, payload = post_json_error(
+                        f"{gateway.url}/v1/gateway/local-operator",
+                        {
+                            "profile": "status",
+                            "repo_root": "/tmp",
+                        },
+                    )
+
+                    self.assertEqual(status, HTTPStatus.BAD_REQUEST)
+                    self.assertEqual(
+                        payload["error"],
+                        "unsupported_local_operator_fields",
+                    )
+                    collect.assert_not_called()
+
+    def test_private_gateway_protects_local_operator_endpoint(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            access_file = Path(tmp) / "gateway-access"
+
+            token_file.write_text(TOKEN, encoding="utf-8")
+            create_gateway_access_token(access_file)
+            access_token = access_file.read_text(encoding="utf-8").strip()
+
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                private_bind_enabled=True,
+                access_token_file=access_file,
+            )
+
+            with RunningGateway(config) as gateway:
+                status, payload = post_json_error(
+                    f"{gateway.url}/v1/gateway/local-operator",
+                    {"profile": "status"},
+                )
+
+                self.assertEqual(status, HTTPStatus.UNAUTHORIZED)
+                self.assertEqual(
+                    payload["error"],
+                    "gateway_auth_required",
+                )
+
+                with patch(
+                    "lai_gateway.server.collect_workbench_local_operator"
+                ) as collect:
+                    collect.return_value = self._fake_operator_result(
+                        "status"
+                    )
+
+                    status, payload = post_json_with_headers(
+                        f"{gateway.url}/v1/gateway/local-operator",
+                        {"profile": "status"},
+                        {
+                            "Authorization":
+                                f"Bearer {access_token}"
+                        },
+                    )
+
+                    self.assertEqual(status, HTTPStatus.OK)
+                    self.assertEqual(payload["profile"], "status")
+                    collect.assert_called_once()
 
 
 if __name__ == "__main__":

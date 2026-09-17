@@ -200,6 +200,42 @@
 
 
 
+          <details class="sidebar-menu local-operator-panel" open>
+            <summary>Operador local</summary>
+            <p class="muted">
+              Operações green fechadas executadas pelo runtime governado.
+              Sem shell livre, sem Harness e sem copiar comandos.
+            </p>
+            <label class="compact-label">Operação
+              <select id="local-operator-profile">
+                <option value="status">Status do repositório</option>
+                <option value="diff-check">Validar diff</option>
+                <option value="diff-stat">Resumo do diff</option>
+                <option value="compile">Compilar código e testes</option>
+                <option value="gate-tests">Testar gates locais</option>
+                <option value="full-check">Rodar make check completo</option>
+              </select>
+            </label>
+            <p id="local-operator-description" class="muted">
+              Inspeciona branch e working tree do repositório.
+            </p>
+            <button
+              id="local-operator-run-button"
+              class="primary"
+              type="button"
+              data-action="run-local-operator"
+            >Executar operação green</button>
+            <p id="local-operator-summary" class="callout warn" aria-live="polite">
+              Nenhuma operação local executada nesta sessão.
+            </p>
+            <span id="local-operator-pill" class="pill muted">
+              operador aguardando
+            </span>
+            <pre id="local-operator-output" class="compact-output" aria-live="polite">
+Nenhum resultado do operador local.
+            </pre>
+          </details>
+
           <details class="sidebar-menu governance-panel" open>
             <summary>Governança</summary>
             <p class="muted">Visibilidade de decisão, policy, autorização, proposta, eventos, dry-run e dispatcher. Execução real fica restrita ao adapter local_status.</p>
