@@ -83,3 +83,15 @@ approval and recomputed before execution.
 PR128 is documentation only. It does not add hashing runtime code, commands,
 allowlist entries, grants, Harness calls, adapters, tools, credentials,
 messages, publication, merge automation or external effects.
+
+## PR129 — local task content binding runtime
+
+PR129 implements `local-task-content-binding/v1` across review, approval and
+the bounded green executor. Review emits the canonical `task_digest`, approval
+validates and propagates it, and the executor recomputes it from the same task
+used for command checks before execution.
+
+Digest mismatch is invalid input and executes no command. PR129 does not expand
+the PR127 exact-command allowlist, grant authority, change autonomy semantics,
+enable arbitrary shell, call Harness, dispatch adapters/tools, use credentials,
+send messages, publish or automate merge.

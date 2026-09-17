@@ -59,24 +59,29 @@ Após o PR125, `local-task-review-gate/v1` valida artefatos locais de tarefa/out
 
 
 
-## PR128 local task content binding
+## PR128 / PR129 local task content binding
 
-PR128 specifies `local-task-content-binding/v1` as a documentation-only
-contract before further expansion of the local executor.
+PR128 specified `local-task-content-binding/v1`; PR129 implements the runtime
+binding for `local-task/v1`.
 
-The current runtime still correlates task review, approval and execution by
-`task_id`; PR128 does not yet make that chain content-bound. Do not claim
-review-to-execution digest binding until a later functional PR implements the
-shared canonical digest, propagation and executor-side recomputation.
+The review gate parses the task under the v1 canonicalization rules and emits
+`task_digest`. The approval gate requires a valid digest and propagates it
+without treating it as authority. The green executor recomputes the digest from
+the same parsed task used for command checks and requires exact equality before
+execution.
 
-The digest contract does not grant authorization, change autonomy zone, expand
-the executor allowlist or enable Harness, adapters, tools, credentials,
-messages, publication, merge automation or external effects.
+Missing, malformed or mismatched digest is `invalid` and cannot be converted
+into automatic approval. A task mutation after review therefore executes no
+command even when `task_id` remains unchanged.
 
-The v1 digest is not a digital signature, MAC, provenance proof or
-tamper-evident log. It detects stale or mismatched task content only when
-trusted pipeline components independently recompute and compare the canonical
-digest.
+PR129 does not expand the PR127 exact-command allowlist, change autonomy-zone
+semantics, remove approval requirements, create grants, enable Harness,
+adapters, tools, credentials, messaging, publication or merge automation.
+
+The v1 digest remains content binding only. It is not a digital signature, MAC,
+provenance proof or tamper-evident log and does not protect against an actor
+that can modify the task, review/approval artifacts and trusted runtime
+together.
 
 ## Go para alpha público técnico
 

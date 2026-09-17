@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .local_task_content_binding import is_valid_local_task_digest
 
 _SCHEMA_VERSION = "local-task-approval-gate/v1"
 _REVIEW_SCHEMA_VERSION = "local-task-review-gate/v1"
@@ -29,6 +30,7 @@ _REQUIRED_REVIEW_FIELDS = (
     "overall",
     "decision",
     "task_id",
+    "task_digest",
     "read_only",
     "checks",
     *_FALSE_AUTHORITY_FIELDS,
@@ -97,6 +99,17 @@ def _schema_check(payload: dict[str, Any] | None) -> dict[str, str]:
     if actual != _REVIEW_SCHEMA_VERSION:
         return _check("review:schema", "invalid", f"expected {_REVIEW_SCHEMA_VERSION}, got {actual!r}")
     return _check("review:schema", "ok", f"{_REVIEW_SCHEMA_VERSION} present")
+
+
+def _task_digest_check(payload: dict[str, Any] | None) -> dict[str, str]:
+    if payload is None:
+        return _check("review:task_digest", "invalid", "review payload is missing")
+
+    digest = payload.get("task_digest")
+    if is_valid_local_task_digest(digest):
+        return _check("review:task_digest", "ok", "valid reviewed task digest is present")
+
+    return _check("review:task_digest", "invalid", "task_digest is missing or malformed")
 
 
 def _read_only_check(payload: dict[str, Any] | None) -> dict[str, str]:
@@ -211,6 +224,7 @@ def collect_local_task_approval_gate(
 
     checks.extend(_required_field_checks(review_record))
     checks.append(_schema_check(review_record))
+    checks.append(_task_digest_check(review_record))
     checks.append(_read_only_check(review_record))
     checks.extend(_authority_checks(review_record))
     checks.append(_checks_shape(review_record))
@@ -231,6 +245,13 @@ def collect_local_task_approval_gate(
     else:
         overall = "ready_without_approval"
 
+    task_digest = (
+        review_record.get("task_digest")
+        if isinstance(review_record, dict)
+        and is_valid_local_task_digest(review_record.get("task_digest"))
+        else None
+    )
+
     return {
         "product": "lai-gateway",
         "version": __version__,
@@ -242,6 +263,7 @@ def collect_local_task_approval_gate(
         "repo_root": str(repo_root),
         "review_file": review_file_label,
         "task_id": review_record.get("task_id") if isinstance(review_record, dict) else None,
+        "task_digest": task_digest,
         "read_only": True,
         "requires_human_approval": overall == "needs_approval",
         "approval_effective": False,
@@ -270,6 +292,7 @@ def render_local_task_approval_gate(payload: dict[str, Any]) -> str:
         f"decision: {payload.get('decision', 'unknown')}",
         f"review_file: {payload.get('review_file', 'unknown')}",
         f"task_id: {payload.get('task_id', 'unknown')}",
+        f"task_digest: {payload.get('task_digest', 'unknown')}",
         f"requires_human_approval: {str(bool(payload.get('requires_human_approval'))).lower()}",
         "read_only: true",
         "approval_effective: false",

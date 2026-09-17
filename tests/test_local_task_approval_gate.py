@@ -23,6 +23,7 @@ class LocalTaskApprovalGateTest(unittest.TestCase):
             "overall": "ready",
             "decision": "ready",
             "task_id": "task-approval",
+            "task_digest": "sha256:" + ("0" * 64),
             "read_only": True,
             "autonomy_zone": "green",
             "effective_authorization": False,
@@ -62,6 +63,30 @@ class LocalTaskApprovalGateTest(unittest.TestCase):
             self.assertFalse(payload["execution_authorized"])
             self.assertFalse(payload["issues_grants"])
             self.assertFalse(payload["external_side_effects"])
+
+    def test_preserves_reviewed_task_digest(self) -> None:
+        review = self._review()
+        payload = collect_local_task_approval_gate(review_payload=review)
+
+        self.assertEqual(payload["overall"], "ready_without_approval")
+        self.assertEqual(payload["task_digest"], review["task_digest"])
+
+    def test_missing_task_digest_is_invalid(self) -> None:
+        review = self._review()
+        review.pop("task_digest")
+
+        payload = collect_local_task_approval_gate(review_payload=review)
+
+        self.assertEqual(payload["overall"], "invalid")
+        self.assertIsNone(payload["task_digest"])
+
+    def test_malformed_task_digest_is_invalid(self) -> None:
+        payload = collect_local_task_approval_gate(
+            review_payload=self._review(task_digest="sha256:not-a-digest")
+        )
+
+        self.assertEqual(payload["overall"], "invalid")
+        self.assertIsNone(payload["task_digest"])
 
     def test_missing_green_zone_evidence_requires_approval(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

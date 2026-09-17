@@ -1,6 +1,6 @@
 # Local task content binding
 
-Status: specified, not implemented.
+Status: implemented by PR129.
 
 `local-task-content-binding/v1` defines content identity for `local-task/v1`
 records as they move through review, approval classification and bounded local
@@ -14,9 +14,9 @@ retaining the same `task_id`.
 `task_id` is a correlation identifier. It is not proof that two task records
 contain the same content.
 
-The current local task chain correlates review, approval and bounded execution
-by `task_id`. Before the executor is expanded, content identity must also be
-preserved across that chain.
+Before PR129, the local task chain correlated review, approval and bounded
+execution by `task_id` only. PR129 implements content identity across that
+chain using `task_digest`.
 
 ## Contract
 
@@ -135,15 +135,17 @@ PR128 does not implement hashing code, gate changes, executor changes, new
 commands, new allowlist entries, grants, permission changes, Harness calls,
 adapter dispatch, tool execution or external effects.
 
-## Follow-up implementation
+## Runtime implementation
 
-A later functional PR may implement this contract by:
+PR129 implements this contract with:
 
-1. adding one shared canonical task digest helper;
-2. emitting `task_digest` from the review gate;
-3. requiring and propagating it through the approval gate;
-4. recomputing and checking it in the green executor;
-5. adding positive and mutation-negative tests.
+1. one shared canonical task parser and digest helper;
+2. strict duplicate-key rejection for `local-task/v1`;
+3. `task_digest` emission from the review gate;
+4. digest validation and propagation through the approval gate;
+5. executor-side recomputation from the task used for command checks;
+6. fail-closed `invalid` on missing, malformed or mismatched digest;
+7. positive, canonicalization and mutation-negative tests.
 
-That implementation must not broaden the PR127 command allowlist as part of the
-same change.
+PR129 does not broaden the PR127 command allowlist and does not make the digest
+authorization, a signature, a MAC, a provenance proof or a tamper-evident log.

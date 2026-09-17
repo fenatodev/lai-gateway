@@ -7,6 +7,12 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .local_task_content_binding import (
+    LocalTaskContentBindingError,
+    compute_local_task_digest,
+    is_valid_local_task_digest,
+    parse_local_task_json,
+)
 from .tool_mediation import run_process
 
 _SCHEMA_VERSION = "local-task-green-executor/v1"
@@ -85,7 +91,13 @@ def _safe_relative_path(value: str | None, label: str) -> tuple[Path | None, dic
     return path, _check(f"path:{label}", "ok", "path is repository-relative and bounded")
 
 
-def _read_json(repo: Path, rel: Path | None, label: str) -> tuple[dict[str, Any] | None, list[dict[str, str]]]:
+def _read_json(
+    repo: Path,
+    rel: Path | None,
+    label: str,
+    *,
+    strict_local_task: bool = False,
+) -> tuple[dict[str, Any] | None, list[dict[str, str]]]:
     if rel is None:
         return None, [_check(f"json:{label}", "invalid", "path is invalid")]
 
@@ -99,7 +111,10 @@ def _read_json(repo: Path, rel: Path | None, label: str) -> tuple[dict[str, Any]
         return None, [_check(f"json:{label}", "invalid", "file does not exist")]
 
     try:
-        parsed = json.loads(target.read_text(encoding="utf-8"))
+        text = target.read_text(encoding="utf-8")
+        parsed = parse_local_task_json(text) if strict_local_task else json.loads(text)
+    except LocalTaskContentBindingError as exc:
+        return None, [_check(f"json:{label}", "invalid", str(exc))]
     except json.JSONDecodeError as exc:
         return None, [_check(f"json:{label}", "invalid", f"invalid JSON: {exc.msg}")]
     except OSError as exc:
@@ -210,6 +225,51 @@ def _task_checks(task: dict[str, Any] | None, approval: dict[str, Any] | None) -
         checks.append(_check("task:false_authority", "ok", "task record does not claim effective authorization"))
 
     return checks
+
+
+def _content_binding_checks(
+    task: dict[str, Any] | None,
+    approval: dict[str, Any] | None,
+) -> tuple[list[dict[str, str]], str | None]:
+    if task is None:
+        return [_check("identity:task_digest", "invalid", "task payload is missing")], None
+
+    try:
+        task_digest = compute_local_task_digest(task)
+    except LocalTaskContentBindingError as exc:
+        return [_check("identity:task_digest", "invalid", str(exc))], None
+
+    approval_digest = (
+        approval.get("task_digest")
+        if isinstance(approval, dict)
+        else None
+    )
+
+    if not is_valid_local_task_digest(approval_digest):
+        return [
+            _check(
+                "identity:task_digest",
+                "invalid",
+                "approval task_digest is missing or malformed",
+            )
+        ], task_digest
+
+    if task_digest != approval_digest:
+        return [
+            _check(
+                "identity:task_digest",
+                "invalid",
+                "task digest does not match approval gate output",
+            )
+        ], task_digest
+
+    return [
+        _check(
+            "identity:task_digest",
+            "ok",
+            "task digest matches approval gate output",
+        )
+    ], task_digest
 
 
 def _command_checks(task: dict[str, Any] | None, requested_commands: list[str]) -> tuple[list[dict[str, str]], list[tuple[str, tuple[str, ...]]]]:
@@ -333,7 +393,7 @@ def collect_local_task_green_executor(
     if task_payload is None:
         task_rel, task_path_check = _safe_relative_path(task_file, "task_file")
         checks.append(task_path_check)
-        task_record, task_json_checks = _read_json(repo_root, task_rel, "task_file")
+        task_record, task_json_checks = _read_json(repo_root, task_rel, "task_file", strict_local_task=True)
         checks.extend(task_json_checks)
         task_file_label = str(task_rel) if task_rel is not None else task_file
     elif isinstance(task_payload, dict):
@@ -347,6 +407,12 @@ def collect_local_task_green_executor(
 
     checks.extend(_approval_checks(approval_record))
     checks.extend(_task_checks(task_record, approval_record))
+
+    content_binding_checks, task_digest = _content_binding_checks(
+        task_record,
+        approval_record,
+    )
+    checks.extend(content_binding_checks)
 
     command_checks, accepted_commands = _command_checks(task_record, list(commands or []))
     checks.extend(command_checks)
@@ -375,11 +441,12 @@ def collect_local_task_green_executor(
         "schema_version": _SCHEMA_VERSION,
         "overall": overall,
         "decision": overall,
-        "summary": "PR127 executes only task-declared exact allowlisted local commands for green tasks.",
+        "summary": "PR129 executes only content-bound task-declared exact allowlisted local commands for green tasks.",
         "repo_root": str(repo_root),
         "approval_file": approval_file_label,
         "task_file": task_file_label,
         "task_id": task_record.get("task_id") if isinstance(task_record, dict) else None,
+        "task_digest": task_digest,
         "execute_requested": bool(execute),
         "planned_commands": [command for command, _ in accepted_commands],
         "command_results": command_results,
@@ -410,6 +477,7 @@ def render_local_task_green_executor(payload: dict[str, Any]) -> str:
         f"schema_version: {payload.get('schema_version', _SCHEMA_VERSION)}",
         f"decision: {payload.get('decision', 'unknown')}",
         f"task_id: {payload.get('task_id', 'unknown')}",
+        f"task_digest: {payload.get('task_digest', 'unknown')}",
         f"approval_file: {payload.get('approval_file', 'unknown')}",
         f"task_file: {payload.get('task_file', 'unknown')}",
         f"execute_requested: {str(bool(payload.get('execute_requested'))).lower()}",

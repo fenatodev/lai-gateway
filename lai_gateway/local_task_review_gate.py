@@ -5,6 +5,11 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .local_task_content_binding import (
+    LocalTaskContentBindingError,
+    compute_local_task_digest,
+    parse_local_task_json,
+)
 
 _SCHEMA_VERSION = "local-task-review-gate/v1"
 _TASK_SCHEMA_VERSION = "local-task/v1"
@@ -54,7 +59,13 @@ def _safe_relative_path(value: str | None, label: str) -> tuple[Path | None, dic
     return path, _check(f"path:{label}", "ok", "path is repository-relative and bounded")
 
 
-def _read_json(repo: Path, rel: Path | None, label: str) -> tuple[dict[str, Any] | None, list[dict[str, str]]]:
+def _read_json(
+    repo: Path,
+    rel: Path | None,
+    label: str,
+    *,
+    strict_local_task: bool = False,
+) -> tuple[dict[str, Any] | None, list[dict[str, str]]]:
     if rel is None:
         return None, [_check(f"json:{label}", "invalid", "path is invalid")]
 
@@ -68,7 +79,10 @@ def _read_json(repo: Path, rel: Path | None, label: str) -> tuple[dict[str, Any]
         return None, [_check(f"json:{label}", "invalid", "file does not exist")]
 
     try:
-        parsed = json.loads(target.read_text(encoding="utf-8"))
+        text = target.read_text(encoding="utf-8")
+        parsed = parse_local_task_json(text) if strict_local_task else json.loads(text)
+    except LocalTaskContentBindingError as exc:
+        return None, [_check(f"json:{label}", "invalid", str(exc))]
     except json.JSONDecodeError as exc:
         return None, [_check(f"json:{label}", "invalid", f"invalid JSON: {exc.msg}")]
     except OSError as exc:
@@ -114,7 +128,7 @@ def collect_local_task_review_gate(
     task_rel, task_path_check = _safe_relative_path(task_file, "task_file")
     outbox_rel, outbox_path_check = _safe_relative_path(outbox_file, "outbox_file")
 
-    task_record, task_json_checks = _read_json(repo_root, task_rel, "task_file")
+    task_record, task_json_checks = _read_json(repo_root, task_rel, "task_file", strict_local_task=True)
     outbox_record, outbox_json_checks = _read_json(repo_root, outbox_rel, "outbox_file")
 
     checks: list[dict[str, str]] = [
@@ -144,6 +158,14 @@ def collect_local_task_review_gate(
     checks.extend(_unsafe_claim_checks(task_record, "task"))
     checks.extend(_unsafe_claim_checks(outbox_record, "outbox"))
 
+    task_digest: str | None = None
+    if task_record is not None:
+        try:
+            task_digest = compute_local_task_digest(task_record)
+            checks.append(_check("identity:task_digest", "ok", "task digest computed"))
+        except LocalTaskContentBindingError as exc:
+            checks.append(_check("identity:task_digest", "invalid", str(exc)))
+
     has_invalid = any(check["status"] == "invalid" for check in checks)
     has_blocked = any(check["status"] == "blocked" for check in checks)
 
@@ -161,6 +183,7 @@ def collect_local_task_review_gate(
         "task_file": str(task_rel) if task_rel is not None else task_file,
         "outbox_file": str(outbox_rel) if outbox_rel is not None else outbox_file,
         "task_id": task_record.get("task_id") if isinstance(task_record, dict) else None,
+        "task_digest": task_digest,
         "autonomy_zone": task_record.get("autonomy_zone") if isinstance(task_record, dict) else None,
         "approval_required": bool(task_record.get("approval_required")) if isinstance(task_record, dict) else False,
         "read_only": True,
@@ -188,6 +211,7 @@ def render_local_task_review_gate(payload: dict[str, Any]) -> str:
         f"decision: {payload.get('decision', 'unknown')}",
         f"task_file: {payload.get('task_file', 'unknown')}",
         f"outbox_file: {payload.get('outbox_file', 'unknown')}",
+        f"task_digest: {payload.get('task_digest', 'unknown')}",
         "read_only: true",
         "effective_authorization: false",
         "executes_commands: false",
