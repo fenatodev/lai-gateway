@@ -35,6 +35,7 @@ O foco não é adicionar mais adapters sensíveis. O foco é tornar o fluxo loca
 
 Após o PR120, PR121 propõe `local-operator-spec/v1` como follow-up documental: specified, not implemented; sem executor, shell, grants ou mudança de permissões; gateway classifica intenção/proposta e Harness executa dev controlado/review/apply.
 Após o PR121, PR122 propõe `local-task-format/v1` como follow-up documental: specified, not implemented; define `local-task/v1`, `local-task-outbox/v1` e convenções `.lai-ai/tasks`, `.lai-ai/outbox`, `.lai-ai/logs` sem criar diretórios, executor, shell, grants ou mudança de permissões.
+Após o PR122, PR123 implementa `local-task-dry-run/v1` como renderer read-only: produz `local-task/v1` e `local-task-outbox/v1` sem executor, shell, grants, Harness, tools, adapters, credenciais, mensagens, publicação, merge em `main` ou efeito externo.
 
 ## Ordem e dependências
 
