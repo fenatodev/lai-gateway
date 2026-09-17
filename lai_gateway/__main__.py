@@ -33,6 +33,7 @@ from .dev_control import collect_dev_control_policy, render_dev_control_policy
 from .dev_loop_fixture import collect_dev_loop_fixture, render_dev_loop_fixture
 from .effective_authorization import collect_effective_authorization, render_effective_authorization
 from .external_expansion import collect_external_expansion_gate, render_external_expansion_gate
+from .external_capability_gate import collect_external_capability_gate, render_external_capability_gate
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .health import collect_health_report, render_health_report
@@ -724,6 +725,9 @@ def main(argv: list[str] | None = None) -> int:
     alpha_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     external_expansion_parser = sub.add_parser("external-expansion-gate", help="check external capability go/no-go without enabling external effects")
     external_expansion_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    external_capability_parser = sub.add_parser("external-capability-gate", help="evaluate one explicit external capability candidate without enabling it")
+    external_capability_parser.add_argument("--candidate", default="browser.public_source_inspection", help="candidate id to evaluate")
+    external_capability_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     objective_state_parser = sub.add_parser("objective-state", help="show read-only local objective/task/checkpoint state")
     objective_state_parser.add_argument("--workspace-root", default=".", help="explicit project workspace root")
     objective_state_parser.add_argument("--state-file", default=None, help="relative objective state file; defaults to .lai/objective-state.json")
@@ -1754,6 +1758,11 @@ def main(argv: list[str] | None = None) -> int:
             if not args.json:
                 print(render_external_expansion_gate(payload))
                 return 0 if payload["overall"] == "ready" else 1
+        elif args.command == "external-capability-gate":
+            payload = collect_external_capability_gate(repo=_release_check_repo(), candidate=args.candidate)
+            if not args.json:
+                print(render_external_capability_gate(payload))
+                return 0 if payload["overall"] == "ready" else 1
         elif args.command == "objective-state":
             payload = collect_objective_state(
                 workspace_root=args.workspace_root,
@@ -1766,7 +1775,7 @@ def main(argv: list[str] | None = None) -> int:
             parser.print_help()
             return 0
         print(json.dumps(payload, indent=2, sort_keys=True))
-        if args.command in {"release-check", "alpha-readiness", "external-expansion-gate"} and payload["overall"] != "ready":
+        if args.command in {"release-check", "alpha-readiness", "external-expansion-gate", "external-capability-gate"} and payload["overall"] != "ready":
             return 1
         return 0
     except GatewayError as exc:

@@ -1984,5 +1984,52 @@ class GatewayUITest(unittest.TestCase):
         self.assertEqual(ctx.exception.code, 401)
 
 
+    def test_gateway_external_capability_gate_endpoint_is_read_only_and_secret_free(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            config = GatewayConfig(harness_url=harness.url, token_file=token_file)
+            with RunningGateway(config) as gateway:
+                with patch("lai_gateway.server.collect_external_capability_gate") as collect:
+                    collect.return_value = {
+                        "operation": "external-capability-gate",
+                        "schema_version": "external-capability-gate/v1",
+                        "overall": "ready",
+                        "selected_candidate_go": True,
+                        "external_capability_enabled": False,
+                        "effective_authorization": False,
+                        "security": {"executes_tools": False, "issues_grants": False},
+                    }
+                    status, headers, body = read_url(f"{gateway.url}/v1/gateway/external-capability-gate?candidate=browser.public_source_inspection")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["cache-control"], "no-store")
+        payload = json.loads(body)
+        self.assertEqual(payload["operation"], "external-capability-gate")
+        collect.assert_called_once()
+        self.assertNotIn(TOKEN, body)
+        self.assertNotIn("Bearer", body)
+
+    def test_private_external_capability_gate_requires_gateway_auth(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
+            token_file = Path(tmp) / "token"
+            token_file.write_text(TOKEN, encoding="utf-8")
+            access_file = Path(tmp) / "access-token"
+            access_file.write_text("gateway-access-secret-value-1234567890", encoding="utf-8")
+            access_file.chmod(0o600)
+            pair_file = Path(tmp) / "pair-token.json"
+            config = GatewayConfig(
+                harness_url=harness.url,
+                token_file=token_file,
+                bind="127.0.0.1",
+                private_bind_enabled=True,
+                access_token_file=access_file,
+                pair_token_file=pair_file,
+            )
+            with RunningGateway(config) as gateway:
+                with self.assertRaises(__import__("urllib.error").error.HTTPError) as ctx:
+                    read_url(f"{gateway.url}/v1/gateway/external-capability-gate")
+        self.assertEqual(ctx.exception.code, 401)
+
+
 if __name__ == "__main__":
     unittest.main()

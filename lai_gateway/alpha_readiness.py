@@ -40,6 +40,7 @@ _REQUIRED_EVIDENCE_MARKERS = (
     "context-pack/v1",
     "model-runtime-profile/v1",
     "public-browser-inspector/v1",
+    "external-capability-gate/v1",
 )
 
 _BLOCKED_CAPABILITY_MARKERS = (

@@ -50,6 +50,8 @@ Após o PR118, `model-runtime-profile/v1` adiciona um perfil UX read-only para m
 
 Após o PR119, `public-browser-inspector/v1` adiciona inspeção restrita de fonte pública sobre uma URL explícita. PR119 não habilita browser autenticado, não usa cookies, não executa JavaScript, não submete formulários, não faz download, não segue links, não usa credenciais, não envia mensagem, não publica, não cria autorização efetiva, não emite grant, não consome grant, não despacha adapter, não chama Harness, não executa tools e não realiza efeito externo além do GET público explícito da URL-alvo.
 
+Após o PR120, `external-capability-gate/v1` escolhe e avalia uma capacidade externa candidata sem habilitá-la. A candidata selecionada é `browser.public_source_inspection`; browser autenticado, n8n real, MCP amplo e envio externo continuam no-go. PR120 não habilita browser autenticado, não usa cookies, não executa JavaScript, não submete formulários, não faz download, não segue links, não usa credenciais, não envia mensagem, não publica, não ativa n8n real, não executa workflow n8n, não chama MCP amplo, não cria autorização efetiva, não emite grant, não consome grant, não despacha adapter, não chama Harness, não executa tools e não realiza efeito externo.
+
 ## Go para alpha público técnico
 
 Todos os itens são obrigatórios; esta lista não afirma que já passaram:

@@ -178,7 +178,7 @@ function isLoopbackHost() {
 
 function showPairRequiredOutputs() {
   const message = "Pareie este celular primeiro e atualize este painel.";
-  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "model-runtime-profile-output", "public-browser-output", "mcp-output", "n8n-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "permission-ux-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output", "external-expansion-output", "objective-output", "action-proposal-output", "approval-inbox-output", "dev-loop-fixture-output", "context-pack-output"]) {
+  for (const id of ["onboarding-output", "health-output", "ops-output", "status-output", "model-output", "model-runtime-output", "model-runtime-profile-output", "public-browser-output", "mcp-output", "n8n-output", "sessions-output", "runs-output", "run-events-output", "governance-output", "permission-ux-output", "decision-output", "policy-output", "authorization-output", "proposal-output", "audit-events-output", "dry-run-output", "capture-output", "validation-output", "effective-output", "dispatcher-output", "memory-output", "document-output", "alpha-output", "external-expansion-output", "external-capability-output", "objective-output", "action-proposal-output", "approval-inbox-output", "dev-loop-fixture-output", "context-pack-output"]) {
     show(id, message);
     const target = byId(id);
     if (target) target.classList.add("output-pair-required");
@@ -255,6 +255,48 @@ function setExternalExpansionGate(payload) {
   setPill("readiness-pill", allowed ? "external allowed" : `external ${payload.decision || "no-go"}`, state);
   clearPairRequiredOutput("external-expansion-output");
   show("external-expansion-output", compactExternalExpansionGateText(payload));
+}
+
+function compactExternalCapabilityGateText(payload) {
+  const candidate = payload.candidate || {};
+  const lines = [
+    `lai-gateway external-capability-gate: ${payload.overall || "desconhecido"}`,
+    `schema: ${payload.schema_version || "external-capability-gate/v1"}`,
+    `decision: ${payload.decision || "desconhecido"}`,
+    `candidate: ${candidate.id || "desconhecido"}`,
+    `capability: ${candidate.capability || "desconhecida"}`,
+    `selected_candidate_go: ${Boolean(payload.selected_candidate_go)}`,
+    "selected_candidate_enabled_by_gate: false",
+    "external_capability_enabled: false",
+    "effective_authorization: false",
+    "read_only: true",
+    "issues_grants: false",
+    "consumes_grants: false",
+    "dispatches_adapter: false",
+    "executes_tools: false",
+  ];
+  const blocked = Array.isArray(payload.blocked_sensitive_candidates) ? payload.blocked_sensitive_candidates.slice(0, 8) : [];
+  if (blocked.length) lines.push("blocked_sensitive_candidates:");
+  for (const item of blocked) lines.push(`  - ${item}`);
+  const checks = Array.isArray(payload.checks) ? payload.checks : [];
+  if (checks.length) lines.push("checks:");
+  for (const check of checks) lines.push(`  ${check.name}: ${check.status}`);
+  return lines.join("\n");
+}
+
+function setExternalCapabilityGate(payload) {
+  const go = Boolean(payload.selected_candidate_go);
+  const enabled = Boolean(payload.external_capability_enabled || payload.external_runtime_enabled);
+  const state = enabled ? "danger" : go ? "ready" : "warn";
+  setPill("readiness-pill", enabled ? "capability enabled" : `candidate ${payload.decision || "no-go"}`, state);
+  clearPairRequiredOutput("external-capability-output");
+  show("external-capability-output", compactExternalCapabilityGateText(payload));
+}
+
+function externalCapabilityParams() {
+  return new URLSearchParams({
+    candidate: byId("external-capability-candidate")?.value || "browser.public_source_inspection",
+  });
 }
 
 function objectiveStateParams() {
@@ -1900,6 +1942,8 @@ async function runAction(action) {
       setAlphaReadiness(await requestJson("/v1/gateway/alpha-readiness"));
     } else if (action === "refresh-external-expansion-gate") {
       setExternalExpansionGate(await requestJson("/v1/gateway/external-expansion-gate"));
+    } else if (action === "refresh-external-capability-gate") {
+      setExternalCapabilityGate(await requestJson(`/v1/gateway/external-capability-gate?${externalCapabilityParams()}`));
     } else if (action === "refresh-objective-state") {
       setObjectiveState(await requestJson(`/v1/gateway/objective-state?${objectiveStateParams()}`));
     } else if (action === "refresh-action-proposal") {
@@ -2195,6 +2239,8 @@ async function runAction(action) {
             ? "mcp-output"
           : action.includes("alpha")
             ? "alpha-output"
+          : action.includes("external-capability")
+            ? "external-capability-output"
           : action.includes("external-expansion")
             ? "external-expansion-output"
           : action.includes("ops")
@@ -2305,6 +2351,7 @@ document.addEventListener("DOMContentLoaded", () => {
     runAction("refresh-readiness");
     runAction("refresh-alpha-readiness");
     runAction("refresh-external-expansion-gate");
+    runAction("refresh-external-capability-gate");
     runAction("refresh-objective-state");
     runAction("refresh-action-proposal");
     runAction("refresh-approval-inbox");
