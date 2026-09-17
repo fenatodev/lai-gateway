@@ -16,6 +16,7 @@
 - **contrato funcional** — [Action proposal](action_proposal.md): proposta unificada read-only antes de aprovação, grant ou execução.
 - **contrato funcional** — [Approval inbox](approval_inbox.md): caixa local de aprovações pendentes sanitizadas, sem autorização efetiva.
 - **contrato arquitetural** — [Local operator](local_operator.md): `local-operator-spec/v1` para coordenação local futura; specified, not implemented; sem executor, shell, grants ou mudança de permissões.
+- **contrato arquitetural** — [Local task format](local_task_format.md): `local-task-format/v1`, `local-task/v1` e `local-task-outbox/v1` para tarefas locais futuras; specified, not implemented; sem executor, shell, grants ou mudança de permissões.
 - **contrato funcional** — [Dev loop fixture](dev_loop_fixture.md): fixture local Observe/Work/Review/Apply sem execução operacional.
 - **contrato funcional** — [Context pack](context_pack.md): pacote explícito de contexto local por tarefa sem autoridade implícita.
 - **contrato funcional** — [Model runtime profile](model_runtime_profile.md): perfil UX read-only de modelo local sem gerenciar runtime.
