@@ -107,3 +107,17 @@ PR121 is acceptable when the repository documents:
 | Gateway and harness responsibilities blur | Document gateway as intent/proposal layer and harness as execution/review layer |
 | Tool capability implies permission | Require explicit authorization independent of capability |
 | Future implementation expands filesystem access | Require bounded workspaces and explicit path policy |
+
+## Runtime implementation status
+
+PR121 remains the historical specification for `local-operator-spec/v1`.
+
+PR130 implements the separate `local-operator-runtime/v1` composition layer.
+That runtime coordinates the existing file-pack, review, approval,
+content-binding and bounded green-executor components.
+
+PR130 does not expand the PR127 command allowlist, grant authority, create
+arbitrary shell access, call Harness for the local-task path, dispatch adapters,
+use credentials, send messages, publish or merge `main`.
+
+See [Local operator runtime](local_operator_runtime.md).
