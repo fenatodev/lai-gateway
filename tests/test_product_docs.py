@@ -1212,6 +1212,62 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("inspect-public-browser", app)
         self.assertIn('data-action="inspect-public-browser"', html)
 
+    def test_pr120_external_capability_gate_is_canonical_and_limited(self) -> None:
+        contract = (PRODUCT_DOCS / "external_capability_gate.md").read_text(encoding="utf-8")
+        spec = (PRODUCT_DOCS / "pr_120_external_capability_gate.md").read_text(encoding="utf-8")
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        plan = (PRODUCT_DOCS / "post_pr110_operating_plan.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        main_py = (ROOT / "lai_gateway" / "__main__.py").read_text(encoding="utf-8")
+        server_py = (ROOT / "lai_gateway" / "server.py").read_text(encoding="utf-8")
+        app = (ROOT / "lai_gateway" / "static" / "app.js").read_text(encoding="utf-8")
+        html = (ROOT / "lai_gateway" / "static" / "index.html").read_text(encoding="utf-8")
+
+        for statement in (
+            "external-capability-gate/v1",
+            "browser.public_source_inspection",
+            "Domínio: governança de capacidade externa",
+            "Canal: CLI, API protegida do Gateway e Workbench",
+            "Autonomia: avaliação read-only",
+            "Capacidade: `external_capability.go_no_go_candidate`",
+        ):
+            self.assertIn(statement, spec + contract)
+        for blocked in (
+            "Não habilita browser autenticado",
+            "Não usa cookies",
+            "Não executa JavaScript",
+            "Não submete formulários",
+            "Não faz download",
+            "Não segue links",
+            "Não usa credenciais",
+            "Não envia mensagem",
+            "Não publica",
+            "Não ativa n8n real",
+            "Não executa workflow n8n",
+            "Não chama MCP amplo",
+            "Não cria autorização efetiva",
+            "Não emite grant",
+            "Não consome grant",
+            "Não despacha adapter",
+            "Não chama Harness",
+            "Não executa tools",
+            "Não realiza efeito externo",
+        ):
+            self.assertIn(blocked, spec)
+        self.assertIn("| PR120 | Gate de primeira capacidade externa | `external-capability-gate/v1`", plan)
+        self.assertIn("[External capability gate](external_capability_gate.md)", index)
+        self.assertIn("[PR120](pr_120_external_capability_gate.md)", index)
+        self.assertIn("external_capability_gate | experimental", matrix)
+        self.assertIn("sem apresentar o gate como browser autenticado", spec)
+        self.assertIn("Após o PR120", alpha)
+        self.assertIn("external-capability-gate/v1", readme)
+        self.assertIn("external-capability-gate", main_py)
+        self.assertIn("/v1/gateway/external-capability-gate", server_py + app)
+        self.assertIn('id="external-capability-output"', html)
+        self.assertIn('data-action="refresh-external-capability-gate"', html)
+
     def test_pr91_is_linked_from_canonical_public_docs(self) -> None:
         self.assertTrue((PRODUCT_DOCS / "pr_91_public_quickstart.md").is_file())
         readme = (ROOT / "README.md").read_text(encoding="utf-8")

@@ -30,6 +30,7 @@ from .authorization_record import collect_authorization_record
 from .authorization_validation import collect_authorization_validation_gate
 from .effective_authorization import collect_effective_authorization
 from .external_expansion import collect_external_expansion_gate
+from .external_capability_gate import collect_external_capability_gate
 from .health import collect_health_report, render_health_report
 from .identity import collect_identity_binding
 from .objective_state import collect_objective_state
@@ -254,6 +255,14 @@ class GatewayHandler(BaseHTTPRequestHandler):
             if not self._authorize_gateway_api(parsed.path):
                 return
             self._send_json(HTTPStatus.OK, collect_external_expansion_gate())
+            return
+        if parsed.path == "/v1/gateway/external-capability-gate":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            values = parse_qs(parsed.query, keep_blank_values=True)
+            self._send_json(HTTPStatus.OK, collect_external_capability_gate(
+                candidate=values.get("candidate", ["browser.public_source_inspection"])[0] or "browser.public_source_inspection",
+            ))
             return
         if parsed.path == "/v1/gateway/objective-state":
             if not self._authorize_gateway_api(parsed.path):
@@ -1196,6 +1205,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/model-runtime-profile",
             "/v1/gateway/alpha-readiness",
             "/v1/gateway/external-expansion-gate",
+            "/v1/gateway/external-capability-gate",
             "/v1/gateway/objective-state",
             "/v1/gateway/model-plan",
             "/v1/gateway/model-files",
