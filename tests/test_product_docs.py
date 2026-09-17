@@ -1339,5 +1339,69 @@ class ProductDocsTest(unittest.TestCase):
         self.assertIn("não publicam release, não fazem bump/tag e não habilitam capacidades externas", alpha)
 
 
+
+class LocalOperatorProductDocsTest(unittest.TestCase):
+    def _read(self, relative_path):
+        root = Path(__file__).resolve().parents[1]
+        return (root / relative_path).read_text(encoding="utf-8")
+
+    def test_pr121_local_operator_spec_is_documented_and_non_executing(self):
+        local_operator = self._read("docs/product/local_operator.md")
+        pr_note = self._read("docs/product/pr_121_local_operator_spec.md")
+        combined = (local_operator + "\n" + pr_note).lower()
+
+        for marker in (
+            "local-operator-spec/v1",
+            "documentation only",
+            "does not create an executor",
+            "does not execute commands",
+            "does not issue grants",
+            "does not consume grants",
+            "does not change permissions",
+            "gateway",
+            "harness",
+            "aider",
+            "ollama",
+            "never equals authorization",
+        ):
+            self.assertIn(marker, combined)
+
+        for forbidden_marker in (
+            "sudo",
+            "credential",
+            "authenticated browser",
+            "message sending",
+            "publication",
+            "merge to `main`",
+            "broad `$home` access",
+        ):
+            self.assertIn(forbidden_marker, combined)
+
+    def test_pr121_local_operator_is_indexed_as_specified_not_implemented(self):
+        docs = {
+            "index": self._read("docs/product/index.md"),
+            "matrix": self._read("docs/product/implementation_matrix.md"),
+            "plan": self._read("docs/product/post_pr110_operating_plan.md"),
+            "alpha": self._read("docs/product/alpha_readiness.md"),
+        }
+
+        for name, content in docs.items():
+            with self.subTest(name=name):
+                self.assertIn("local-operator-spec/v1", content)
+
+        matrix = docs["matrix"].lower()
+        self.assertIn("specified", matrix)
+        self.assertIn("not implemented", matrix)
+        self.assertIn("sem executor", matrix)
+        self.assertIn("sem executor, shell, grants", matrix)
+
+        alpha = docs["alpha"]
+        self.assertIn("Após o PR121", alpha)
+        self.assertIn("não cria executor", alpha)
+        self.assertIn("não adiciona shell", alpha)
+        self.assertIn("não emite grant", alpha)
+        self.assertIn("não consome grant", alpha)
+        self.assertIn("não altera permissões", alpha)
+
 if __name__ == "__main__":
     unittest.main()

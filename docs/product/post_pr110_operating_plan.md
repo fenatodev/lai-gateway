@@ -33,6 +33,8 @@ O foco não é adicionar mais adapters sensíveis. O foco é tornar o fluxo loca
 | PR119 | Browser público v2 | `public-browser-inspector/v1` | Source inspector público restrito; GET público read-only ampliado por spec estreita; sem login, cookies, JS automation, formulários, downloads ou link-following |
 | PR120 | Gate de primeira capacidade externa | `external-capability-gate/v1` | Escolha explícita de `browser.public_source_inspection` como candidata read-only limitada; browser autenticado, n8n real, MCP amplo e mensagens seguem bloqueados se faltar executor, política, aprovação e testes negativos |
 
+Após o PR120, PR121 propõe `local-operator-spec/v1` como follow-up documental: specified, not implemented; sem executor, shell, grants ou mudança de permissões; gateway classifica intenção/proposta e Harness executa dev controlado/review/apply.
+
 ## Ordem e dependências
 
 PR111 deve vir primeiro porque o roadmap pós-PR100 terminou no PR110. Sem novo plano, qualquer avanço vira expansão oportunista.
