@@ -1471,5 +1471,68 @@ class LocalTaskFormatProductDocsTest(unittest.TestCase):
         self.assertIn("não consome grant", alpha)
         self.assertIn("não altera permissões", alpha)
 
+
+
+class LocalTaskDryRunProductDocsTest(unittest.TestCase):
+    def _read(self, relative: str) -> str:
+        return (ROOT / relative).read_text(encoding="utf-8")
+
+    def test_pr123_local_task_dry_run_is_documented_as_read_only(self):
+        spec = self._read("docs/product/local_task_dry_run.md")
+        pr_note = self._read("docs/product/pr_123_local_task_dry_run.md")
+        combined = f"{spec}\n{pr_note}".lower()
+
+        required_markers = [
+            "local-task-dry-run/v1",
+            "local-task/v1",
+            "local-task-outbox/v1",
+            "read-only",
+            "dry-run",
+            "never authorization",
+            "does not execute commands",
+            "does not call harness",
+            "does not call tools",
+            "does not dispatch adapters",
+            "does not issue grants",
+            "does not consume grants",
+            "does not use credentials",
+            "does not send messages",
+            "does not publish",
+            "does not merge `main`",
+            "external side effects",
+        ]
+
+        for marker in required_markers:
+            with self.subTest(marker=marker):
+                self.assertIn(marker, combined)
+
+    def test_pr123_local_task_dry_run_is_indexed_as_implemented(self):
+        index = self._read("docs/product/index.md")
+        matrix = self._read("docs/product/implementation_matrix.md")
+        plan = self._read("docs/product/post_pr110_operating_plan.md")
+        alpha = self._read("docs/product/alpha_readiness.md")
+
+        self.assertIn("local_task_dry_run.md", index)
+        self.assertIn("`local-task-dry-run/v1`", index)
+
+        self.assertIn("| local_task_dry_run | implemented |", matrix)
+        self.assertIn("[spec](local_task_dry_run.md)", matrix)
+        self.assertIn("[PR123](pr_123_local_task_dry_run.md)", matrix)
+        self.assertIn("sem executor", matrix)
+        self.assertIn("sem executor, shell", matrix)
+
+        self.assertIn("PR123 implementa `local-task-dry-run/v1`", plan)
+        self.assertIn("sem executor, shell, grants", plan)
+
+        self.assertIn("Após o PR123", alpha)
+        self.assertIn("não executa comandos", alpha)
+        self.assertIn("não chama Harness", alpha)
+        self.assertIn("não chama tools", alpha)
+        self.assertIn("não despacha adapters", alpha)
+        self.assertIn("não emite grant", alpha)
+        self.assertIn("não consome grant", alpha)
+        self.assertIn("não produz efeito externo", alpha)
+
+
 if __name__ == "__main__":
     unittest.main()
