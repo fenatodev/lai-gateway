@@ -7,6 +7,7 @@ Status: implemented by PR127.
 It is intentionally narrow:
 
 - it only accepts tasks that passed `local-task-approval-gate/v1` as `ready_without_approval`;
+- it requires a valid approval `task_digest`, recomputes the digest from the parsed task used for command checks, and requires exact equality before execution;
 - it only accepts `local-task/v1` task records with `autonomy_zone = green`;
 - it blocks any task requiring human approval;
 - it executes no shell string and routes process execution through `tool_mediation.run_process`; this preserves the `shell=False` boundary via mediated argv execution;
@@ -29,11 +30,16 @@ Output:
 - `executed` when every allowlisted command exits with code 0;
 - `failed` when an allowlisted command ran and returned non-zero;
 - `blocked` for non-green, approval-required, non-allowlisted, non-task-declared or unsafe requests;
-- `invalid` for malformed paths, JSON, schema or mismatched task identity.
+- `invalid` for malformed paths, JSON, schema, task identity, missing/malformed digest, or task-content digest mismatch.
 
 ## Security limits
 
 This executor is not general shell access. It is a deterministic local command runner for a fixed allowlist.
+
+PR129 content binding prevents a task from being reviewed and then modified
+under the same `task_id`: a digest mismatch fails closed as `invalid` before
+command execution. The digest is content identity only, not authorization,
+signature, MAC or provenance proof.
 
 The executor may run local validation commands, but it must not:
 

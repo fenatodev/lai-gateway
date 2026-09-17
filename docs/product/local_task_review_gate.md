@@ -2,9 +2,9 @@
 
 ## Status
 
-`local-task-review-gate/v1` is a planned read-only validation gate for local task file-pack artifacts.
+`local-task-review-gate/v1` is an implemented read-only validation gate for local task file-pack artifacts.
 
-It reviews JSON records produced by `local-task-file-pack/v1` before any future runner can consume them.
+It reviews JSON records produced by `local-task-file-pack/v1` before bounded local execution can consume them.
 
 ## Purpose
 
@@ -61,9 +61,19 @@ A ready review means only that the local task/outbox records are structurally sa
 
 It must not execute commands, modify task files, call Harness, call tools, dispatch adapters, issue grants, consume grants, use credentials, send messages, publish, merge `main`, or perform external side effects.
 
-## Follow-up
+## Content binding
 
-A future PR may connect this gate to a governed runner, but only after an explicit execution contract and approval path exist.
+PR129 extends the review gate with `local-task-content-binding/v1`.
+
+For `local-task/v1`, the gate:
+
+- parses the task with duplicate JSON object keys rejected;
+- computes the canonical `task_digest`;
+- emits the digest as content identity evidence;
+- returns `invalid` when the task cannot satisfy the v1 binding contract.
+
+The digest does not grant permission and does not weaken any existing
+authorization or autonomy check.
 
 ## Non-authorizing approval metadata
 

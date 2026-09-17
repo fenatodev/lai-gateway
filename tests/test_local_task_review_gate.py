@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from lai_gateway.local_task_content_binding import is_valid_local_task_digest
 from lai_gateway.local_task_file_pack import collect_local_task_file_pack
 from lai_gateway.local_task_review_gate import collect_local_task_review_gate, render_local_task_review_gate
 
@@ -63,6 +64,7 @@ class LocalTaskReviewGateTest(unittest.TestCase):
             self.assertEqual(payload["schema_version"], "local-task-review-gate/v1")
             self.assertEqual(payload["overall"], "ready")
             self.assertEqual(payload["decision"], "ready")
+            self.assertTrue(is_valid_local_task_digest(payload["task_digest"]))
             self.assertFalse(payload["effective_authorization"])
             self.assertFalse(payload["executes_commands"])
             self.assertFalse(payload["calls_harness"])
@@ -70,6 +72,32 @@ class LocalTaskReviewGateTest(unittest.TestCase):
             self.assertFalse(payload["dispatches_adapter"])
             self.assertFalse(payload["issues_grants"])
             self.assertFalse(payload["consumes_grants"])
+
+    def test_duplicate_task_object_key_is_invalid(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            task_file, outbox_file = self._write_pack(
+                repo,
+                task_id="task-duplicate-key",
+            )
+
+            task_path = repo / task_file
+            raw = task_path.read_text(encoding="utf-8")
+            raw = raw.replace(
+                '"task_id": "task-duplicate-key"',
+                '"task_id": "task-duplicate-key", "task_id": "mutated"',
+                1,
+            )
+            task_path.write_text(raw, encoding="utf-8")
+
+            payload = collect_local_task_review_gate(
+                repo=repo,
+                task_file=task_file,
+                outbox_file=outbox_file,
+            )
+
+            self.assertEqual(payload["overall"], "invalid")
+            self.assertIsNone(payload["task_digest"])
 
     def test_missing_file_is_invalid(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -61,6 +61,7 @@ class LocalTaskGreenExecutorTest(unittest.TestCase):
             )
 
             self.assertEqual(payload["overall"], "executed")
+            self.assertEqual(payload["task_digest"], approval["task_digest"])
             self.assertTrue(payload["executes_commands"])
             self.assertEqual(payload["planned_commands"], ["git --version"])
             self.assertEqual(payload["command_results"][0]["status"], "success")
@@ -83,6 +84,51 @@ class LocalTaskGreenExecutorTest(unittest.TestCase):
             )
 
             self.assertEqual(payload["overall"], "ready")
+            self.assertFalse(payload["executes_commands"])
+            self.assertEqual(payload["command_results"], [])
+
+    def test_task_mutation_after_review_is_invalid(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            task_file, _task, approval = self._approved_pack(repo)
+
+            task_path = repo / task_file
+            task_record = json.loads(task_path.read_text(encoding="utf-8"))
+            task_record["allowed_paths"].append("README.md")
+            task_path.write_text(json.dumps(task_record), encoding="utf-8")
+
+            payload = collect_local_task_green_executor(
+                repo=repo,
+                task_file=task_file,
+                approval_payload=approval,
+                commands=["git --version"],
+                execute=True,
+            )
+
+            self.assertEqual(payload["overall"], "invalid")
+            self.assertFalse(payload["executes_commands"])
+            self.assertEqual(payload["command_results"], [])
+            self.assertNotEqual(
+                payload["task_digest"],
+                approval["task_digest"],
+            )
+
+    def test_malformed_approval_digest_is_invalid(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            task_file, task, approval = self._approved_pack(repo)
+            approval["task_digest"] = "sha256:not-a-digest"
+
+            payload = collect_local_task_green_executor(
+                repo=repo,
+                task_file=task_file,
+                task_payload=task,
+                approval_payload=approval,
+                commands=["git --version"],
+                execute=True,
+            )
+
+            self.assertEqual(payload["overall"], "invalid")
             self.assertFalse(payload["executes_commands"])
             self.assertEqual(payload["command_results"], [])
 

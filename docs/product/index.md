@@ -20,7 +20,7 @@
 - **implementação read-only** — [Local task dry-run](local_task_dry_run.md): `local-task-dry-run/v1` renderiza `local-task/v1` e `local-task-outbox/v1` sem executor, shell, grants, Harness, tools, adapters, credenciais ou efeitos externos.
 - **implementação local governada** — [Local task file pack](local_task_file_pack.md): `local-task-file-pack/v1` planeja ou escreve registros JSON `local-task/v1` e `local-task-outbox/v1` sob `.lai-ai/tasks` e `.lai-ai/outbox`, sem executor, shell, Harness, tools, adapters, grants, credenciais ou efeitos externos.
 - **gate read-only** — [Local task review gate](local_task_review_gate.md): `local-task-review-gate/v1` valida arquivos `local-task/v1` e `local-task-outbox/v1` antes de qualquer runner futuro; sem executor, shell, Harness, tools, adapters, grants, credenciais ou efeitos externos.
-- **contrato arquitetural** — [Local task content binding](local_task_content_binding.md): `local-task-content-binding/v1` vincula conteúdo de `local-task/v1` entre review, approval e executor; specified, not implemented; digest não concede autorização.
+- **implementação local governada** — [Local task content binding](local_task_content_binding.md): `local-task-content-binding/v1` vincula conteúdo de `local-task/v1` entre review, approval e executor por digest canônico; mismatch falha fechado e o digest não concede autorização.
 - **gate read-only** — [Local task approval gate](local_task_approval_gate.md): `local-task-approval-gate/v1` classifica uma revisão de tarefa local como `ready_without_approval`, `needs_approval`, `blocked` ou `invalid`; sem executor, shell, Harness, tools, adapters, grants, credenciais, mensagens, publicação, merge ou efeito externo.
 - **contrato funcional** — [Dev loop fixture](dev_loop_fixture.md): fixture local Observe/Work/Review/Apply sem execução operacional.
 - **contrato funcional** — [Context pack](context_pack.md): pacote explícito de contexto local por tarefa sem autoridade implícita.
@@ -45,6 +45,7 @@ Os documentos `pr_*.md` têm rótulo **spec de PR / histórico**: são registros
 - **revisão externa / histórico** — [Revisão Astra](astra_architecture_review.md) e [revisão Codex/Astra](codex_astra_architecture_review.md): insumos históricos, sem autoridade automática.
 - **descritivo / insumo de revisão externa** — [Prompt de revisão](roadmap_review_prompt.md): instrumento de coleta, não decisão.
 - **spec de PR / histórico** — [PR89](pr_89_roadmap_alpha_readiness.md): baseline histórico da consolidação.
+- **spec de PR / atual** — [PR129](pr_129_local_task_content_binding_runtime.md): implementa o binding determinístico de `local-task/v1` entre review, approval e executor, sem ampliar allowlist ou autoridade.
 - **spec de PR / atual** — [PR128](pr_128_local_task_content_binding.md): contrato de binding por digest para `local-task/v1`, sem mudança funcional ou ampliação do executor.
 - **spec de PR / atual** — [PR120](pr_120_external_capability_gate.md): gate read-only que seleciona `browser.public_source_inspection` sem liberar browser autenticado, n8n real, MCP amplo ou mensagens.
 - **spec de PR / histórico** — [PR119](pr_119_public_browser_v2.md): source inspector público restrito sem browser autenticado, cookies, JS, formulários, downloads ou link-following.

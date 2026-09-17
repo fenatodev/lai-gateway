@@ -12,7 +12,7 @@ It does not execute tasks. It does not grant permission. It does not consume gra
 
 The approval gate separates four states:
 
-- `ready_without_approval`: safe green-zone task that may proceed to a future governed executor.
+- `ready_without_approval`: safe green-zone task that may proceed to the bounded green executor.
 - `needs_approval`: yellow-zone task or task with proposed effects that requires explicit human approval before execution.
 - `blocked`: red-zone task or task containing unsafe authority claims.
 - `invalid`: malformed input, missing review result, schema mismatch, or inconsistent task/outbox identity.
@@ -29,6 +29,7 @@ Required properties:
 - `overall`
 - `decision`
 - `task_id`
+- `task_digest`
 - `read_only`
 - `effective_authorization`
 - `executes_commands`
@@ -46,13 +47,18 @@ Required properties:
 
 ## Decision rules
 
-The gate must return `invalid` when the review payload is malformed or not `local-task-review-gate/v1`.
+The gate must return `invalid` when the review payload is malformed, is not `local-task-review-gate/v1`, or lacks a valid `task_digest`.
 
 The gate must return `blocked` when the review decision is `blocked`, when the review exposes unsafe authority claims, or when any red-zone indicator is present.
 
 The gate must return `needs_approval` when the review is structurally valid but the task is not safe for automatic green-zone execution.
 
 The gate may return `ready_without_approval` only when the review is valid, ready, read-only, non-authorizing, non-executing, non-dispatching, non-publishing, non-merging, free of external side effects, and carries explicit green-zone evidence.
+
+PR129 requires the approval gate to preserve the exact reviewed `task_digest`
+in its output. The gate validates the digest format but does not recompute task
+content because the task itself is not an approval-gate input. Digest presence
+does not create authorization.
 
 ## Non-goals
 
