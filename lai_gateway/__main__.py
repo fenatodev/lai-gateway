@@ -36,6 +36,7 @@ from .external_expansion import collect_external_expansion_gate, render_external
 from .external_capability_gate import collect_external_capability_gate, render_external_capability_gate
 from .local_task_dry_run import collect_local_task_dry_run, render_local_task_dry_run
 from .local_task_file_pack import collect_local_task_file_pack, render_local_task_file_pack
+from .local_task_review_gate import collect_local_task_review_gate, render_local_task_review_gate
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .health import collect_health_report, render_health_report
@@ -757,6 +758,11 @@ def main(argv: list[str] | None = None) -> int:
     local_task_file_pack_parser.add_argument("--repo-root", default=None, help="repository root; defaults to the current project root")
     local_task_file_pack_parser.add_argument("--write", action="store_true", help="write task/outbox JSON files under the bounded output root")
     local_task_file_pack_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    local_task_review_gate_parser = sub.add_parser("local-task-review-gate", help="review local task/outbox JSON files without executing them")
+    local_task_review_gate_parser.add_argument("--task-file", required=True, help="repository-relative task JSON file")
+    local_task_review_gate_parser.add_argument("--outbox-file", required=True, help="repository-relative outbox JSON file")
+    local_task_review_gate_parser.add_argument("--repo-root", default=None, help="repository root; defaults to the current project root")
+    local_task_review_gate_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     objective_state_parser = sub.add_parser("objective-state", help="show read-only local objective/task/checkpoint state")
     objective_state_parser.add_argument("--workspace-root", default=".", help="explicit project workspace root")
     objective_state_parser.add_argument("--state-file", default=None, help="relative objective state file; defaults to .lai/objective-state.json")
@@ -1828,6 +1834,16 @@ def main(argv: list[str] | None = None) -> int:
             if not args.json:
                 print(render_local_task_file_pack(payload))
                 return 0 if payload["overall"] != "blocked" else 1
+        elif args.command == "local-task-review-gate":
+            repo_root = Path(args.repo_root).resolve() if args.repo_root else _release_check_repo()
+            payload = collect_local_task_review_gate(
+                repo=repo_root,
+                task_file=args.task_file,
+                outbox_file=args.outbox_file,
+            )
+            if not args.json:
+                print(render_local_task_review_gate(payload))
+                return 0 if payload["overall"] == "ready" else 1
         elif args.command == "objective-state":
             payload = collect_objective_state(
                 workspace_root=args.workspace_root,

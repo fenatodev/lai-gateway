@@ -1595,5 +1595,66 @@ class LocalTaskFilePackProductDocsTest(unittest.TestCase):
         self.assertIn("não consome grant", alpha)
         self.assertIn("não produz efeito externo", alpha)
 
+class LocalTaskReviewGateProductDocsTest(unittest.TestCase):
+    def _read(self, relative: str) -> str:
+        return (ROOT / relative).read_text(encoding="utf-8")
+
+    def test_pr125_local_task_review_gate_is_documented_as_read_only_gate(self):
+        spec = self._read("docs/product/local_task_review_gate.md")
+        pr_note = self._read("docs/product/pr_125_local_task_review_gate.md")
+        combined = f"{spec}\n{pr_note}".lower()
+
+        required_markers = [
+            "local-task-review-gate/v1",
+            "local-task/v1",
+            "local-task-outbox/v1",
+            "ready",
+            "blocked",
+            "invalid",
+            "read-only",
+            "not authorization",
+            "does not execute",
+            "run shell commands",
+            "call harness",
+            "call tools",
+            "dispatch adapters",
+            "issue grants",
+            "consume grants",
+            "use credentials",
+            "external side effects",
+        ]
+
+        for marker in required_markers:
+            with self.subTest(marker=marker):
+                self.assertIn(marker, combined)
+
+    def test_pr125_local_task_review_gate_is_indexed_as_implemented(self):
+        index = self._read("docs/product/index.md")
+        matrix = self._read("docs/product/implementation_matrix.md")
+        plan = self._read("docs/product/post_pr110_operating_plan.md")
+        alpha = self._read("docs/product/alpha_readiness.md")
+
+        self.assertIn("local_task_review_gate.md", index)
+        self.assertIn("`local-task-review-gate/v1`", index)
+
+        self.assertIn("| local_task_review_gate | implemented |", matrix)
+        self.assertIn("[spec](local_task_review_gate.md)", matrix)
+        self.assertIn("[PR125](pr_125_local_task_review_gate.md)", matrix)
+        self.assertIn("ready/blocked/invalid", matrix)
+        self.assertIn("sem executor, shell", matrix)
+
+        self.assertIn("PR125 implementa `local-task-review-gate/v1`", plan)
+        self.assertIn("ready/blocked/invalid", plan)
+
+        self.assertIn("Após o PR125", alpha)
+        self.assertIn("não executa comandos", alpha)
+        self.assertIn("não modifica arquivos de tarefa", alpha)
+        self.assertIn("não chama Harness", alpha)
+        self.assertIn("não chama tools", alpha)
+        self.assertIn("não despacha adapters", alpha)
+        self.assertIn("não emite grant", alpha)
+        self.assertIn("não consome grant", alpha)
+        self.assertIn("não produz efeito externo", alpha)
+
 if __name__ == "__main__":
     unittest.main()
