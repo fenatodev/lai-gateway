@@ -34,6 +34,7 @@ O foco não é adicionar mais adapters sensíveis. O foco é tornar o fluxo loca
 | PR120 | Gate de primeira capacidade externa | `external-capability-gate/v1` | Escolha explícita de `browser.public_source_inspection` como candidata read-only limitada; browser autenticado, n8n real, MCP amplo e mensagens seguem bloqueados se faltar executor, política, aprovação e testes negativos |
 
 Após o PR120, PR121 propõe `local-operator-spec/v1` como follow-up documental: specified, not implemented; sem executor, shell, grants ou mudança de permissões; gateway classifica intenção/proposta e Harness executa dev controlado/review/apply.
+Após o PR121, PR122 propõe `local-task-format/v1` como follow-up documental: specified, not implemented; define `local-task/v1`, `local-task-outbox/v1` e convenções `.lai-ai/tasks`, `.lai-ai/outbox`, `.lai-ai/logs` sem criar diretórios, executor, shell, grants ou mudança de permissões.
 
 ## Ordem e dependências
 

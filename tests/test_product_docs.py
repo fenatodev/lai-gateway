@@ -1403,5 +1403,73 @@ class LocalOperatorProductDocsTest(unittest.TestCase):
         self.assertIn("não consome grant", alpha)
         self.assertIn("não altera permissões", alpha)
 
+
+class LocalTaskFormatProductDocsTest(unittest.TestCase):
+    def _read(self, relative_path):
+        root = Path(__file__).resolve().parents[1]
+        return (root / relative_path).read_text(encoding="utf-8")
+
+    def test_pr122_local_task_format_is_documented_and_non_executing(self):
+        spec = self._read("docs/product/local_task_format.md")
+        pr_note = self._read("docs/product/pr_122_local_task_format.md")
+        combined = (spec + "\n" + pr_note).lower()
+
+        for marker in (
+            "local-task-format/v1",
+            "local-task/v1",
+            "local-task-outbox/v1",
+            ".lai-ai/tasks",
+            ".lai-ai/outbox",
+            ".lai-ai/logs",
+            "documentation only",
+            "does not create an executor",
+            "does not execute commands",
+            "does not add a shell",
+            "does not issue grants",
+            "does not consume grants",
+            "does not change permissions",
+            "never equals authorization",
+        ):
+            self.assertIn(marker, combined)
+
+        for forbidden_marker in (
+            "sudo",
+            "credential",
+            "authenticated browser",
+            "message sending",
+            "publication",
+            "merge to `main`",
+            "broad `$home` access",
+            "adapter dispatch",
+        ):
+            self.assertIn(forbidden_marker, combined)
+
+    def test_pr122_local_task_format_is_indexed_as_planned_not_implemented(self):
+        docs = {
+            "index": self._read("docs/product/index.md"),
+            "matrix": self._read("docs/product/implementation_matrix.md"),
+            "plan": self._read("docs/product/post_pr110_operating_plan.md"),
+            "alpha": self._read("docs/product/alpha_readiness.md"),
+        }
+
+        for name, content in docs.items():
+            with self.subTest(name=name):
+                self.assertIn("local-task-format/v1", content)
+
+        matrix = docs["matrix"].lower()
+        self.assertIn("| local_task_format | planned |", matrix)
+        self.assertIn("specified, not implemented", matrix)
+        self.assertIn("sem criar diretórios", matrix)
+        self.assertIn("sem criar diretórios, executor, shell", matrix)
+
+        alpha = docs["alpha"]
+        self.assertIn("Após o PR122", alpha)
+        self.assertIn("não cria `.lai-ai/tasks`", alpha)
+        self.assertIn("não cria executor", alpha)
+        self.assertIn("não adiciona shell", alpha)
+        self.assertIn("não emite grant", alpha)
+        self.assertIn("não consome grant", alpha)
+        self.assertIn("não altera permissões", alpha)
+
 if __name__ == "__main__":
     unittest.main()
