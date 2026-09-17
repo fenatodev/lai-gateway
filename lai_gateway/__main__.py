@@ -39,6 +39,7 @@ from .local_task_file_pack import collect_local_task_file_pack, render_local_tas
 from .local_task_review_gate import collect_local_task_review_gate, render_local_task_review_gate
 from .local_task_approval_gate import collect_local_task_approval_gate, render_local_task_approval_gate
 from .local_task_green_executor import collect_local_task_green_executor, render_local_task_green_executor
+from .local_operator_runtime import collect_local_operator_runtime, render_local_operator_runtime
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .health import collect_health_report, render_health_report
@@ -777,6 +778,78 @@ def main(argv: list[str] | None = None) -> int:
     green_executor_parser.add_argument("--execute", action="store_true", help="actually run accepted local commands")
     green_executor_parser.add_argument("--timeout-seconds", type=float, default=30.0, help="per-command timeout")
     green_executor_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    local_operator_runtime_parser = sub.add_parser(
+        "local-operator-runtime",
+        help="run the bounded governed local task chain end-to-end",
+    )
+    local_operator_runtime_parser.add_argument("--task-id", required=True, help="local task id")
+    local_operator_runtime_parser.add_argument("--domain", default=None, help="task domain label")
+    local_operator_runtime_parser.add_argument("--channel", default=None, help="task channel label")
+    local_operator_runtime_parser.add_argument(
+        "--autonomy-zone",
+        choices=["green", "yellow", "red"],
+        default="green",
+        help="task autonomy zone",
+    )
+    local_operator_runtime_parser.add_argument("--capability", default=None, help="requested capability label")
+    local_operator_runtime_parser.add_argument("--intent", default=None, help="short task intent")
+    local_operator_runtime_parser.add_argument(
+        "--allowed-path",
+        action="append",
+        default=None,
+        help="allowed path pattern; repeatable",
+    )
+    local_operator_runtime_parser.add_argument(
+        "--denied-path",
+        action="append",
+        default=None,
+        help="denied path pattern; repeatable",
+    )
+    local_operator_runtime_parser.add_argument(
+        "--validation",
+        action="append",
+        default=None,
+        help="validation command; repeatable",
+    )
+    local_operator_runtime_parser.add_argument(
+        "--proposed-command",
+        action="append",
+        default=None,
+        help="task-declared command; repeatable",
+    )
+    local_operator_runtime_parser.add_argument(
+        "--command",
+        dest="operator_command",
+        action="append",
+        default=None,
+        help="exact task-declared command to request; repeatable",
+    )
+    local_operator_runtime_parser.add_argument(
+        "--output-root",
+        default=".lai-ai",
+        help="repository-relative task artifact root",
+    )
+    local_operator_runtime_parser.add_argument(
+        "--repo-root",
+        default=None,
+        help="repository root; defaults to the current project root",
+    )
+    local_operator_runtime_parser.add_argument(
+        "--execute",
+        action="store_true",
+        help="execute only commands accepted by the existing green executor",
+    )
+    local_operator_runtime_parser.add_argument(
+        "--timeout-seconds",
+        type=float,
+        default=30.0,
+        help="per-command timeout",
+    )
+    local_operator_runtime_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="print machine-readable JSON",
+    )
     objective_state_parser = sub.add_parser("objective-state", help="show read-only local objective/task/checkpoint state")
     objective_state_parser.add_argument("--workspace-root", default=".", help="explicit project workspace root")
     objective_state_parser.add_argument("--state-file", default=None, help="relative objective state file; defaults to .lai/objective-state.json")
@@ -919,6 +992,39 @@ def main(argv: list[str] | None = None) -> int:
                 return 0 if payload.get("overall") in {"ready", "executed"} else 1
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0 if payload.get("overall") in {"ready", "executed"} else 1
+
+        if args.command == "local-operator-runtime":
+            repo_root = Path(args.repo_root).resolve() if args.repo_root else _release_check_repo()
+            payload = collect_local_operator_runtime(
+                repo=repo_root,
+                task_id=args.task_id,
+                domain=args.domain,
+                channel=args.channel,
+                autonomy_zone=args.autonomy_zone,
+                capability=args.capability,
+                intent=args.intent,
+                allowed_paths=args.allowed_path,
+                denied_paths=args.denied_path,
+                validation_plan=args.validation,
+                proposed_commands=args.proposed_command,
+                commands=args.operator_command,
+                output_root=args.output_root,
+                execute=args.execute,
+                timeout_seconds=args.timeout_seconds,
+            )
+            if not args.json:
+                print(render_local_operator_runtime(payload))
+                return 0 if payload["overall"] in {
+                    "ready",
+                    "executed",
+                    "needs_approval",
+                } else 1
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0 if payload["overall"] in {
+                "ready",
+                "executed",
+                "needs_approval",
+            } else 1
 
         if args.command == "local-task-approval-gate":
             repo_root = Path(args.repo_root).resolve() if args.repo_root else _release_check_repo()

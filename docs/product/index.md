@@ -16,6 +16,7 @@
 - **contrato funcional** — [Action proposal](action_proposal.md): proposta unificada read-only antes de aprovação, grant ou execução.
 - **contrato funcional** — [Approval inbox](approval_inbox.md): caixa local de aprovações pendentes sanitizadas, sem autorização efetiva.
 - **contrato arquitetural** — [Local operator](local_operator.md): `local-operator-spec/v1` para coordenação local futura; specified, not implemented; sem executor, shell, grants ou mudança de permissões.
+- **implementação local governada** — [Local operator runtime](local_operator_runtime.md): `local-operator-runtime/v1` compõe file-pack, review, approval, content binding e green executor sem ampliar allowlist ou autoridade.
 - **contrato arquitetural** — [Local task format](local_task_format.md): `local-task-format/v1`, `local-task/v1` e `local-task-outbox/v1` para tarefas locais futuras; specified, not implemented; sem executor, shell, grants ou mudança de permissões.
 - **implementação read-only** — [Local task dry-run](local_task_dry_run.md): `local-task-dry-run/v1` renderiza `local-task/v1` e `local-task-outbox/v1` sem executor, shell, grants, Harness, tools, adapters, credenciais ou efeitos externos.
 - **implementação local governada** — [Local task file pack](local_task_file_pack.md): `local-task-file-pack/v1` planeja ou escreve registros JSON `local-task/v1` e `local-task-outbox/v1` sob `.lai-ai/tasks` e `.lai-ai/outbox`, sem executor, shell, Harness, tools, adapters, grants, credenciais ou efeitos externos.
@@ -45,6 +46,7 @@ Os documentos `pr_*.md` têm rótulo **spec de PR / histórico**: são registros
 - **revisão externa / histórico** — [Revisão Astra](astra_architecture_review.md) e [revisão Codex/Astra](codex_astra_architecture_review.md): insumos históricos, sem autoridade automática.
 - **descritivo / insumo de revisão externa** — [Prompt de revisão](roadmap_review_prompt.md): instrumento de coleta, não decisão.
 - **spec de PR / histórico** — [PR89](pr_89_roadmap_alpha_readiness.md): baseline histórico da consolidação.
+- **spec de PR / atual** — [PR130](pr_130_local_operator_runtime.md): implementa `local-operator-runtime/v1` como composição governada da cadeia local, sem ampliar autoridade ou allowlist.
 - **spec de PR / atual** — [PR129](pr_129_local_task_content_binding_runtime.md): implementa o binding determinístico de `local-task/v1` entre review, approval e executor, sem ampliar allowlist ou autoridade.
 - **spec de PR / atual** — [PR128](pr_128_local_task_content_binding.md): contrato de binding por digest para `local-task/v1`, sem mudança funcional ou ampliação do executor.
 - **spec de PR / atual** — [PR120](pr_120_external_capability_gate.md): gate read-only que seleciona `browser.public_source_inspection` sem liberar browser autenticado, n8n real, MCP amplo ou mensagens.

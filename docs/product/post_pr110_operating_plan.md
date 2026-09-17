@@ -95,3 +95,16 @@ Digest mismatch is invalid input and executes no command. PR129 does not expand
 the PR127 exact-command allowlist, grant authority, change autonomy semantics,
 enable arbitrary shell, call Harness, dispatch adapters/tools, use credentials,
 send messages, publish or automate merge.
+
+## PR130 — local operator runtime
+
+PR130 implements `local-operator-runtime/v1` as the first end-to-end local
+orchestration path over the already governed local-task components.
+
+The runtime materializes the bounded task/file pack, runs review, classifies it
+through the approval gate, preserves `task_digest` content binding and reaches
+the PR127 green executor only for `ready_without_approval` green tasks.
+
+PR130 does not add command allowlist entries, create arbitrary shell, grant
+authority, change autonomy, call Harness for this path, dispatch adapters/tools,
+use credentials, send messages, publish or automate merge.

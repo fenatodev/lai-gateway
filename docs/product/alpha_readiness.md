@@ -83,6 +83,26 @@ provenance proof or tamper-evident log and does not protect against an actor
 that can modify the task, review/approval artifacts and trusted runtime
 together.
 
+## PR130 local operator runtime
+
+PR130 implements `local-operator-runtime/v1` as a bounded composition of the
+existing local task chain.
+
+A supported green task can now traverse file-pack, review, approval,
+content-binding and the exact-allowlisted green executor through one runtime
+call.
+
+Yellow tasks stop at `needs_approval`. Red, invalid, digest-mismatched,
+non-declared or non-allowlisted work executes no command.
+
+PR130 does not expand the PR127 allowlist, create arbitrary shell, grant
+authority, change autonomy semantics, call Harness for this path, dispatch
+adapters/tools, use credentials, send messages, publish or merge `main`.
+
+This is an orchestration milestone, not general autonomous project execution.
+Workbench conversation integration and governed Harness development integration
+remain later milestones.
+
 ## Go para alpha público técnico
 
 Todos os itens são obrigatórios; esta lista não afirma que já passaram:
