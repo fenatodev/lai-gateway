@@ -35,6 +35,7 @@ from .effective_authorization import collect_effective_authorization, render_eff
 from .external_expansion import collect_external_expansion_gate, render_external_expansion_gate
 from .external_capability_gate import collect_external_capability_gate, render_external_capability_gate
 from .local_task_dry_run import collect_local_task_dry_run, render_local_task_dry_run
+from .local_task_file_pack import collect_local_task_file_pack, render_local_task_file_pack
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .health import collect_health_report, render_health_report
@@ -741,6 +742,21 @@ def main(argv: list[str] | None = None) -> int:
     local_task_dry_run_parser.add_argument("--validation", action="append", default=None, help="validation command to render, not execute; repeatable")
     local_task_dry_run_parser.add_argument("--proposed-command", action="append", default=None, help="proposed command to render, not execute; repeatable")
     local_task_dry_run_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    local_task_file_pack_parser = sub.add_parser("local-task-file-pack", help="plan or write local task/outbox JSON files without executing them")
+    local_task_file_pack_parser.add_argument("--task-id", default=None, help="local task id label")
+    local_task_file_pack_parser.add_argument("--domain", default=None, help="task domain label")
+    local_task_file_pack_parser.add_argument("--channel", default=None, help="task channel label")
+    local_task_file_pack_parser.add_argument("--autonomy-zone", choices=["green", "yellow", "red"], default="green", help="task autonomy zone")
+    local_task_file_pack_parser.add_argument("--capability", default=None, help="requested capability label")
+    local_task_file_pack_parser.add_argument("--intent", default=None, help="short task intent")
+    local_task_file_pack_parser.add_argument("--allowed-path", action="append", default=None, help="allowed path pattern; repeatable")
+    local_task_file_pack_parser.add_argument("--denied-path", action="append", default=None, help="denied path pattern; repeatable")
+    local_task_file_pack_parser.add_argument("--validation", action="append", default=None, help="validation command to render, not execute; repeatable")
+    local_task_file_pack_parser.add_argument("--proposed-command", action="append", default=None, help="proposed command to render, not execute; repeatable")
+    local_task_file_pack_parser.add_argument("--output-root", default=".lai-ai", help="repository-relative output root for task/outbox files")
+    local_task_file_pack_parser.add_argument("--repo-root", default=None, help="repository root; defaults to the current project root")
+    local_task_file_pack_parser.add_argument("--write", action="store_true", help="write task/outbox JSON files under the bounded output root")
+    local_task_file_pack_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     objective_state_parser = sub.add_parser("objective-state", help="show read-only local objective/task/checkpoint state")
     objective_state_parser.add_argument("--workspace-root", default=".", help="explicit project workspace root")
     objective_state_parser.add_argument("--state-file", default=None, help="relative objective state file; defaults to .lai/objective-state.json")
@@ -1791,6 +1807,26 @@ def main(argv: list[str] | None = None) -> int:
             )
             if not args.json:
                 print(render_local_task_dry_run(payload))
+                return 0 if payload["overall"] != "blocked" else 1
+        elif args.command == "local-task-file-pack":
+            repo_root = Path(args.repo_root).resolve() if args.repo_root else _release_check_repo()
+            payload = collect_local_task_file_pack(
+                repo=repo_root,
+                task_id=args.task_id,
+                domain=args.domain,
+                channel=args.channel,
+                autonomy_zone=args.autonomy_zone,
+                capability=args.capability,
+                intent=args.intent,
+                allowed_paths=args.allowed_path,
+                denied_paths=args.denied_path,
+                validation_plan=args.validation,
+                proposed_commands=args.proposed_command,
+                output_root=args.output_root,
+                write=args.write,
+            )
+            if not args.json:
+                print(render_local_task_file_pack(payload))
                 return 0 if payload["overall"] != "blocked" else 1
         elif args.command == "objective-state":
             payload = collect_objective_state(
