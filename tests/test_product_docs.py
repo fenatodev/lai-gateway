@@ -1658,3 +1658,43 @@ class LocalTaskReviewGateProductDocsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class LocalTaskApprovalGateProductDocsTest(unittest.TestCase):
+    def test_pr126_local_task_approval_gate_is_documented_as_advisory_read_only_gate(self) -> None:
+        spec = (PRODUCT_DOCS / "local_task_approval_gate.md").read_text(encoding="utf-8")
+        pr_spec = (PRODUCT_DOCS / "pr_126_local_task_approval_gate.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+        alpha = (PRODUCT_DOCS / "alpha_readiness.md").read_text(encoding="utf-8")
+
+        for statement in (
+            "local-task-approval-gate/v1",
+            "ready_without_approval",
+            "needs_approval",
+            "blocked",
+            "invalid",
+            "does not execute tasks",
+            "does not grant permission",
+            "explicit green-zone evidence",
+        ):
+            self.assertIn(statement, spec)
+
+        for statement in (
+            "PR126 adds `local-task-approval-gate/v1`",
+            "Approval state in PR126 is advisory and non-effective",
+            "must not introduce an executor",
+        ):
+            self.assertIn(statement, pr_spec)
+
+        self.assertIn("local_task_approval_gate", matrix)
+        self.assertIn("approval gate read-only", matrix)
+        self.assertIn("não autoriza execução", matrix)
+        self.assertIn("PR126 local task approval gate", alpha)
+        self.assertIn("não concede permissão", alpha)
+
+    def test_pr126_local_task_approval_gate_is_indexed_as_implemented(self) -> None:
+        index = (PRODUCT_DOCS / "index.md").read_text(encoding="utf-8")
+        matrix = (PRODUCT_DOCS / "implementation_matrix.md").read_text(encoding="utf-8")
+
+        self.assertIn("[Local task approval gate](local_task_approval_gate.md)", index)
+        self.assertIn("[PR126](pr_126_local_task_approval_gate.md)", matrix)
+        self.assertIn("tests/test_local_task_approval_gate.py", matrix)

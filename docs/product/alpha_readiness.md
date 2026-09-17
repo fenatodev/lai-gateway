@@ -90,3 +90,6 @@ Telegram outbound tem limite conhecido: não possui aprovação durável por men
 
 
 PR98 não habilita PDF, OCR, Office, mídia, HOME scan, upload externo, rede, escrita ou autorização por conteúdo de documento.
+## PR126 local task approval gate
+
+PR126 adiciona `local-task-approval-gate/v1` como gate read-only e advisory. Ele não executa tarefa, não concede permissão, não emite/consome grant, não chama Harness/tools/adapters, não envia mensagens, não publica e não faz merge. `ready_without_approval` só é permitido com review válido e evidência explícita de zona verde; ausência dessa evidência cai em `needs_approval`.

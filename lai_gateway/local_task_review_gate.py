@@ -161,6 +161,8 @@ def collect_local_task_review_gate(
         "task_file": str(task_rel) if task_rel is not None else task_file,
         "outbox_file": str(outbox_rel) if outbox_rel is not None else outbox_file,
         "task_id": task_record.get("task_id") if isinstance(task_record, dict) else None,
+        "autonomy_zone": task_record.get("autonomy_zone") if isinstance(task_record, dict) else None,
+        "approval_required": bool(task_record.get("approval_required")) if isinstance(task_record, dict) else False,
         "read_only": True,
         "effective_authorization": False,
         "executes_commands": False,
