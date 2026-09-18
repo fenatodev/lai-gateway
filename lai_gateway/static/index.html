@@ -60,17 +60,17 @@
           <section class="mode-grid compact-mode-grid clean-mode-menu" aria-label="Três modos de operação do workbench local">
             <article class="mode-card">
               <h3>Observar</h3>
-              <p>Diagnóstico, plano, revisão e segurança sem escrita.</p>
+              <p>Conversa direta com o LAI, sem criar run no Harness.</p>
               <button type="button" data-local-mode-preset="observe">Usar Observar</button>
             </article>
             <article class="mode-card">
               <h3>Trabalhar</h3>
-              <p>Implementação, correção ou refatoração dentro do sandbox.</p>
+              <p>Desenvolvimento explícito dentro do sandbox do Harness.</p>
               <button type="button" data-local-mode-preset="work">Usar Trabalhar</button>
             </article>
             <article class="mode-card">
               <h3>Aplicar</h3>
-              <p>Aplicação somente após revisão, validação e hash conferido.</p>
+              <p>Aplicação somente da revisão atual, com confirmação explícita.</p>
               <button type="button" data-local-mode-preset="promote">Usar Aplicar</button>
             </article>
           </section>
@@ -134,13 +134,13 @@
 
           <footer class="chat-input-dock clean-chat-input-dock">
             <label class="chat-composer"><span>Mensagem</span>
-              <textarea id="local-run-task" rows="4" maxlength="12000" placeholder="Peça para o LAI inspecionar, planejar, trabalhar no sandbox ou revisar uma proposta."></textarea>
+              <textarea id="local-run-task" rows="4" maxlength="12000" placeholder="Converse normalmente com o LAI. Escolha Trabalhar para desenvolvimento em sandbox."></textarea>
             </label>
             <div class="composer-footer">
               <span id="local-task-counter" class="muted">0 / 12000</span>
               <span class="composer-hint">Pressione Enter para enviar · Shift+Enter para nova linha</span>
               <div class="primary-actions">
-                <button id="local-send-button" class="primary send-button" data-action="create-local-chat-run">Enviar ao LAI</button>
+                <button id="local-send-button" class="primary send-button" data-action="create-local-chat-run">Conversar com LAI</button>
                 <button id="local-cancel-button" class="danger" data-action="cancel-local-chat-run" disabled>Sem run ativo</button>
               </div>
             </div>

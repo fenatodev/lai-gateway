@@ -125,3 +125,21 @@ PR131 does not accept free-form commands or arbitrary repository roots from the
 browser. It does not expand the PR127 allowlist, change autonomy semantics,
 create grants, call Harness for this operator path, dispatch adapters/tools, use
 credentials, send messages, publish, create PRs or automate merge.
+
+## PR132 — Conversation-first governed development flow
+
+PR132 implements `workbench-governed-dev-flow/v1` and aligns the main Workbench
+composer with the architectural conversation boundary.
+
+Observe sends normal conversation directly through `/v1/gateway/chat` and does
+not create a Harness run.
+
+Work is an explicit user choice and continues to use the existing local-chat
+Harness path for isolated development, validation, event polling and review.
+
+Apply does not create a new run. It operates only on the current review and
+continues to require explicit confirmation before Harness promotion.
+
+PR132 introduces no natural-language execution inference, shell, grant,
+credential use, external action, Git publication, PR creation or merge
+automation.

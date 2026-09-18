@@ -170,7 +170,7 @@ class GatewayUITest(unittest.TestCase):
                 self.assertIn('id="local-status-label"', html)
                 self.assertIn('Debug avançado', html)
                 self.assertIn('debug-panel', html)
-                self.assertIn('Enviar ao LAI', html)
+                self.assertIn('Conversar com LAI', html)
                 self.assertIn('id="local-send-button"', html)
                 self.assertIn("Pressione Enter para enviar", html)
                 self.assertIn("Shift+Enter para nova linha", html)
