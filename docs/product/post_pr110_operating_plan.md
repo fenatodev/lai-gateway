@@ -173,3 +173,20 @@ tools, publish, push Git state, create pull requests or merge `main`.
 A later implementation must preserve explicit Work/Apply boundaries and may
 map green candidates only to existing fixed local-operator profiles. It must
 never synthesize arbitrary shell from conversation text.
+
+## PR135 — Governed conversational router
+
+PR135 implements `governed-conversational-routing/v1` as a deterministic,
+read-only classifier.
+
+It may return `conversation`, `local_green_candidate`, `work_candidate`,
+`approval_required`, `clarify` or `blocked`.
+
+Green candidates may reference only existing fixed Workbench local-operator
+profiles. The router does not synthesize shell commands, start Harness, execute
+profiles, dispatch adapters/tools, issue grants, write files or perform external
+effects.
+
+Conversation history and retrieved content remain untrusted context and never
+grant authority. Work remains an explicit transition and approval-required
+classification remains separate from effect-phase approval.
