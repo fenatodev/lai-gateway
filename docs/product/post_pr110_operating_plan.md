@@ -156,3 +156,20 @@ through the Gateway while remaining outside Harness execution.
 Conversation history remains content, not authority. PR133 must not infer Work,
 create implicit Harness runs, expand permissions, use credentials, publish,
 create pull requests or automate merge.
+
+## PR134 — Governed conversational routing
+
+PR134 specifies `governed-conversational-routing/v1` as a documentation-only
+contract after PR133.
+
+It defines advisory outcomes for conversation, bounded green local-operation
+candidates, governed development candidates, approval-required requests,
+clarification and blocked requests.
+
+Routing remains separate from authorization and execution. PR134 does not start
+Harness, execute local-operator profiles, create grants, dispatch adapters or
+tools, publish, push Git state, create pull requests or merge `main`.
+
+A later implementation must preserve explicit Work/Apply boundaries and may
+map green candidates only to existing fixed local-operator profiles. It must
+never synthesize arbitrary shell from conversation text.

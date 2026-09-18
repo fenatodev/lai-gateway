@@ -42,6 +42,8 @@ Para sequência prevalece o roadmap; para estado atual, a matriz; para publicaç
 
 ## Histórico e insumos
 
+- **spec de PR / atual** — [PR134](pr_134_governed_conversational_routing.md): define roteamento conversacional governado como classificação advisory sem execução, autoridade ou transição implícita para Work.
+
 Os documentos `pr_*.md` têm rótulo **spec de PR / histórico**: são registros históricos do escopo e da aceitação de cada PR; não são orientação operacional atual nem prova de maturidade posterior. Nenhum histórico foi removido.
 
 - **histórico** — [Fila antiga](lai_next_prs.md): histórica, substituída pelo roadmap.
@@ -87,3 +89,4 @@ GPT-6/Astra, Claude e Codex são revisores. Recomendações precisam de confront
 - [Local task green executor](local_task_green_executor.md) — implemented PR127 bounded executor for green-zone local task commands.
 
 - **sessão de conversa direta** — [Direct conversation session](direct_conversation_session.md): `direct-conversation-session/v1` mantém contexto multi-turno limitado em memória no Gateway, separado de sessões do Harness e sem conceder autoridade.
+- **contrato arquitetural** — [Governed conversational routing](pr_134_governed_conversational_routing.md): `governed-conversational-routing/v1` separa classificação de intenção, autorização e execução; spec only, sem runtime ou autoridade.
