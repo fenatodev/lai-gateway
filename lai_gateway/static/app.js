@@ -18,6 +18,7 @@ let lastLocalChatCursor = 0;
 let activeLocalRunId = "";
 let activeLocalRunTerminal = true;
 let lastLocalMode = "diagnose";
+let activeWorkbenchPhase = "observe";
 let currentLocalReview = null;
 let lastGovernancePayload = null;
 const localChatRenderedRuns = new Set();
@@ -67,7 +68,12 @@ function setButtonState(id, disabled, text = "") {
 
 function updateLocalExecutionControls(status = "idle") {
   const running = !TERMINAL_STATUSES.has(status) && status !== "idle" && Boolean(activeLocalRunId);
-  setButtonState("local-send-button", running, running ? "Run ativo" : "Enviar ao LAI");
+  const idleLabel = activeWorkbenchPhase === "work"
+    ? "Enviar ao Harness"
+    : activeWorkbenchPhase === "promote"
+      ? "Ir para revisão"
+      : "Conversar com LAI";
+  setButtonState("local-send-button", running, running ? "Run ativo" : idleLabel);
   setButtonState("local-cancel-button", !running, running ? "Cancelar run ativo" : "Sem run ativo");
 }
 
@@ -1110,21 +1116,45 @@ function applyLocalModePreset(presetName) {
     setLocalNextStep("Há um run ativo. Cancele ou aguarde antes de mudar o modo.", "warn");
     return;
   }
+
+  activeWorkbenchPhase = presetName;
   byId("local-run-mode").value = preset.mode;
   lastLocalMode = preset.mode;
-  byId("local-run-task").value = preset.task;
+
+  const taskBox = byId("local-run-task");
+  if (presetName === "promote") {
+    taskBox.value = "";
+    taskBox.disabled = true;
+    taskBox.placeholder = "Aplicar usa apenas a revisão carregada; nenhuma nova tarefa é criada.";
+  } else {
+    taskBox.disabled = false;
+    taskBox.value = "";
+    taskBox.placeholder = presetName === "work"
+      ? "Descreva a alteração de código. O Harness trabalhará em sandbox e deixará o resultado para revisão."
+      : "Converse normalmente com o LAI. Este modo não cria run no Harness.";
+  }
+
   updateLocalTaskCounter();
-  const state = presetName === "work" ? "running" : "ready";
+
+  const state = presetName === "work" ? "warn" : "ready";
   updateLocalModeFlow(presetName, state);
   setText("local-mode-label", localModeLabel(preset.mode));
   setText("local-status-label", "ready");
+
   const nextSteps = {
-    observe: "Observar é read-only. Use para diagnóstico, planejamento, revisão, segurança e checagem de release.",
-    work: "Trabalhar escreve apenas dentro do sandbox isolado. Revisão é obrigatória antes da promoção.",
-    promote: "Aplicar começa pela revisão. A promoção ainda exige o hash do patch revisado.",
+    observe: "Conversa direta pelo Gateway. Nenhum run no Harness é criado.",
+    work: "Trabalho explícito vai ao Harness em sandbox. Revisão é obrigatória antes de aplicar.",
+    promote: "Aplicar usa somente a revisão atual e exige confirmação explícita.",
   };
+
   setLocalNextStep(nextSteps[presetName], state);
-  setLocalChatSummary(`${localModeLabel(preset.mode)} selected · ${preset.mode}`, state);
+  setLocalChatSummary(`${localModeLabel(preset.mode)} · ${presetName}`, state);
+  updateLocalExecutionControls("idle");
+
+  if (presetName === "promote" && currentLocalReview) {
+    const panel = byId("local-review-panel");
+    if (panel) panel.scrollIntoView({ block: "nearest" });
+  }
 }
 
 function setPill(id, text, state = "muted") {
@@ -1483,6 +1513,16 @@ function setLocalRunFromPayload(payload) {
 }
 
 function setLocalReview(payload) {
+  activeWorkbenchPhase = "promote";
+  const taskBox = byId("local-run-task");
+  if (taskBox) {
+    taskBox.value = "";
+    taskBox.disabled = true;
+    taskBox.placeholder = "Aplicar usa somente a revisão carregada.";
+  }
+  updateLocalTaskCounter();
+  updateLocalExecutionControls("idle");
+
   const review = payload.review || payload.promotion || payload;
   const patchSha = review.patch_sha256 || payload.patch_sha256 || "";
   if (patchSha) byId("local-patch-sha").value = patchSha;
@@ -1502,6 +1542,60 @@ function setLocalReview(payload) {
   appendLocalToolMessage("Revisão carregada", state === "ready" ? "Aplicar está disponível na barra lateral direita." : "Aplicar fica bloqueado até a revisão ficar completa.", state);
   setLocalChatSummary(`revisão ${status}`, state);
   show("local-review-output", payload);
+}
+
+async function sendWorkbenchDirectChat(message) {
+  const prompt = (message || "").trim();
+  if (!prompt) throw new Error("mensagem obrigatória");
+
+  appendLocalChatTurn("user", "Você", prompt);
+  appendLocalToolMessage(
+    "Conversa direta",
+    "Mensagem enviada ao Gateway/modelo local. Nenhum run no Harness foi criado.",
+    "running",
+  );
+
+  setLocalChatSummary("conversa direta em andamento", "running");
+  updateLocalModeFlow("observe", "running");
+
+  const payload = await requestJson("/v1/gateway/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+    body: JSON.stringify({
+      message: prompt,
+      timeout_seconds: 60,
+      max_tokens: 768,
+    }),
+  });
+
+  const conversation = payload.conversation || {};
+  if (conversation.creates_harness_run === true) {
+    throw new Error("resposta direta declarou criação inesperada de run no Harness");
+  }
+
+  const answer = payload.message || "O Gateway não retornou conteúdo de resposta.";
+  appendLocalChatTurn("assistant", "LAI", answer);
+
+  const ready = payload.overall === "ready";
+  const state = ready ? "ready" : "warn";
+  setText("local-status-label", payload.overall || "desconhecido");
+  setLocalChatSummary(
+    ready ? "conversa direta concluída" : `conversa direta ${payload.overall || "indisponível"}`,
+    state,
+  );
+  setLocalNextStep(
+    "Nenhum Harness run foi criado. Escolha Trabalhar explicitamente para desenvolvimento em sandbox.",
+    state,
+  );
+  updateLocalModeFlow("observe", state);
+  updateLocalRunCard(
+    "Conversa direta",
+    "Gateway/modelo local · sem Harness",
+    payload.overall || "unknown",
+    state,
+  );
+
+  return payload;
 }
 
 async function loadLocalChatModelsForSelectedWorkspace() {
@@ -2128,29 +2222,86 @@ async function runAction(action) {
     } else if (action === "create-local-chat-run") {
       const mode = selectValue("local-run-mode");
       const task = byId("local-run-task").value.trim();
+
+      if (activeWorkbenchPhase === "observe") {
+        if (!task) throw new Error("mensagem obrigatória");
+        await sendWorkbenchDirectChat(task);
+        byId("local-run-task").value = "";
+        updateLocalTaskCounter();
+        return;
+      }
+
+      if (activeWorkbenchPhase === "promote") {
+        if (!currentLocalReview) {
+          const runId = selectValue("local-run-id");
+          if (runId) await loadLocalReviewForCurrentRun();
+        }
+
+        if (!currentLocalReview) {
+          throw new Error("nenhuma revisão atual disponível para aplicar");
+        }
+
+        const panel = byId("local-review-panel");
+        if (panel) panel.scrollIntoView({ block: "nearest" });
+        setLocalNextStep(
+          "Revise diff e validação. Aplicar exige o botão de confirmação da revisão.",
+          "ready",
+        );
+        return;
+      }
+
+      if (activeWorkbenchPhase !== "work") {
+        throw new Error("fase do Workbench não suportada");
+      }
+
+      if (!LOCAL_CHAT_WORK_MODES.has(mode)) {
+        throw new Error("Trabalhar aceita apenas modos de desenvolvimento do Harness");
+      }
+
+      if (!task) throw new Error("tarefa de desenvolvimento obrigatória");
+
       const workspaceId = selectValue("local-workspace");
       const modelId = selectValue("local-model") || "default";
       const sessionId = selectValue("session-id");
-      if (!LOCAL_CHAT_MODES.has(mode)) throw new Error("modo local-chat não suportado");
-      if (!task) throw new Error("tarefa obrigatória");
+
       if (!workspaceId) throw new Error("workspace obrigatório");
-      if (!activeLocalRunTerminal && activeLocalRunId) throw new Error("já existe um run local ativo");
-      resetLocalReviewPanel("Novo run iniciado. Revisão anterior limpa.");
+      if (!activeLocalRunTerminal && activeLocalRunId) {
+        throw new Error("já existe um run local ativo");
+      }
+
+      resetLocalReviewPanel("Novo run de trabalho iniciado. Revisão anterior limpa.");
       activeLocalRunTerminal = false;
       updateLocalExecutionControls("running");
-      const body = { mode, task, workspace_id: workspaceId, model_id: modelId };
+
+      const body = {
+        mode,
+        task,
+        workspace_id: workspaceId,
+        model_id: modelId,
+      };
       if (sessionId) body.session_id = sessionId;
+
       lastLocalChatCursor = 0;
       localChatRenderedEvents.clear();
+
       appendLocalChatTurn("user", "Você", task);
-      appendLocalToolMessage("Iniciando run do LAI", `${localModeLabel(mode)} enfileirado pelo Gateway.`, "running");
+      appendLocalToolMessage(
+        "Handoff para Harness",
+        `${localModeLabel(mode)} enfileirado em workspace isolado.`,
+        "running",
+      );
+
       const payload = await requestJson("/v1/local-chat/runs", {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
         body: JSON.stringify(body),
       });
+
       setLocalRunFromPayload(payload);
-      if (LOCAL_CHAT_WORK_MODES.has(mode)) setLocalChatSummary(`local ${mode} enfileirado; revise antes de promover`, "running");
+      setLocalChatSummary(
+        `Harness ${mode} enfileirado · revisão obrigatória`,
+        "running",
+      );
       startLocalChatPolling();
     } else if (action === "get-local-chat-events") {
       await fetchLocalChatEvents();
@@ -2397,6 +2548,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const mode = selectValue("local-run-mode");
       lastLocalMode = mode;
       const phase = localModePhaseForMode(mode);
+      activeWorkbenchPhase = phase;
       const state = phase === "work" ? "running" : "ready";
       setText("local-mode-label", localModeLabel(mode));
       updateLocalModeFlow(phase, state);
@@ -2410,8 +2562,16 @@ document.addEventListener("DOMContentLoaded", () => {
       );
     });
     lastLocalMode = localModeSelect.value;
-    setText("local-mode-label", localModeLabel(localModeSelect.value));
-    updateLocalModeFlow(localModePhaseForMode(localModeSelect.value), "ready");
+    activeWorkbenchPhase = "observe";
+    setText("local-mode-label", "Observar");
+    updateLocalModeFlow("observe", "ready");
+    const taskBox = byId("local-run-task");
+    if (taskBox) {
+      taskBox.disabled = false;
+      taskBox.value = "";
+      taskBox.placeholder = "Converse normalmente com o LAI. Este modo não cria run no Harness.";
+    }
+    updateLocalTaskCounter();
     updateLocalExecutionControls("idle");
   }
   const localWorkspaceSelect = byId("local-workspace");

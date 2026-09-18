@@ -120,6 +120,23 @@ This removes copy/paste for the supported validation profiles only. It does not
 yet provide natural-language execution routing, general source editing,
 governed Harness development handoff, automatic PR creation or merge.
 
+## PR132 conversation-first governed development flow
+
+PR132 implements `workbench-governed-dev-flow/v1`.
+
+Normal Workbench conversation is direct Gateway/model conversation and reports
+`creates_harness_run=false`.
+
+Harness development runs require explicit Work selection. Successful work
+continues through isolated execution and automatic review loading.
+
+Apply never creates a new development run and remains bound to current review
+evidence plus explicit confirmation.
+
+This removes Harness from ordinary conversation without weakening sandbox,
+review or promotion boundaries. It does not automate Git publication, PR
+creation, merge or external effects.
+
 ## Go para alpha público técnico
 
 Todos os itens são obrigatórios; esta lista não afirma que já passaram:
