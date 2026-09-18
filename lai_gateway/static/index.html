@@ -100,8 +100,12 @@
         <section class="workbench-chat-center chat-main-pane clean-chat-main" aria-label="Chat principal do LAI">
           <header class="chat-header clean-chat-header">
             <div>
-              <h2 id="local-conversation-title">Nova sessão do LAI</h2>
-              <p class="chat-subtitle"><span>Gateway</span> · <span>Harness local-chat</span> · <span id="local-conversation-mode">Observar</span></p>
+              <h2 id="local-conversation-title">Conversa com LAI</h2>
+              <p class="chat-subtitle"><span>Gateway</span> · <span>Harness explícito</span> · <span id="local-conversation-mode">Observar</span></p>
+              <div class="primary-actions">
+                <span id="direct-conversation-pill" class="pill muted">conversa direta nova</span>
+                <button type="button" data-action="new-direct-conversation">Nova conversa</button>
+              </div>
             </div>
             <nav class="top-workbench-tabs clean-tabs" aria-label="Superfícies do workbench">
               <button type="button" class="tab active" data-ui-surface="chat">Chat</button>

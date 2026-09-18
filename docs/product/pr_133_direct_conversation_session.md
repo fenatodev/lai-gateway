@@ -5,8 +5,9 @@
 Implement `direct-conversation-session/v1` so normal Workbench conversation can
 preserve bounded multi-turn context without creating a Harness run.
 
-PR133 must reuse the existing Gateway session lifecycle where compatible rather
-than introduce a second conversation store.
+PR133 reuses existing Gateway conventions where compatible, but it does not reuse
+Harness `cs-*` control sessions. Direct conversation state belongs to the
+Gateway, uses the separate `dc-*` namespace and remains bounded in memory.
 
 ## Architectural boundary
 

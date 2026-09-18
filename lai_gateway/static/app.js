@@ -19,6 +19,8 @@ let activeLocalRunId = "";
 let activeLocalRunTerminal = true;
 let lastLocalMode = "diagnose";
 let activeWorkbenchPhase = "observe";
+let activeDirectConversationId = "";
+let directConversationPending = false;
 let currentLocalReview = null;
 let lastGovernancePayload = null;
 const localChatRenderedRuns = new Set();
@@ -1544,9 +1546,81 @@ function setLocalReview(payload) {
   show("local-review-output", payload);
 }
 
+function setDirectConversationState(payload = {}) {
+  const conversation = payload.conversation || payload || {};
+  const conversationId = conversation.conversation_id || "";
+
+  if (conversationId) {
+    activeDirectConversationId = conversationId;
+  }
+
+  const exchangeCount = Number.isInteger(conversation.exchange_count)
+    ? conversation.exchange_count
+    : 0;
+
+  const label = activeDirectConversationId
+    ? `conversa direta · ${exchangeCount} troca${exchangeCount === 1 ? "" : "s"}`
+    : "conversa direta nova";
+
+  setPill(
+    "direct-conversation-pill",
+    label,
+    activeDirectConversationId ? "ready" : "muted",
+  );
+}
+
+
+async function createDirectConversation(announce = false) {
+  if (directConversationPending) {
+    throw new Error(
+      "aguarde a resposta atual antes de iniciar uma nova conversa",
+    );
+  }
+
+  const payload = await requestJson("/v1/gateway/conversations", {
+    method: "POST",
+  });
+
+  activeDirectConversationId = "";
+  setDirectConversationState(payload);
+
+  if (announce) {
+    appendLocalChatTurn(
+      "status",
+      "Nova conversa",
+      "Novo contexto conversacional local iniciado. O histórico anterior continua visível nesta tela, mas não é enviado à nova sessão.",
+    );
+    setLocalChatSummary("nova conversa direta criada", "ready");
+    setLocalNextStep(
+      "A nova conversa começa sem histórico anterior e continua fora do Harness.",
+      "ready",
+    );
+  }
+
+  return payload;
+}
+
+
+async function ensureDirectConversation() {
+  if (activeDirectConversationId) {
+    return activeDirectConversationId;
+  }
+
+  await createDirectConversation(false);
+
+  if (!activeDirectConversationId) {
+    throw new Error("Gateway não retornou id de conversa direta");
+  }
+
+  return activeDirectConversationId;
+}
+
+
 async function sendWorkbenchDirectChat(message) {
   const prompt = (message || "").trim();
   if (!prompt) throw new Error("mensagem obrigatória");
+
+  await ensureDirectConversation();
 
   appendLocalChatTurn("user", "Você", prompt);
   appendLocalToolMessage(
@@ -1558,17 +1632,27 @@ async function sendWorkbenchDirectChat(message) {
   setLocalChatSummary("conversa direta em andamento", "running");
   updateLocalModeFlow("observe", "running");
 
-  const payload = await requestJson("/v1/gateway/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json; charset=utf-8" },
-    body: JSON.stringify({
-      message: prompt,
-      timeout_seconds: 60,
-      max_tokens: 768,
-    }),
-  });
+  directConversationPending = true;
+
+  let payload;
+  try {
+    payload = await requestJson("/v1/gateway/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({
+        message: prompt,
+        timeout_seconds: 60,
+        max_tokens: 768,
+        conversation_id: activeDirectConversationId,
+      }),
+    });
+  } finally {
+    directConversationPending = false;
+  }
 
   const conversation = payload.conversation || {};
+  setDirectConversationState(payload);
+
   if (conversation.creates_harness_run === true) {
     throw new Error("resposta direta declarou criação inesperada de run no Harness");
   }
@@ -2389,6 +2473,9 @@ async function runAction(action) {
     } else if (action === "open-vscode-folder") {
       openVSCodeFolderHandoff();
 
+    } else if (action === "new-direct-conversation") {
+      await createDirectConversation(true);
+
     } else if (action === "refresh-status") {
       clearPairRequiredOutput("status-output");
       show("status-output", await requestJson("/v1/harness/status"));
@@ -2474,6 +2561,8 @@ async function runAction(action) {
     }
     const target = action.includes("local-operator")
       ? "local-operator-output"
+      : action.includes("direct-conversation")
+        ? "local-chat-output"
       : action.includes("local-chat")
         ? "local-chat-output"
       : action.includes("governance")
@@ -2522,6 +2611,7 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("DOMContentLoaded", () => {
+  setDirectConversationState({});
   updateTaskCounter();
   const taskBox = byId("run-task");
   if (taskBox) taskBox.addEventListener("input", updateTaskCounter);

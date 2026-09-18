@@ -47,6 +47,12 @@ from .public_browser import collect_public_browser
 from .skills import collect_skills_registry
 from .config import GatewayConfig, read_gateway_access_token, validate_gateway_bind
 from .dev_control import collect_dev_control_policy
+from .direct_conversation import (
+    DirectConversationBusy,
+    DirectConversationNotFound,
+    DirectConversationStore,
+    is_direct_conversation_id,
+)
 from .dev_loop_fixture import collect_dev_loop_fixture
 from .document_text import collect_document_text_local
 from .document_workbench import collect_document_workbench
@@ -118,6 +124,7 @@ class GatewayHTTPServer(ThreadingHTTPServer):
         self.auth_failures: dict[str, list[float]] = {}
         self.mobile_sessions: dict[str, float] = {}
         self.auth_lock = threading.Lock()
+        self.direct_conversations = DirectConversationStore()
 
 
 class GatewayHandler(BaseHTTPRequestHandler):
@@ -874,6 +881,47 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 return
             self._proxy(lambda: self.server.client.mcp_tools())
             return
+        direct_conversation_match = re.fullmatch(
+            r"/v1/gateway/conversations/(dc-[0-9a-f]{16})",
+            parsed.path,
+        )
+        if direct_conversation_match:
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            try:
+                conversation = self.server.direct_conversations.snapshot(
+                    direct_conversation_match.group(1)
+                )
+            except DirectConversationNotFound:
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {"error": "direct_conversation_not_found"},
+                )
+                return
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "operation": "direct-conversation-inspect",
+                    "conversation": conversation,
+                    "security": {
+                        "history_content_returned": False,
+                        "creates_harness_run": False,
+                        "grants_authority": False,
+                        "persistent_storage": False,
+                    },
+                },
+            )
+            return
+
+        if parsed.path.startswith("/v1/gateway/conversations/"):
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            self._send_json(
+                HTTPStatus.NOT_FOUND,
+                {"error": "direct_conversation_not_found"},
+            )
+            return
+
         if parsed.path == "/v1/harness/sessions":
             if not self._authorize_gateway_api(parsed.path):
                 return
@@ -976,20 +1024,175 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 probe_openai=bool(body.get("probe_openai", False)),
             ))
             return
+        if parsed.path == "/v1/gateway/conversations":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            if not self._require_empty_body():
+                return
+
+            try:
+                conversation = self.server.direct_conversations.create()
+            except DirectConversationBusy:
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {"error": "direct_conversation_capacity_busy"},
+                )
+                return
+
+            self._send_json(
+                HTTPStatus.CREATED,
+                {
+                    "operation": "direct-conversation-create",
+                    "conversation": conversation,
+                    "security": {
+                        "in_memory_only": True,
+                        "creates_harness_run": False,
+                        "grants_authority": False,
+                    },
+                },
+            )
+            return
+
+        direct_reset_match = re.fullmatch(
+            r"/v1/gateway/conversations/(dc-[0-9a-f]{16})/reset",
+            parsed.path,
+        )
+        if direct_reset_match:
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            if not self._require_empty_body():
+                return
+
+            try:
+                conversation = self.server.direct_conversations.reset(
+                    direct_reset_match.group(1)
+                )
+            except DirectConversationNotFound:
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {"error": "direct_conversation_not_found"},
+                )
+                return
+            except DirectConversationBusy:
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {"error": "direct_conversation_busy"},
+                )
+                return
+
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "operation": "direct-conversation-reset",
+                    "conversation": conversation,
+                    "security": {
+                        "in_memory_only": True,
+                        "creates_harness_run": False,
+                        "grants_authority": False,
+                    },
+                },
+            )
+            return
+
         if parsed.path == "/v1/gateway/chat":
             if not self._authorize_gateway_api(parsed.path):
                 return
             body = self._read_gateway_chat_body()
             if body is None:
                 return
-            self._send_json(
-                HTTPStatus.OK,
-                collect_model_chat(
+
+            conversation_id = body.get("conversation_id")
+
+            if conversation_id is None:
+                self._send_json(
+                    HTTPStatus.OK,
+                    collect_model_chat(
+                        prompt=body["message"],
+                        timeout_seconds=float(body["timeout_seconds"]),
+                        max_tokens=int(body["max_tokens"]),
+                    ),
+                )
+                return
+
+            try:
+                history = self.server.direct_conversations.begin_turn(
+                    str(conversation_id)
+                )
+            except DirectConversationNotFound:
+                self._send_json(
+                    HTTPStatus.NOT_FOUND,
+                    {"error": "direct_conversation_not_found"},
+                )
+                return
+            except DirectConversationBusy:
+                self._send_json(
+                    HTTPStatus.CONFLICT,
+                    {"error": "direct_conversation_busy"},
+                )
+                return
+
+            try:
+                payload = collect_model_chat(
                     prompt=body["message"],
                     timeout_seconds=float(body["timeout_seconds"]),
                     max_tokens=int(body["max_tokens"]),
-                ),
+                    history=history,
+                )
+            except Exception:
+                self.server.direct_conversations.abort_turn(
+                    str(conversation_id)
+                )
+                raise
+
+            ready = bool(
+                payload.get("overall") == "ready"
+                and isinstance(payload.get("message"), str)
+                and payload.get("message")
             )
+
+            if ready:
+                snapshot = self.server.direct_conversations.finish_turn(
+                    str(conversation_id),
+                    user_message=str(body["message"]),
+                    assistant_message=str(payload["message"]),
+                )
+            else:
+                self.server.direct_conversations.abort_turn(
+                    str(conversation_id)
+                )
+                snapshot = self.server.direct_conversations.snapshot(
+                    str(conversation_id)
+                )
+
+            conversation = dict(payload.get("conversation") or {})
+            conversation.update(
+                {
+                    "schema_version": "direct-conversation-session/v1",
+                    "conversation_id": str(conversation_id),
+                    "session_bound": True,
+                    "first_turn": len(history) == 0,
+                    "history_message_count": len(history),
+                    "exchange_count": snapshot["exchange_count"],
+                    "persistent": False,
+                    "creates_harness_run": False,
+                    "grants_authority": False,
+                }
+            )
+            payload["conversation"] = conversation
+
+            security = dict(payload.get("security") or {})
+            security.update(
+                {
+                    "stores_prompt_in_memory": ready,
+                    "persistent_prompt_storage": False,
+                    "history_is_authorization": False,
+                    "creates_harness_run": False,
+                    "permission_elevation": False,
+                }
+            )
+            payload["security"] = security
+
+            self._send_json(HTTPStatus.OK, payload)
             return
         if parsed.path == "/v1/gateway/local-operator":
             if not self._authorize_gateway_api(parsed.path):
@@ -1195,6 +1398,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/ops-status",
             "/v1/gateway/onboarding",
             "/v1/gateway/chat",
+            "/v1/gateway/conversations",
             "/v1/gateway/local-operator",
             "/v1/gateway/skills",
             "/v1/gateway/dev-control",
@@ -1236,7 +1440,11 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/document-text-local",
             "/v1/gateway/document-workbench",
         }
-        if not (path.startswith("/v1/harness/") or path in protected_gateway_paths):
+        if not (
+            path.startswith("/v1/harness/")
+            or path.startswith("/v1/gateway/conversations")
+            or path in protected_gateway_paths
+        ):
             return True
         expected = self.server.access_token
         if expected is None:
@@ -1556,9 +1764,16 @@ class GatewayHandler(BaseHTTPRequestHandler):
             return None
         return payload
 
-    def _read_gateway_chat_body(self) -> dict[str, str | int | float] | None:
+    def _read_gateway_chat_body(
+        self,
+    ) -> dict[str, str | int | float | None] | None:
         payload = self._read_json_object(
-            allowed_keys={"message", "timeout_seconds", "max_tokens"},
+            allowed_keys={
+                "message",
+                "timeout_seconds",
+                "max_tokens",
+                "conversation_id",
+            },
             unsupported_error="unsupported_gateway_chat_fields",
         )
         if payload is None:
@@ -1566,6 +1781,8 @@ class GatewayHandler(BaseHTTPRequestHandler):
         message = payload.get("message")
         timeout = payload.get("timeout_seconds", 60.0)
         max_tokens = payload.get("max_tokens", 768)
+        conversation_id = payload.get("conversation_id")
+
         if not isinstance(message, str) or not message.strip() or len(message) > 12000:
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_gateway_chat_body"})
             return None
@@ -1573,9 +1790,28 @@ class GatewayHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_gateway_chat_body"})
             return None
         if not isinstance(max_tokens, int) or not 64 <= max_tokens <= 2048:
-            self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_gateway_chat_body"})
+            self._send_json(
+                HTTPStatus.BAD_REQUEST,
+                {"error": "invalid_gateway_chat_body"},
+            )
             return None
-        return {"message": message.strip(), "timeout_seconds": float(timeout), "max_tokens": max_tokens}
+
+        if (
+            conversation_id is not None
+            and not is_direct_conversation_id(conversation_id)
+        ):
+            self._send_json(
+                HTTPStatus.BAD_REQUEST,
+                {"error": "invalid_direct_conversation_id"},
+            )
+            return None
+
+        return {
+            "message": message.strip(),
+            "timeout_seconds": float(timeout),
+            "max_tokens": max_tokens,
+            "conversation_id": conversation_id,
+        }
 
     def _read_workbench_local_operator_body(self) -> dict[str, str] | None:
         payload = self._read_json_object(

@@ -178,3 +178,17 @@ PR126 adiciona `local-task-approval-gate/v1` como gate read-only e advisory. Ele
 PR127 introduces the first bounded local executor. It is limited to green-zone tasks that passed the approval gate as `ready_without_approval`.
 
 This is not general shell access. It only runs exact task-declared commands from a fixed allowlist and continues to block Harness calls, tool execution, adapter dispatch, credentials, messages, publication, merge and permission grants.
+
+## PR133 direct conversation session
+
+PR133 implements `direct-conversation-session/v1`.
+
+Observe can preserve bounded multi-turn context in Gateway-owned memory-only
+`dc-*` conversations. These are distinct from Harness `cs-*` control sessions
+and mobile authentication sessions.
+
+History is capped at 8 user/assistant exchanges and 24,000 characters per
+conversation. No prompt persistence is added.
+
+Conversation history remains context only and never authorization. Ordinary
+conversation continues to create no Harness run.
