@@ -143,3 +143,16 @@ continues to require explicit confirmation before Harness promotion.
 PR132 introduces no natural-language execution inference, shell, grant,
 credential use, external action, Git publication, PR creation or merge
 automation.
+
+
+## PR133 — Direct conversation session
+
+PR133 defines `direct-conversation-session/v1` as the next conversation-first
+milestone after PR132.
+
+Normal Observe conversation gains explicit bounded multi-turn session continuity
+through the Gateway while remaining outside Harness execution.
+
+Conversation history remains content, not authority. PR133 must not infer Work,
+create implicit Harness runs, expand permissions, use credentials, publish,
+create pull requests or automate merge.
