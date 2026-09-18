@@ -33,6 +33,10 @@ from .external_expansion import collect_external_expansion_gate
 from .external_capability_gate import collect_external_capability_gate
 from .health import collect_health_report, render_health_report
 from .identity import collect_identity_binding
+from .workbench_local_operator import (
+    collect_workbench_local_operator,
+    is_workbench_local_operator_profile,
+)
 from .objective_state import collect_objective_state
 from .ops import collect_ops_status
 from .permission_decision import collect_permission_decision
@@ -987,6 +991,21 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 ),
             )
             return
+        if parsed.path == "/v1/gateway/local-operator":
+            if not self._authorize_gateway_api(parsed.path):
+                return
+            body = self._read_workbench_local_operator_body()
+            if body is None:
+                return
+
+            repo_root = Path(__file__).resolve().parents[1]
+            payload = collect_workbench_local_operator(
+                repo=repo_root,
+                profile=body["profile"],
+                execute=True,
+            )
+            self._send_json(HTTPStatus.OK, payload)
+            return
         if parsed.path == "/v1/gateway/memory-context":
             if not self._authorize_gateway_api(parsed.path):
                 return
@@ -1176,6 +1195,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             "/v1/gateway/ops-status",
             "/v1/gateway/onboarding",
             "/v1/gateway/chat",
+            "/v1/gateway/local-operator",
             "/v1/gateway/skills",
             "/v1/gateway/dev-control",
             "/v1/gateway/identity-binding",
@@ -1556,6 +1576,24 @@ class GatewayHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_gateway_chat_body"})
             return None
         return {"message": message.strip(), "timeout_seconds": float(timeout), "max_tokens": max_tokens}
+
+    def _read_workbench_local_operator_body(self) -> dict[str, str] | None:
+        payload = self._read_json_object(
+            allowed_keys={"profile"},
+            unsupported_error="unsupported_local_operator_fields",
+        )
+        if payload is None:
+            return None
+
+        profile = payload.get("profile")
+        if not is_workbench_local_operator_profile(profile):
+            self._send_json(
+                HTTPStatus.BAD_REQUEST,
+                {"error": "invalid_local_operator_profile"},
+            )
+            return None
+
+        return {"profile": profile}
 
     def _read_memory_context_body(self) -> dict[str, str | int | None] | None:
         payload = self._read_json_object(

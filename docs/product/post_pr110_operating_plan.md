@@ -108,3 +108,20 @@ the PR127 green executor only for `ready_without_approval` green tasks.
 PR130 does not add command allowlist entries, create arbitrary shell, grant
 authority, change autonomy, call Harness for this path, dispatch adapters/tools,
 use credentials, send messages, publish or automate merge.
+
+## PR131 — Workbench local operator integration
+
+PR131 implements `workbench-local-operator/v1` as a bounded Gateway/Workbench
+surface over `local-operator-runtime/v1`.
+
+The browser sends only one fixed profile identifier. The Gateway resolves the
+LAI Gateway source checkout root and maps that profile to commands already
+present in the PR127 exact allowlist.
+
+The initial profiles cover repository status, diff validation, diff summary,
+Python compile validation, local gate tests and the existing `make check`.
+
+PR131 does not accept free-form commands or arbitrary repository roots from the
+browser. It does not expand the PR127 allowlist, change autonomy semantics,
+create grants, call Harness for this operator path, dispatch adapters/tools, use
+credentials, send messages, publish, create PRs or automate merge.

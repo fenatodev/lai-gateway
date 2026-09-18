@@ -103,6 +103,23 @@ This is an orchestration milestone, not general autonomous project execution.
 Workbench conversation integration and governed Harness development integration
 remain later milestones.
 
+## PR131 Workbench local operator
+
+PR131 implements `workbench-local-operator/v1` and exposes bounded green local
+operations through the Gateway and Workbench.
+
+A user can select one fixed profile and execute it without copying a shell
+command. The browser does not supply arbitrary command text or repository
+paths. Exact commands are resolved server-side and remain constrained by the
+PR127 allowlist and PR130 runtime chain.
+
+Operator task metadata is written under ignored local `state/local-operator`
+state rather than normal source paths.
+
+This removes copy/paste for the supported validation profiles only. It does not
+yet provide natural-language execution routing, general source editing,
+governed Harness development handoff, automatic PR creation or merge.
+
 ## Go para alpha público técnico
 
 Todos os itens são obrigatórios; esta lista não afirma que já passaram:
