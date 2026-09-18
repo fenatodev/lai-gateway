@@ -1183,6 +1183,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             security = dict(payload.get("security") or {})
             security.update(
                 {
+                    "stores_prompt": ready,
                     "stores_prompt_in_memory": ready,
                     "persistent_prompt_storage": False,
                     "history_is_authorization": False,

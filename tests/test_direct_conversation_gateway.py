@@ -192,6 +192,15 @@ class DirectConversationGatewayTest(unittest.TestCase):
         self.assertFalse(
             second["security"]["history_is_authorization"]
         )
+        self.assertTrue(
+            second["security"]["stores_prompt"]
+        )
+        self.assertTrue(
+            second["security"]["stores_prompt_in_memory"]
+        )
+        self.assertFalse(
+            second["security"]["persistent_prompt_storage"]
+        )
 
     def test_unknown_and_malformed_ids_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, fake_harness() as harness:
