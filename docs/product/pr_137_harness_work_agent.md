@@ -71,3 +71,19 @@ devem falhar fechado.
 - nenhum promotion/apply acontece no PR137;
 - testes negativos cobrem modo inválido, workspace ambíguo, timeout,
   Harness indisponível e tentativa de Work sem opt-in.
+
+## Contract audit and bounded execution
+
+The untracked harness_work draft is retained as a starting point, corrected to
+real fields: workspace_id, model_id, run.control_run_id, next_cursor and nested
+review.control_run_id. Select only the registered workspace bound to the CLI's
+fixed project root; ambiguity or mismatch fails closed. The model cannot choose
+paths, endpoints, timeout budgets or grant Work to itself.
+
+One work submission per user turn, never retry creation after uncertain delivery.
+Use monotonic deadline and finite polls; timeout does not cancel or promote a run.
+Return only allowlisted identifiers, terminal state, change counts and validation
+status, not raw events, paths, diffs, stdout, secrets or transport errors.
+Review must match run, mode, terminal state and workspace. Failed runs may return
+terminal review but never count as successful work. CLI remains read-only unless
+--allow-work was explicitly set. Test payloads must follow the real contract.
