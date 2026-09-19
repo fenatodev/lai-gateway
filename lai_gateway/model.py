@@ -1622,15 +1622,32 @@ class LocalModelClient:
     def get_models(self) -> dict[str, Any]:
         return self._request_json("/v1/models", method="GET", timeout_seconds=min(2.0, self.timeout_seconds))
 
-    def chat_completion(self, *, messages: list[dict[str, str]], max_tokens: int, temperature: float) -> dict[str, Any]:
-        body = {
+    def chat_completion(
+        self,
+        *,
+        messages: list[dict[str, Any]],
+        max_tokens: int,
+        temperature: float,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
             "model": self.model_name,
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
             "stream": False,
         }
-        return self._request_json("/v1/chat/completions", method="POST", body=body, timeout_seconds=self.timeout_seconds)
+        if tools is not None:
+            body["tools"] = tools
+        if tool_choice is not None:
+            body["tool_choice"] = tool_choice
+        return self._request_json(
+            "/v1/chat/completions",
+            method="POST",
+            body=body,
+            timeout_seconds=self.timeout_seconds,
+        )
 
     def _request_json(
         self,

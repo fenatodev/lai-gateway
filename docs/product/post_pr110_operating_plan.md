@@ -190,3 +190,19 @@ effects.
 Conversation history and retrieved content remain untrusted context and never
 grant authority. Work remains an explicit transition and approval-required
 classification remains separate from effect-phase approval.
+
+## PR136 — Local development agent
+
+PR136 implements `local-dev-agent/v1` as the first natural-language local
+development agent over the configured local model runtime.
+
+The initial CLI surface is `lai-gateway dev-agent`. It exposes only bounded
+read-only project capabilities: file read, text search, Git status and Git diff.
+
+Model tool calls are structured and validated by the Gateway. Process-backed
+Git reads pass through `tool_mediation`. Repository/tool content remains
+untrusted and never grants authority.
+
+PR136 does not edit source files, execute tests, call Harness, expose arbitrary
+shell, mutate Git state, use external adapters, publish, create pull requests or
+merge.

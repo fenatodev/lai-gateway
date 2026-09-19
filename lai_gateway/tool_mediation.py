@@ -34,6 +34,11 @@ _PROCESS_CAPABILITIES: dict[str, dict[str, object]] = {
         "starts_background_process": False,
         "mutates_system": False,
     },
+    "local_dev_agent_git_read": {
+        "executables": {"git"},
+        "starts_background_process": False,
+        "mutates_system": False,
+    },
     "local_task_green_executor": {
         "executables": {"git", "python3", "make"},
         "starts_background_process": False,

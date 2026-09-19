@@ -40,6 +40,7 @@ from .local_task_review_gate import collect_local_task_review_gate, render_local
 from .local_task_approval_gate import collect_local_task_approval_gate, render_local_task_approval_gate
 from .local_task_green_executor import collect_local_task_green_executor, render_local_task_green_executor
 from .local_operator_runtime import collect_local_operator_runtime, render_local_operator_runtime
+from .local_dev_agent import run_local_dev_agent_cli
 from .errors import GatewayError
 from .harness_client import READ_ONLY_RUN_MODES, HarnessClient
 from .health import collect_health_report, render_health_report
@@ -244,6 +245,42 @@ def main(argv: list[str] | None = None) -> int:
     model_chat_parser.add_argument("--timeout-seconds", type=float, default=60.0, help="bounded local completion timeout")
     model_chat_parser.add_argument("--max-tokens", type=int, default=768, help="bounded local response token cap")
     model_chat_parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    dev_agent_parser = sub.add_parser(
+        "dev-agent",
+        help="run the bounded read-only local development agent",
+    )
+    dev_agent_parser.add_argument(
+        "--project-root",
+        default=".",
+        help="fixed project root; defaults to current directory",
+    )
+    dev_agent_parser.add_argument(
+        "--base-url",
+        default=None,
+        help="optional local/private OpenAI-compatible endpoint override",
+    )
+    dev_agent_parser.add_argument(
+        "--model-name",
+        default=None,
+        help="optional local model name override",
+    )
+    dev_agent_parser.add_argument(
+        "--timeout-seconds",
+        type=float,
+        default=90.0,
+        help="bounded local model timeout per request",
+    )
+    dev_agent_parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=1024,
+        help="bounded final/tool-turn response token cap",
+    )
+    dev_agent_parser.add_argument(
+        "--message",
+        default=None,
+        help="run one natural-language turn and exit instead of interactive mode",
+    )
     model_runs_parser = sub.add_parser("model-runs", help="show prompt-free local model run metrics")
     model_runs_parser.add_argument("--path", default=None, help="model runs JSONL file path")
     model_runs_parser.add_argument("--limit", type=int, default=20, help="maximum recent records to show")
@@ -1104,6 +1141,15 @@ def main(argv: list[str] | None = None) -> int:
                 return 0 if payload["overall"] == "ready" else 1
             print(json.dumps(payload, indent=2, sort_keys=True))
             return 0 if payload["overall"] == "ready" else 1
+        if args.command == "dev-agent":
+            return run_local_dev_agent_cli(
+                project_root=Path(args.project_root),
+                base_url=args.base_url,
+                model_name=args.model_name,
+                timeout_seconds=args.timeout_seconds,
+                max_tokens=args.max_tokens,
+                one_shot_message=args.message,
+            )
         if args.command == "model-runs":
             payload = collect_model_runs(path=Path(args.path).expanduser() if args.path else None, limit=args.limit)
             if not args.json:

@@ -77,6 +77,8 @@ Read-only declarado representa intenção; read-only simulado não prova conten�
 | instalação pública | planned | scripts locais / guia planejado | Scripts locais existentes | [script](../../scripts/install-local.sh), [testes](../../tests/test_scripts.py) | Quickstart reproduzível e empacotamento mínimo ainda precisam de evidência | PR91–92 |
 | release alpha | planned | não publicada por este PR | Não consolidada | [readiness](alpha_readiness.md) | CI e documentação não autorizam publicação | PR100 go/no-go |
 
+| agente local de desenvolvimento | experimental | assistência local read-only via modelo | CLI `lai-gateway dev-agent` | [módulo](../../lai_gateway/local_dev_agent.py), [testes](../../tests/test_local_dev_agent.py), [spec](pr_136_local_dev_agent.md) | `local-dev-agent/v1`; read/search/status/diff limitados; sem escrita, shell arbitrário, Harness, mutação Git ou efeitos externos | Próximo marco: desenvolvimento governado com escrita/review separado |
+
 ## Restrições públicas
 
 Browser autenticado, n8n activation/execução real de workflow, voz, execução ampla/externa de tools MCP, social e automações externas governadas não estão disponíveis como funcionalidades prontas. Contratos e simulações não autorizam execução real.
