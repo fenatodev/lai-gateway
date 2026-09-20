@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import hashlib
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -66,6 +67,25 @@ _SENSITIVE_SUFFIXES = {
     ".p12",
     ".pfx",
 }
+
+_WORK_INTENT_TERMS = (
+    "ajuste",
+    "altere",
+    "corrija",
+    "crie",
+    "edite",
+    "implemente",
+    "modifique",
+    "refatore",
+    "fix",
+    "implement",
+    "change",
+    "edit",
+    "create",
+    "update",
+    "modify",
+    "refactor",
+)
 
 TOOLS: list[dict[str, Any]] = [
     {
@@ -606,6 +626,44 @@ def _tool_arguments(value: object) -> dict[str, Any] | None:
     return parsed if isinstance(parsed, dict) else None
 
 
+def _looks_like_work_request(message: str) -> bool:
+    words = set(re.findall(r"\w+", message.casefold()))
+    return any(term in words for term in _WORK_INTENT_TERMS)
+
+
+def _coerce_text_tool_calls(message: dict[str, Any], tools: list[dict[str, Any]]) -> None:
+    if message.get("tool_calls"):
+        return
+    content = message.get("content")
+    if not isinstance(content, str):
+        return
+    text = content.strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if len(lines) >= 3 and lines[0].startswith("```") and lines[-1].strip() == "```":
+            text = "\n".join(lines[1:-1]).strip()
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return
+    if not isinstance(parsed, dict):
+        return
+    name = parsed.get("name")
+    arguments = parsed.get("arguments")
+    offered = {tool["function"]["name"] for tool in tools if isinstance(tool, dict) and isinstance(tool.get("function"), dict)}
+    if not isinstance(name, str) or name not in offered or not isinstance(arguments, dict):
+        return
+    message["content"] = ""
+    message["tool_calls"] = [{
+        "id": "text-tool-1",
+        "type": "function",
+        "function": {
+            "name": name,
+            "arguments": json.dumps(arguments, ensure_ascii=False, sort_keys=True),
+        },
+    }]
+
+
 def _assistant_message(payload: Any) -> dict[str, Any] | None:
     if not isinstance(payload, dict):
         return None
@@ -732,7 +790,12 @@ class LocalDevAgent:
             ),
         }
 
-    def _execute_work(self, arguments: dict[str, Any]) -> dict[str, Any]:
+    def _execute_work(
+        self,
+        arguments: dict[str, Any],
+        *,
+        user_message: str | None = None,
+    ) -> dict[str, Any]:
         if not self.allow_work:
             return _blocked("harness_work", "Work requires explicit --allow-work")
         if set(arguments) != {"mode", "task"}:
@@ -744,7 +807,18 @@ class LocalDevAgent:
         workspace_id = "lw-" + hashlib.sha256(str(self.project_root).encode("utf-8")).hexdigest()[:16]
         try:
             client = self.harness_client or HarnessClient(GatewayConfig.from_env(self.harness_env))
-            self.work_result = run_work(client, workspace_id=workspace_id, **arguments)
+            # In the normal agent path, executable Work authority is bound
+            # to the exact user request from this turn. The model may choose
+            # the governed mode, but its task paraphrase is non-authoritative.
+            # user_message=None preserves the private helper's legacy behavior
+            # for direct internal callers/tests; ask() always supplies it.
+            bound_task = arguments["task"] if user_message is None else user_message
+            self.work_result = run_work(
+                client,
+                workspace_id=workspace_id,
+                mode=arguments["mode"],
+                task=bound_task,
+            )
         except (GatewayError, ValueError, OSError):
             self.work_result = _blocked("harness_work", "Work failed or delivery uncertain; do not resubmit automatically")
         return self.work_result
@@ -778,15 +852,21 @@ class LocalDevAgent:
         tool_events: list[dict[str, Any]] = []
         total_tool_calls = 0
         tool_cache: dict[str, dict[str, Any]] = {}
+        work_required = self.allow_work and _looks_like_work_request(user_message)
 
         # Tool rounds plus one guaranteed final synthesis round.
         for _round in range(_MAX_TOOL_ROUNDS + 1):
+            available_tools = TOOLS + ([WORK_TOOL] if self.allow_work else [])
+            tool_choice: str | dict[str, Any] = "auto"
+            if work_required and not self.work_attempted:
+                available_tools = [WORK_TOOL]
+                tool_choice = {"type": "function", "function": {"name": "harness_work"}}
             response = self.client.chat_completion(
                 messages=messages,
                 max_tokens=self.max_tokens,
                 temperature=0.2,
-                tools=TOOLS + ([WORK_TOOL] if self.allow_work else []),
-                tool_choice="auto",
+                tools=available_tools,
+                tool_choice=tool_choice,
             )
 
             if response.get("status") != "ready":
@@ -806,8 +886,16 @@ class LocalDevAgent:
                     tool_events=tool_events,
                 )
 
+            _coerce_text_tool_calls(assistant, available_tools)
             calls = assistant.get("tool_calls")
             if not calls:
+                if work_required and not self.work_attempted:
+                    return self._result(
+                        overall="blocked",
+                        message="",
+                        detail="explicit work request did not produce a Harness work submission",
+                        tool_events=tool_events,
+                    )
                 content = assistant.get("content")
                 final = content.strip() if isinstance(content, str) else ""
 
@@ -899,7 +987,10 @@ class LocalDevAgent:
                             tool_payload = tool_cache[cache_key]
                         else:
                             if tool_name == "harness_work":
-                                tool_payload = self._execute_work(arguments)
+                                tool_payload = self._execute_work(
+                                    arguments,
+                                    user_message=user_message,
+                                )
                             else:
                                 tool_payload = execute_local_dev_tool(
                                     project_root=self.project_root,
@@ -933,6 +1024,39 @@ class LocalDevAgent:
                         "content": _bounded_tool_result(tool_payload),
                     }
                 )
+                if tool_name == "harness_work":
+                    if tool_payload.get("status") != "ready":
+                        return self._result(
+                            overall="blocked",
+                            message="",
+                            detail="Harness work did not reach a ready review",
+                            tool_events=tool_events,
+                        )
+
+                    review = tool_payload.get("review")
+                    review = review if isinstance(review, dict) else {}
+                    changed_path_count = review.get("changed_path_count")
+                    validation_passed = review.get("validation_passed") is True
+                    final = (
+                        "Harness Work concluído no workspace isolado: "
+                        f"{changed_path_count if isinstance(changed_path_count, int) else 'n'} "
+                        "caminho(s) alterado(s); "
+                        f"validação={'aprovada' if validation_passed else 'não confirmada'}. "
+                        "O checkout fonte não foi aplicado nem promovido."
+                    )
+                    self._history.extend(
+                        (
+                            {"role": "user", "content": user_message},
+                            {"role": "assistant", "content": final},
+                        )
+                    )
+                    self._trim_history()
+                    return self._result(
+                        overall="ready",
+                        message=final,
+                        detail=None,
+                        tool_events=tool_events,
+                    )
 
         return self._result(
             overall="blocked",
