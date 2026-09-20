@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from lai_gateway.local_dev_agent import (
     LocalDevAgent,
@@ -77,6 +78,56 @@ class FakeToolClient:
                         },
                     }
                 ]
+            },
+        }
+
+
+class FakeWorkChoiceClient:
+    def __init__(self, *, call_tool: bool) -> None:
+        self.call_tool = call_tool
+        self.calls = 0
+        self.tool_choices = []
+        self.tool_names = []
+
+    def readiness_error(self, *, require_model: bool = False):
+        return None
+
+    def chat_completion(
+        self,
+        *,
+        messages,
+        max_tokens,
+        temperature,
+        tools=None,
+        tool_choice=None,
+    ):
+        self.calls += 1
+        self.tool_choices.append(tool_choice)
+        self.tool_names.append([item["function"]["name"] for item in tools or []])
+        if self.calls == 1 and self.call_tool:
+            return {
+                "status": "ready",
+                "payload": {
+                    "choices": [{
+                        "message": {
+                            "role": "assistant",
+                            "content": "```xml\n" + json.dumps({
+                                "name": "harness_work",
+                                "arguments": {"mode": "implement", "task": "Corrija normalize_name."},
+                            }) + "\n```",
+                        },
+                    }],
+                },
+            }
+        return {
+            "status": "ready",
+            "payload": {
+                "choices": [{
+                    "message": {
+                        "role": "assistant",
+                        "content": "Pronto para review.",
+                    },
+                }],
             },
         }
 
@@ -313,6 +364,109 @@ class LocalDevAgentTest(unittest.TestCase):
         self.assertFalse(payload["security"]["calls_harness"])
         self.assertFalse(payload["security"]["git_mutation"])
         self.assertFalse(payload["security"]["modifies_files"])
+
+    def test_allow_work_forces_harness_work_for_explicit_change_request(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            client = FakeWorkChoiceClient(call_tool=True)
+            agent = LocalDevAgent(project_root=tmp, client=client, allow_work=True)
+            ready = {
+                "status": "ready",
+                "tool": "harness_work",
+                "run_id": "cr-1234567890abcdef",
+                "workspace_id": "lw-1234567890abcdef",
+                "mode": "implement",
+                "terminal_status": "succeeded",
+                "review": {"terminal": True, "isolated": True, "changed_path_count": 1, "validation_passed": True},
+                "content_grants_authority": False,
+                "security": {"source_checkout_write": False, "promotion_performed": False,
+                             "apply_performed": False, "gateway_subprocess": False, "git_mutation": False},
+            }
+            with patch("lai_gateway.local_dev_agent.run_work", return_value=ready):
+                payload = agent.ask("Corrija normalize_name e valide.")
+
+        self.assertEqual(payload["overall"], "ready")
+        self.assertEqual(client.tool_choices[0], {"type": "function", "function": {"name": "harness_work"}})
+        self.assertEqual(client.tool_names[0], ["harness_work"])
+        self.assertEqual(payload["work_result"]["status"], "ready")
+        self.assertEqual(payload["tool_events"][0]["tool"], "harness_work")
+
+    def test_allow_work_does_not_force_harness_work_for_plain_chat(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            client = FakeWorkChoiceClient(call_tool=False)
+            agent = LocalDevAgent(project_root=tmp, client=client, allow_work=True)
+            payload = agent.ask("Explique rapidamente o que voce consegue fazer.")
+
+        self.assertEqual(payload["overall"], "ready")
+        self.assertEqual(client.tool_choices[0], "auto")
+        self.assertIn("project_status", client.tool_names[0])
+        self.assertIn("harness_work", client.tool_names[0])
+        self.assertFalse(payload["security"]["creates_harness_run"])
+
+    def test_allow_work_does_not_force_work_for_term_substrings(self) -> None:
+        for message in (
+            "Qual prefix usamos para normalize_name?",
+            "Qual editor esta configurado neste projeto?",
+        ):
+            with self.subTest(message=message), tempfile.TemporaryDirectory() as tmp:
+                client = FakeWorkChoiceClient(call_tool=False)
+                agent = LocalDevAgent(project_root=tmp, client=client, allow_work=True)
+                payload = agent.ask(message)
+
+                self.assertEqual(payload["overall"], "ready")
+                self.assertEqual(client.tool_choices[0], "auto")
+                self.assertIn("harness_work", client.tool_names[0])
+                self.assertFalse(payload["security"]["creates_harness_run"])
+
+    def test_ready_harness_work_stops_without_extra_tool_rounds(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            client = FakeWorkChoiceClient(call_tool=True)
+            agent = LocalDevAgent(project_root=tmp, client=client, allow_work=True)
+            ready = {
+                "status": "ready",
+                "tool": "harness_work",
+                "run_id": "cr-1234567890abcdef",
+                "workspace_id": "lw-1234567890abcdef",
+                "mode": "implement",
+                "terminal_status": "succeeded",
+                "review": {
+                    "terminal": True,
+                    "isolated": True,
+                    "changed_path_count": 1,
+                    "validation_passed": True,
+                },
+                "content_grants_authority": False,
+                "security": {
+                    "source_checkout_write": False,
+                    "promotion_performed": False,
+                    "apply_performed": False,
+                    "gateway_subprocess": False,
+                    "git_mutation": False,
+                },
+            }
+            with patch("lai_gateway.local_dev_agent.run_work", return_value=ready):
+                payload = agent.ask("Corrija normalize_name e valide.")
+
+        self.assertEqual(payload["overall"], "ready")
+        self.assertIn("Harness Work concluído", payload["message"])
+        self.assertIn("validação=aprovada", payload["message"])
+        self.assertEqual(client.calls, 1)
+        self.assertEqual(len(payload["tool_events"]), 1)
+        self.assertEqual(payload["tool_events"][0]["tool"], "harness_work")
+        self.assertEqual(payload["work_result"]["status"], "ready")
+        self.assertEqual(payload["session"]["exchange_count"], 1)
+
+    def test_blocked_harness_work_stops_without_extra_tool_rounds(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            client = FakeWorkChoiceClient(call_tool=True)
+            agent = LocalDevAgent(project_root=tmp, client=client, allow_work=True)
+            blocked = {"status": "blocked", "tool": "harness_work"}
+            with patch("lai_gateway.local_dev_agent.run_work", return_value=blocked):
+                payload = agent.ask("Corrija normalize_name.")
+
+        self.assertEqual(payload["overall"], "blocked")
+        self.assertEqual(payload["detail"], "Harness work did not reach a ready review")
+        self.assertEqual(client.calls, 1)
+        self.assertEqual(len(payload["tool_events"]), 1)
 
     def test_four_tool_rounds_still_allow_final_synthesis(self) -> None:
         class FourToolClient:

@@ -249,6 +249,7 @@ def main(argv: list[str] | None = None) -> int:
         "dev-agent",
         help="run the bounded read-only local development agent",
     )
+    dev_agent_parser.add_argument("--allow-work", action="store_true", help="explicitly allow isolated Harness Work; never apply or publish")
     dev_agent_parser.add_argument(
         "--project-root",
         default=".",
@@ -1149,6 +1150,7 @@ def main(argv: list[str] | None = None) -> int:
                 timeout_seconds=args.timeout_seconds,
                 max_tokens=args.max_tokens,
                 one_shot_message=args.message,
+                allow_work=args.allow_work,
             )
         if args.command == "model-runs":
             payload = collect_model_runs(path=Path(args.path).expanduser() if args.path else None, limit=args.limit)
