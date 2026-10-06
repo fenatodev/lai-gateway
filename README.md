@@ -1,8 +1,25 @@
 # lai-gateway
 
-`lai-gateway` is a private companion gateway for `lai harness`.
+`lai-gateway` is a **local companion gateway and operator workbench** for [`lai harness`](https://github.com/fenatodev/lai-harness).
 
-It is intentionally a separate project. The harness owns local coding authority and guarded execution. The gateway provides local UI and client channels, plus an experimental governance foundation. Its adapter contracts do not grant general execution authority.
+It is intentionally a separate project. The harness owns coding authority and guarded execution; the gateway owns presentation, client channels, local coordination, and governance-oriented UX. A channel, adapter, skill, or retrieved piece of content does not gain execution authority merely by passing through the gateway.
+
+## At a glance
+
+| Concern | Gateway responsibility |
+| --- | --- |
+| Local UI | Presents status, sessions, runs, review and bounded workbench flows. |
+| Client channels | Connects local browser/mobile/operator surfaces without exposing the harness control token. |
+| Model interaction | Supports local-model-first chat and explicit fallback behavior. |
+| Authorization UX | Makes intent, risk, permission decisions and approval state visible without treating UI state as authority. |
+| Integrations | Exposes narrow, capability-specific contracts rather than a generic execute-anything layer. |
+| Safety boundary | Keeps filesystem, shell, Git, credentials and sensitive effects under the harness or another explicit executor boundary. |
+
+### Portfolio signal
+
+This project demonstrates **API integration, agent UX, authorization design, local-first systems, security boundaries, and failure-aware product engineering**. The main engineering challenge is preserving a useful assistant experience while preventing the UI/integration layer from silently becoming an authority escalation path.
+
+For the execution boundary itself, see [`lai-harness`](https://github.com/fenatodev/lai-harness). For the product contracts and roadmap, see [docs/product](docs/product/index.md).
 
 ## Current scope
 
